@@ -15,7 +15,7 @@ export default defineTool({
     }
     return {
       content: [{ type: "text", text: `${entry.id}: ${entry.verdict} (${entry.domain}/${entry.useCase})` }],
-      structuredContent: entry,
+      structuredContent: { ...entry } as Record<string, unknown>,
     };
   },
 });
