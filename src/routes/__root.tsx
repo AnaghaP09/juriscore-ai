@@ -87,10 +87,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         property: "og:description",
         content:
-          "Runtime guardrails, policy grounding, citation enforcement and an immutable audit log for regulated AI.",
+          "JurisCore AI is a governance middleware that sits between generative AI and regulated workflows in Finance and Healthcare. Enforce compliance in real time.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "JurisCore AI — Unified Compliance Intelligence Layer" },
+      { name: "twitter:description", content: "JurisCore AI is a governance middleware that sits between generative AI and regulated workflows in Finance and Healthcare. Enforce compliance in real time." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/0b630979-63b0-4814-a7f9-f902cf4c451b/id-preview-fb0d09ac--46239422-6cb4-4f54-9901-4ce4e359cfdc.lovable.app-1784349261373.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/0b630979-63b0-4814-a7f9-f902cf4c451b/id-preview-fb0d09ac--46239422-6cb4-4f54-9901-4ce4e359cfdc.lovable.app-1784349261373.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
