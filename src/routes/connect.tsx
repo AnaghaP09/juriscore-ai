@@ -108,7 +108,7 @@ function Connect() {
             (mock) tools.
           </p>
         </section>
-      </div>
+      </main>
     </div>
   );
 }
