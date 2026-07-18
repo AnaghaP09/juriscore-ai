@@ -1,0 +1,204 @@
+{
+  "version": 1,
+  "sdk_version": "0.23.0",
+  "path": "/mcp",
+  "auth": {
+    "type": "none"
+  },
+  "mcp": {
+    "server": {
+      "name": "juriscore-ai",
+      "version": "0.1.0",
+      "title": "JurisCore AI — Compliance Guardrails"
+    },
+    "tools": [
+      {
+        "name": "check_prompt",
+        "title": "Check prompt (input guardrail)",
+        "description": "Scan a prompt for PII/PHI, prompt-injection, and restricted concepts before it reaches the model. Returns allow/block plus findings.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "prompt": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The user prompt to inspect."
+            },
+            "domain": {
+              "type": "string",
+              "enum": [
+                "finance",
+                "healthcare"
+              ],
+              "description": "Which regulatory domain applies."
+            }
+          },
+          "required": [
+            "prompt",
+            "domain"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "retrieve_policy",
+        "title": "Retrieve policy clauses (RAG core)",
+        "description": "Look up the most relevant policy clauses for a query from the selected domain rulebook (SEC/FINRA for finance, HIPAA/CMS for healthcare).",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Natural-language description of the intended AI action."
+            },
+            "domain": {
+              "type": "string",
+              "enum": [
+                "finance",
+                "healthcare"
+              ]
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10,
+              "default": 3
+            }
+          },
+          "required": [
+            "query",
+            "domain"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "enforce_citations",
+        "title": "Enforce citations (output guardrail)",
+        "description": "Verify that every regulatory claim in a draft response is grounded in an approved policy clause. Returns uncited/hallucinated claims.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "response": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Draft model response to inspect."
+            },
+            "allowedPolicyIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Policy clause IDs the response is permitted to cite."
+            }
+          },
+          "required": [
+            "response",
+            "allowedPolicyIds"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "evaluate_response",
+        "title": "Evaluate response (end-to-end guardrail)",
+        "description": "Run the full JurisCore pipeline: input guardrail → policy retrieval → citation enforcement. Returns a final allow/block/revise verdict and a synthetic audit entry ID.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "prompt": {
+              "type": "string",
+              "minLength": 1
+            },
+            "draftResponse": {
+              "type": "string",
+              "minLength": 1
+            },
+            "domain": {
+              "type": "string",
+              "enum": [
+                "finance",
+                "healthcare"
+              ]
+            }
+          },
+          "required": [
+            "prompt",
+            "draftResponse",
+            "domain"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_audit_entry",
+        "title": "Get audit entry",
+        "description": "Fetch the full chain-of-checks for a prior JurisCore interaction by ID.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Audit entry id (e.g. jc_00042)."
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_metrics",
+        "title": "Get governance metrics",
+        "description": "Return the current JurisCore KPI snapshot: violation rate, guardrail accuracy, average latency, audit-prep time, and per-domain volume.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
