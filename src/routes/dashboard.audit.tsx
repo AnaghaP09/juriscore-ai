@@ -38,65 +38,95 @@ function AuditLog() {
   }, [q, domain, verdict]);
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 sm:p-8 space-y-6">
       <header>
         <h1 className="text-3xl font-semibold tracking-tight">Audit Log</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Standardized chain: Prompt → Guardrail check → Model response → Final approval. Click any row for the full trace.
+        <p className="mt-1 text-sm text-muted-foreground text-pretty">
+          Standardized chain: Prompt → Guardrail check → Model response → Final approval. Select any row for the full trace.
         </p>
       </header>
 
-      <div className="flex flex-wrap gap-3">
-        <Input placeholder="Search prompt, use case, or ID…" value={q} onChange={(e) => setQ(e.target.value)} className="max-w-xs" />
-        <Select value={domain} onValueChange={setDomain}>
-          <SelectTrigger className="w-40"><SelectValue placeholder="Domain" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All domains</SelectItem>
-            <SelectItem value="finance">Finance</SelectItem>
-            <SelectItem value="healthcare">Healthcare</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={verdict} onValueChange={setVerdict}>
-          <SelectTrigger className="w-40"><SelectValue placeholder="Verdict" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All verdicts</SelectItem>
-            <SelectItem value="allow">Allow</SelectItem>
-            <SelectItem value="revise">Revise</SelectItem>
-            <SelectItem value="block">Block</SelectItem>
-          </SelectContent>
-        </Select>
-        <div className="ml-auto text-sm text-muted-foreground self-center">Showing {rows.length} of {AUDIT.length}</div>
+      <div className="flex flex-wrap gap-3" role="search" aria-label="Filter audit entries">
+        <div className="flex-1 min-w-[12rem] max-w-xs">
+          <label htmlFor="audit-search" className="sr-only">Search audit entries</label>
+          <Input id="audit-search" type="search" placeholder="Search prompt, use case, or ID…" value={q} onChange={(e) => setQ(e.target.value)} />
+        </div>
+        <div>
+          <label htmlFor="audit-domain" className="sr-only">Filter by domain</label>
+          <Select value={domain} onValueChange={setDomain}>
+            <SelectTrigger id="audit-domain" className="w-40"><SelectValue placeholder="Domain" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All domains</SelectItem>
+              <SelectItem value="finance">Finance</SelectItem>
+              <SelectItem value="healthcare">Healthcare</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <label htmlFor="audit-verdict" className="sr-only">Filter by verdict</label>
+          <Select value={verdict} onValueChange={setVerdict}>
+            <SelectTrigger id="audit-verdict" className="w-40"><SelectValue placeholder="Verdict" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All verdicts</SelectItem>
+              <SelectItem value="allow">Allow</SelectItem>
+              <SelectItem value="revise">Revise</SelectItem>
+              <SelectItem value="block">Block</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div aria-live="polite" className="ml-auto text-sm text-muted-foreground self-center">
+          Showing {rows.length} of {AUDIT.length}
+        </div>
       </div>
 
-      <div className="rounded-lg border border-border overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="rounded-lg border border-border overflow-x-auto">
+        <table className="w-full text-sm" aria-label="Audit log entries">
+          <caption className="sr-only">
+            Audit entries, sortable by verdict and domain. Activate a row to open its full trace.
+          </caption>
           <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
             <tr>
-              <th className="text-left px-4 py-2 font-medium">ID</th>
-              <th className="text-left px-4 py-2 font-medium">Time</th>
-              <th className="text-left px-4 py-2 font-medium">Domain</th>
-              <th className="text-left px-4 py-2 font-medium">Use case</th>
-              <th className="text-left px-4 py-2 font-medium">Verdict</th>
-              <th className="text-right px-4 py-2 font-medium">Latency</th>
+              <th scope="col" className="text-left px-4 py-2 font-medium">ID</th>
+              <th scope="col" className="text-left px-4 py-2 font-medium">Time</th>
+              <th scope="col" className="text-left px-4 py-2 font-medium">Domain</th>
+              <th scope="col" className="text-left px-4 py-2 font-medium">Use case</th>
+              <th scope="col" className="text-left px-4 py-2 font-medium">Verdict</th>
+              <th scope="col" className="text-right px-4 py-2 font-medium">Latency</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.id} onClick={() => setSelected(r)} className="border-t border-border/60 hover:bg-muted/30 cursor-pointer">
+              <tr
+                key={r.id}
+                tabIndex={0}
+                role="button"
+                aria-label={`Open trace for ${r.id}, ${r.verdict}, ${r.useCase}`}
+                onClick={() => setSelected(r)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setSelected(r);
+                  }
+                }}
+                className="border-t border-border/60 hover:bg-muted/30 focus:bg-muted/40 cursor-pointer outline-none"
+              >
                 <td className="px-4 py-2 font-mono text-xs">{r.id}</td>
-                <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{r.ts.slice(0, 16).replace("T", " ")}</td>
+                <td className="px-4 py-2 font-mono text-xs text-muted-foreground whitespace-nowrap">{r.ts.slice(0, 16).replace("T", " ")}</td>
                 <td className="px-4 py-2 capitalize">{r.domain}</td>
                 <td className="px-4 py-2 text-muted-foreground">{r.useCase}</td>
                 <td className="px-4 py-2"><Badge className={`border ${verdictColor(r.verdict)}`} variant="outline">{r.verdict}</Badge></td>
                 <td className="px-4 py-2 text-right font-mono text-xs">{r.latencyMs}ms</td>
               </tr>
             ))}
+            {rows.length === 0 && (
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">No entries match the current filters.</td></tr>
+            )}
           </tbody>
         </table>
       </div>
 
       <Sheet open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
-        <SheetContent className="w-[540px] sm:max-w-none overflow-y-auto">
+        <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
           {selected && (
             <>
               <SheetHeader>

@@ -28,7 +28,7 @@ function Overview() {
   }));
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-4 sm:p-8 space-y-8">
       <header className="flex items-end justify-between">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Governance Overview</h1>

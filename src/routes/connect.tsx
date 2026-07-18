@@ -54,20 +54,21 @@ Authentication: None (public demo)`,
 
 function Connect() {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-dvh">
+      <a href="#connect-main" className="skip-link">Skip to main content</a>
       <header className="border-b border-border/60 backdrop-blur-sm bg-background/80">
-        <div className="mx-auto max-w-5xl px-6 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 font-semibold">
-            <span className="inline-block h-6 w-6 rounded-sm bg-primary" />
-            <span>JurisCore <span className="text-primary">AI</span></span>
+        <div className="mx-auto max-w-5xl px-6 h-16 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+          <Link to="/" aria-label="JurisCore AI — home" className="flex min-w-0 items-center gap-2 font-semibold">
+            <span aria-hidden="true" className="inline-block h-6 w-6 shrink-0 rounded-sm bg-primary" />
+            <span className="truncate">JurisCore <span className="text-primary">AI</span></span>
           </Link>
           <Button asChild variant="ghost" size="sm">
-            <Link to="/dashboard"><ArrowLeft className="mr-2 h-4 w-4" /> Dashboard</Link>
+            <Link to="/dashboard"><ArrowLeft aria-hidden="true" className="mr-2 h-4 w-4" /> Dashboard</Link>
           </Button>
         </div>
       </header>
 
-      <div className="mx-auto max-w-5xl px-6 py-16 space-y-12">
+      <main id="connect-main" className="mx-auto max-w-5xl px-6 py-12 sm:py-16 space-y-12">
         <div>
           <Badge className="mb-4"><Plug className="mr-1 h-3 w-3" /> MCP Server · public</Badge>
           <h1 className="text-4xl font-semibold tracking-tight">Connect JurisCore to your assistant</h1>
@@ -107,7 +108,7 @@ function Connect() {
             (mock) tools.
           </p>
         </section>
-      </div>
+      </main>
     </div>
   );
 }
