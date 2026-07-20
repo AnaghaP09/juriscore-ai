@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { PageHeader } from "@/components/page-header";
 import { ArrowLeft, Download, FileText, GitPullRequest } from "lucide-react";
 import { AUDIT, getUseCaseSummaries } from "@/lib/juriscore/mock";
 import { downloadCSV, openPrintReport, kpiCard, htmlTable, escapeHtml } from "@/lib/juriscore/export";
@@ -99,7 +100,7 @@ function UseCaseDetail() {
   const isPlumb = uc.key === "plumb-drift";
 
   return (
-    <div className="p-4 sm:p-8 space-y-6">
+    <div className="p-6 sm:p-8 space-y-6">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <Link to="/dashboard/use-cases" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
           <ArrowLeft className="h-4 w-4" aria-hidden /> Back to use cases
@@ -110,15 +111,17 @@ function UseCaseDetail() {
         </div>
       </div>
 
-      <header className="space-y-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant={uc.domain === "finance" ? "default" : "secondary"} className="capitalize">{uc.domain}</Badge>
-          <Badge variant="outline" className="font-mono text-xs">{uc.regulatoryDriver}</Badge>
-          {isPlumb && <Badge variant="outline" className="border-primary/50 text-primary gap-1"><GitPullRequest className="h-3 w-3" aria-hidden /> Plumb wedge</Badge>}
-        </div>
-        <h1 className="text-3xl font-semibold tracking-tight">{uc.name}</h1>
-        {uc.tagline && <p className="text-sm text-muted-foreground text-pretty max-w-2xl">{uc.tagline}</p>}
-      </header>
+      <PageHeader
+        eyebrow={
+          <span className="flex items-center gap-2 flex-wrap normal-case tracking-normal">
+            <Badge variant={uc.domain === "finance" ? "default" : "secondary"} className="capitalize">{uc.domain}</Badge>
+            <Badge variant="outline" className="font-mono text-xs">{uc.regulatoryDriver}</Badge>
+            {isPlumb && <Badge variant="outline" className="border-primary/50 text-primary gap-1"><GitPullRequest className="h-3 w-3" aria-hidden /> Plumb wedge</Badge>}
+          </span>
+        }
+        title={uc.name}
+        description={uc.tagline}
+      />
 
       <div className="grid md:grid-cols-4 gap-4">
         <MetricCard label="Volume (30d)" value={uc.volume.toLocaleString()} />

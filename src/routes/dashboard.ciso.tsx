@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { PageHeader } from "@/components/page-header";
 import { AlertTriangle, ShieldAlert, ShieldCheck, Database, Timer } from "lucide-react";
 import { MODELS, useDemoStore } from "@/lib/juriscore/demo-store";
 import { AUDIT, RULEBOOKS, getMetrics } from "@/lib/juriscore/mock";
@@ -28,24 +29,24 @@ function Ciso() {
   const mismatches = AUDIT.filter((a) => a.verdict !== "allow").slice(0, 6);
 
   return (
-    <div className="p-4 sm:p-8 space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">CISO Governance Gateway</h1>
-          <p className="mt-1 text-sm text-muted-foreground text-pretty">
-            Executive telemetry across every model, every region, every regulated domain.
-          </p>
-        </div>
-        <Button
-          size="lg"
-          variant={killSwitch ? "outline" : "destructive"}
-          onClick={() => (killSwitch ? setKillSwitch(false) : setConfirming(true))}
-          className="gap-2"
-        >
-          {killSwitch ? <ShieldCheck className="h-5 w-5" /> : <ShieldAlert className="h-5 w-5" />}
-          {killSwitch ? "Disarm Kill Switch" : "Universal CISO Kill Switch"}
-        </Button>
-      </header>
+    <div className="p-6 sm:p-8 space-y-6">
+      <PageHeader
+        eyebrow="Governance"
+        icon={<ShieldAlert className="h-6 w-6" aria-hidden />}
+        title="CISO Governance Gateway"
+        description="Executive telemetry across every model, every region, every regulated domain."
+        actions={
+          <Button
+            size="lg"
+            variant={killSwitch ? "outline" : "destructive"}
+            onClick={() => (killSwitch ? setKillSwitch(false) : setConfirming(true))}
+            className="gap-2"
+          >
+            {killSwitch ? <ShieldCheck className="h-5 w-5" /> : <ShieldAlert className="h-5 w-5" />}
+            {killSwitch ? "Disarm Kill Switch" : "Universal CISO Kill Switch"}
+          </Button>
+        }
+      />
 
       <div className="grid md:grid-cols-4 gap-4">
         <Card>
