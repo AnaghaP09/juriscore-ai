@@ -43,9 +43,11 @@ function DashboardLayout() {
   const { activeModel, setActiveModel, killSwitch, resetDemo } = useDemoStore();
 
   return (
-    <div className="min-h-dvh flex flex-col md:flex-row">
+    <div className="min-h-dvh p-0 md:p-4 lg:p-6" style={{ background: "var(--app-bg)" }}>
       <a href="#dashboard-main" className="skip-link">Skip to main content</a>
+      <div className="min-h-[calc(100dvh-3rem)] flex flex-col md:flex-row overflow-hidden bg-card md:rounded-2xl md:shadow-[0_20px_60px_-20px_oklch(0.2_0.05_285/0.35)]">
       <aside aria-label="Dashboard navigation" className="w-full md:w-64 border-b md:border-b-0 md:border-r border-border/60 bg-sidebar shrink-0 flex md:flex-col">
+
         <div className="h-16 flex items-center px-5 border-b border-border/60 md:w-full">
           <Link to="/" aria-label="JurisCore AI — home" className="flex items-center gap-2 font-semibold">
             <span aria-hidden="true" className="inline-block h-6 w-6 rounded-sm bg-primary" />
@@ -127,6 +129,8 @@ function DashboardLayout() {
           <Outlet />
         </main>
       </div>
+      </div>
     </div>
   );
 }
+
