@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { getMetrics } from "@/lib/juriscore/mock";
+import { Button } from "@/components/ui/button";
+import { AUDIT, getMetrics, getUseCaseSummaries } from "@/lib/juriscore/mock";
+import { downloadCSV, openPrintReport, kpiCard, htmlTable } from "@/lib/juriscore/export";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Shield, AlertTriangle, Timer, Rocket } from "lucide-react";
+import { Shield, AlertTriangle, Timer, Rocket, Download, FileText } from "lucide-react";
 
 export const Route = createFileRoute("/dashboard/")({
   head: () => ({
