@@ -28,12 +28,15 @@ const DIFF_LINES: Array<{ n: number; kind: "add" | "del" | "ctx"; text: string; 
   { n: 46, kind: "ctx", text: "};" },
 ];
 
-const DOCS = {
+interface Sentence { id: string; text: string; claim?: string }
+interface Doc { label: string; sentences: Sentence[] }
+
+const DOCS: Record<"sec" | "deck" | "policy", Doc> = {
   sec: {
     label: "SEC 10-K excerpt",
     sentences: [
-      { id: "s1", text: "Our Know-Your-Customer program applies enhanced due diligence to any single transaction exceeding $10,000, consistent with BSA/AML expectations." , claim: "kyc" },
-      { id: "s2", text: "Cross-border remittance fees disclosed to retail customers remain capped at 1.0% of principal for the reporting period." , claim: "fee" },
+      { id: "s1", text: "Our Know-Your-Customer program applies enhanced due diligence to any single transaction exceeding $10,000, consistent with BSA/AML expectations.", claim: "kyc" },
+      { id: "s2", text: "Cross-border remittance fees disclosed to retail customers remain capped at 1.0% of principal for the reporting period.", claim: "fee" },
       { id: "s3", text: "The Company maintains independent oversight of all pricing changes through the Fee Review Committee." },
     ],
   },
@@ -41,17 +44,18 @@ const DOCS = {
     label: "Customer sales deck · slide 12",
     sentences: [
       { id: "d1", text: "Send money across 40 markets with a flat 1% cross-border fee — the lowest transparent rate in the segment.", claim: "fee" },
-      { id: "d2", text: "KYC verification runs automatically for any transaction over $10K." , claim: "kyc" },
+      { id: "d2", text: "KYC verification runs automatically for any transaction over $10K.", claim: "kyc" },
     ],
   },
   policy: {
     label: "Internal policy · pricing-v3.pdf",
     sentences: [
       { id: "p1", text: "Fee schedule changes require CFO sign-off and a 30-day customer notice." },
-      { id: "p2", text: "KYC monetary thresholds are governed centrally and cannot be adjusted at the product layer." , claim: "kyc" },
+      { id: "p2", text: "KYC monetary thresholds are governed centrally and cannot be adjusted at the product layer.", claim: "kyc" },
     ],
   },
-} as const;
+};
+
 
 type DocKey = keyof typeof DOCS;
 
