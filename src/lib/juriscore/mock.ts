@@ -40,6 +40,11 @@ export interface UseCaseSummary {
   blockRate: number;
   citationCoverage: number;
   topFailureMode: string;
+  persona?: string;
+  capability?: string;
+  valueProp?: string;
+  risk?: string;
+  tagline?: string;
 }
 
 export interface Rulebook {
@@ -91,12 +96,24 @@ export const POLICIES: PolicyClause[] = [
 
 // --- Use cases (from the PRD) ---
 const USE_CASES: Omit<UseCaseSummary, "volume" | "blockRate" | "citationCoverage" | "topFailureMode">[] = [
-  { key: "denial-mgmt", domain: "healthcare", name: "Denial Management & Appeals Generation", regulatoryDriver: "CMS Prior Authorization Transparency", failureMode: "Cites wrong payer policy or untraceable denial reason" },
-  { key: "ambient-coding", domain: "healthcare", name: "Ambient Clinical Documentation → Medical Coding", regulatoryDriver: "HIPAA Security Rule risk-analysis", failureMode: "Under/over-coding; PHI leaked in ungoverned scribing pipeline" },
-  { key: "adviser-marketing", domain: "finance", name: "Adviser Marketing Copy Review", regulatoryDriver: "SEC Marketing Rule 206(4)-1", failureMode: "Unsubstantiated performance claim reaches client" },
-  { key: "kyc-summarization", domain: "finance", name: "KYC / AML Case Summarization", regulatoryDriver: "FINRA + BSA/AML", failureMode: "PII leakage into downstream analytics; missing citations" },
-  { key: "suitability-check", domain: "finance", name: "Retail Suitability Explanations", regulatoryDriver: "FINRA 2111", failureMode: "Recommendation not backed by client profile evidence" },
-  { key: "prior-auth", domain: "healthcare", name: "Prior Authorization Drafting", regulatoryDriver: "CMS-0057-F", failureMode: "AI-generated determination lacks clinical citation" },
+  { key: "denial-mgmt", domain: "healthcare", name: "Denial Management & Appeals Generation", regulatoryDriver: "CMS Prior Authorization Transparency", failureMode: "Cites wrong payer policy or untraceable denial reason", persona: "Revenue-cycle lead · Payer relations", capability: "Generates appeal letter grounded in payer policy + denial code, with citation to each cited clause.", valueProp: "Cuts appeal drafting from 45 min to 4 min while keeping a defensible policy citation on every claim.", risk: "Hallucinated CPT codes or payer clauses → appeal rejected. Guardrail forces retrieval-grounded citations before send." },
+  { key: "ambient-coding", domain: "healthcare", name: "Ambient Clinical Documentation → Medical Coding", regulatoryDriver: "HIPAA Security Rule risk-analysis", failureMode: "Under/over-coding; PHI leaked in ungoverned scribing pipeline", persona: "CMIO · Clinical coder", capability: "Redacts PHI at ingest, assigns ICD-10 with evidence spans lifted from the transcript.", valueProp: "Scribe → code pipeline with per-code evidence and PHI redaction proofs the auditor can review.", risk: "Silent under-coding = revenue loss; silent over-coding = fraud exposure. Both surfaced on the metrics tab." },
+  { key: "adviser-marketing", domain: "finance", name: "Adviser Marketing Copy Review", regulatoryDriver: "SEC Marketing Rule 206(4)-1", failureMode: "Unsubstantiated performance claim reaches client", persona: "CCO · Marketing reviewer", capability: "Flags unhedged performance claims, missing disclosures, cherry-picked periods before copy leaves the firm.", valueProp: "Every piece of client-facing copy carries a machine-checked citation trail the SEC can inspect.", risk: "Over-blocking legitimate copy annoys marketing. Review path lets CCO one-click override with logged rationale." },
+  { key: "kyc-summarization", domain: "finance", name: "KYC / AML Case Summarization", regulatoryDriver: "FINRA + BSA/AML", failureMode: "PII leakage into downstream analytics; missing citations", persona: "AML analyst · MLRO", capability: "Summarizes case files with PII scrubbed and every risk assertion linked back to the source doc.", valueProp: "Analyst starts from a defensible 2-page summary instead of 60 pages of KYC uploads.", risk: "Missed red flag = regulatory action. Coverage % surfaces which cases were summarized without full evidence." },
+  { key: "suitability-check", domain: "finance", name: "Retail Suitability Explanations", regulatoryDriver: "FINRA 2111", failureMode: "Recommendation not backed by client profile evidence", persona: "Wealth adviser · Compliance", capability: "Explains why a product is suitable using the client profile fields as citations.", valueProp: "Every recommendation ships with a suitability rationale traceable to profile data — arbitration-ready.", risk: "Boilerplate rationales that don't reflect the actual client profile. Judge checks profile fields are cited by ID." },
+  { key: "prior-auth", domain: "healthcare", name: "Prior Authorization Drafting", regulatoryDriver: "CMS-0057-F", failureMode: "AI-generated determination lacks clinical citation", persona: "Utilization mgmt · Clinical reviewer", capability: "Drafts PA request citing payer criteria + patient chart evidence per requirement.", valueProp: "Meets CMS-0057-F transparency: every AI-influenced determination has cited clinical + policy evidence.", risk: "Wrong criteria cited = denial + audit finding. Rulebook version pinned per submission." },
+  {
+    key: "plumb-drift",
+    domain: "finance",
+    name: "Plumb — Source-of-truth Drift Detector",
+    regulatoryDriver: "SEC 206(4)-1 · internal disclosure controls",
+    failureMode: "Prose artifact (README, sales deck, infra doc) drifts from shipped code and mis-sells behavior",
+    tagline: "Treats running code as ground truth; flags every artifact that has drifted from it, with a citation.",
+    persona: "Staff / platform engineer · Eng lead",
+    capability: "LLM judge answers: does this prose claim still match the code? Emits a line-level citation on every flag.",
+    valueProp: "Docs-vs-code drift flagged on each PR — merge a PR and get 'your README still says the old behavior,' citing the line.",
+    risk: "False-positive flags → alert fatigue → tool muted. Ships with calibrated confidence + one-click 'not drift' training loop.",
+  },
 ];
 
 const TOOLS = ["evaluate_response", "check_prompt", "retrieve_policy", "enforce_citations"];

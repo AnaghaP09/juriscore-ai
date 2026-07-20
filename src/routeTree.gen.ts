@@ -24,6 +24,7 @@ import { Route as DashboardCisoRouteImport } from './routes/dashboard.ciso'
 import { Route as DashboardAuditRouteImport } from './routes/dashboard.audit'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
+import { Route as DashboardUseCasesKeyRouteImport } from './routes/dashboard.use-cases.$key'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
 
 const McpRoute = McpRouteImport.update({
@@ -103,6 +104,11 @@ const Char91DotmcpChar93ListToolsRoute =
     path: '/.mcp/list-tools',
     getParentRoute: () => rootRouteImport,
   } as any)
+const DashboardUseCasesKeyRoute = DashboardUseCasesKeyRouteImport.update({
+  id: '/$key',
+  path: '/$key',
+  getParentRoute: () => DashboardUseCasesRoute,
+} as any)
 const Char91DotmcpChar93InvokeToolToolRoute =
   Char91DotmcpChar93InvokeToolToolRouteImport.update({
     id: '/.mcp/invoke-tool/$tool',
@@ -124,9 +130,10 @@ export interface FileRoutesByFullPath {
   '/dashboard/pipeline': typeof DashboardPipelineRoute
   '/dashboard/redaction': typeof DashboardRedactionRoute
   '/dashboard/rulebooks': typeof DashboardRulebooksRoute
-  '/dashboard/use-cases': typeof DashboardUseCasesRoute
+  '/dashboard/use-cases': typeof DashboardUseCasesRouteWithChildren
   '/dashboard/': typeof DashboardIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/dashboard/use-cases/$key': typeof DashboardUseCasesKeyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -141,9 +148,10 @@ export interface FileRoutesByTo {
   '/dashboard/pipeline': typeof DashboardPipelineRoute
   '/dashboard/redaction': typeof DashboardRedactionRoute
   '/dashboard/rulebooks': typeof DashboardRulebooksRoute
-  '/dashboard/use-cases': typeof DashboardUseCasesRoute
+  '/dashboard/use-cases': typeof DashboardUseCasesRouteWithChildren
   '/dashboard': typeof DashboardIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/dashboard/use-cases/$key': typeof DashboardUseCasesKeyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -160,9 +168,10 @@ export interface FileRoutesById {
   '/dashboard/pipeline': typeof DashboardPipelineRoute
   '/dashboard/redaction': typeof DashboardRedactionRoute
   '/dashboard/rulebooks': typeof DashboardRulebooksRoute
-  '/dashboard/use-cases': typeof DashboardUseCasesRoute
+  '/dashboard/use-cases': typeof DashboardUseCasesRouteWithChildren
   '/dashboard/': typeof DashboardIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/dashboard/use-cases/$key': typeof DashboardUseCasesKeyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -183,6 +192,7 @@ export interface FileRouteTypes {
     | '/dashboard/use-cases'
     | '/dashboard/'
     | '/.mcp/invoke-tool/$tool'
+    | '/dashboard/use-cases/$key'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -200,6 +210,7 @@ export interface FileRouteTypes {
     | '/dashboard/use-cases'
     | '/dashboard'
     | '/.mcp/invoke-tool/$tool'
+    | '/dashboard/use-cases/$key'
   id:
     | '__root__'
     | '/'
@@ -218,6 +229,7 @@ export interface FileRouteTypes {
     | '/dashboard/use-cases'
     | '/dashboard/'
     | '/.mcp/invoke-tool/$tool'
+    | '/dashboard/use-cases/$key'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -337,6 +349,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char91DotmcpChar93ListToolsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dashboard/use-cases/$key': {
+      id: '/dashboard/use-cases/$key'
+      path: '/$key'
+      fullPath: '/dashboard/use-cases/$key'
+      preLoaderRoute: typeof DashboardUseCasesKeyRouteImport
+      parentRoute: typeof DashboardUseCasesRoute
+    }
     '/.mcp/invoke-tool/$tool': {
       id: '/.mcp/invoke-tool/$tool'
       path: '/.mcp/invoke-tool/$tool'
@@ -347,6 +366,17 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface DashboardUseCasesRouteChildren {
+  DashboardUseCasesKeyRoute: typeof DashboardUseCasesKeyRoute
+}
+
+const DashboardUseCasesRouteChildren: DashboardUseCasesRouteChildren = {
+  DashboardUseCasesKeyRoute: DashboardUseCasesKeyRoute,
+}
+
+const DashboardUseCasesRouteWithChildren =
+  DashboardUseCasesRoute._addFileChildren(DashboardUseCasesRouteChildren)
+
 interface DashboardRouteChildren {
   DashboardAuditRoute: typeof DashboardAuditRoute
   DashboardCisoRoute: typeof DashboardCisoRoute
@@ -355,7 +385,7 @@ interface DashboardRouteChildren {
   DashboardPipelineRoute: typeof DashboardPipelineRoute
   DashboardRedactionRoute: typeof DashboardRedactionRoute
   DashboardRulebooksRoute: typeof DashboardRulebooksRoute
-  DashboardUseCasesRoute: typeof DashboardUseCasesRoute
+  DashboardUseCasesRoute: typeof DashboardUseCasesRouteWithChildren
   DashboardIndexRoute: typeof DashboardIndexRoute
 }
 
@@ -367,7 +397,7 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardPipelineRoute: DashboardPipelineRoute,
   DashboardRedactionRoute: DashboardRedactionRoute,
   DashboardRulebooksRoute: DashboardRulebooksRoute,
-  DashboardUseCasesRoute: DashboardUseCasesRoute,
+  DashboardUseCasesRoute: DashboardUseCasesRouteWithChildren,
   DashboardIndexRoute: DashboardIndexRoute,
 }
 
