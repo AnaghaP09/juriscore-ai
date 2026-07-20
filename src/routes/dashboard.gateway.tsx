@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PageHeader } from "@/components/page-header";
 import { MODELS, modelById, useDemoStore, type ModelId } from "@/lib/juriscore/demo-store";
 import { scanPrompt, retrievePolicies } from "@/lib/juriscore/mock";
-import { Send, Cpu, Timer, ShieldCheck, Lock, Zap } from "lucide-react";
+import { Send, Cpu, Timer, ShieldCheck, Lock, Zap, Info, ShieldAlert, BookOpen, ScrollText } from "lucide-react";
 
 export const Route = createFileRoute("/dashboard/gateway")({
   head: () => ({
@@ -141,6 +141,44 @@ function Gateway() {
           </>
         }
       />
+
+      <Card className="border-primary/30 bg-primary/[0.03]">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Info className="h-4 w-4 text-primary" aria-hidden /> What this demo shows
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground space-y-3">
+          <p>
+            This is a live walk-through of how JurisCore sits between your app and any AI model.
+            Type a question, pick a model, and hit <span className="font-medium text-foreground">Send through JurisCore</span>.
+            The same request is checked four times — you'll see each check light up in order.
+          </p>
+          <ol className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-2">
+            <li className="rounded-lg border border-border bg-card p-3">
+              <div className="flex items-center gap-2 text-foreground font-medium text-xs"><ShieldAlert className="h-3.5 w-3.5 text-primary" aria-hidden /> 1. Input Scrub</div>
+              <p className="mt-1 text-xs">Scans your question for private data (names, SSNs, medical IDs, API keys) and prompt-injection tricks. Blocks or masks before anything is sent to the AI.</p>
+            </li>
+            <li className="rounded-lg border border-border bg-card p-3">
+              <div className="flex items-center gap-2 text-foreground font-medium text-xs"><Cpu className="h-3.5 w-3.5 text-primary" aria-hidden /> 2. Model Call</div>
+              <p className="mt-1 text-xs">Sends the clean question to the model you picked — Gemini, Claude, or GPT-4o. You'd swap models with one dropdown, not a rewrite.</p>
+            </li>
+            <li className="rounded-lg border border-border bg-card p-3">
+              <div className="flex items-center gap-2 text-foreground font-medium text-xs"><BookOpen className="h-3.5 w-3.5 text-primary" aria-hidden /> 3. Semantic Judge</div>
+              <p className="mt-1 text-xs">Pulls the matching clause from your rulebook (SEC, FINRA, HIPAA, CMS) and checks whether the reply actually agrees with it. If not, it's marked for revision.</p>
+            </li>
+            <li className="rounded-lg border border-border bg-card p-3">
+              <div className="flex items-center gap-2 text-foreground font-medium text-xs"><ScrollText className="h-3.5 w-3.5 text-primary" aria-hidden /> 4. Output Guardrail</div>
+              <p className="mt-1 text-xs">Final pass — attaches citations, flags uncited claims, and writes a tamper-proof audit entry so any regulator can retrace the decision.</p>
+            </li>
+          </ol>
+          <p className="text-xs pt-1">
+            The result cards below show the <span className="font-medium text-foreground">verdict</span> (allow / revise / block),
+            which <span className="font-medium text-foreground">rule</span> was triggered, token usage and per-stage latency.
+            Try a clean marketing question versus one with an SSN or a medical record ID — you'll see the verdict change.
+          </p>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4">
