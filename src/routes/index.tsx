@@ -8,10 +8,10 @@ export const Route = createFileRoute("/")({
 });
 
 const stages = [
-  { icon: Shield, name: "Input Guardrails", desc: "Strips PII/PHI and screens for prompt injection before anything reaches the model." },
-  { icon: GitBranch, name: "RAG Core", desc: "Policy Orchestrator queries the correct domain Rulebook — SEC, FINRA, HIPAA, CMS." },
-  { icon: FileCheck, name: "Output Guardrails", desc: "Every response must map back to an approved source. Citation Enforcement blocks hallucinations." },
-  { icon: ScrollText, name: "Audit Log", desc: "Immutable ledger paired with a human feedback loop. Regulator-ready in minutes." },
+  { icon: Shield, name: "Screen the question", desc: "Remove names, SSNs, medical IDs, and API keys before anything reaches the AI. Block sneaky prompts." },
+  { icon: GitBranch, name: "Find the rule", desc: "Pull the exact clause from your rulebook — SEC, FINRA, HIPAA, or CMS — that applies to this request." },
+  { icon: FileCheck, name: "Check the answer", desc: "Every claim in the reply must trace back to that clause. If it can't, we rewrite or block it." },
+  { icon: ScrollText, name: "Keep the receipt", desc: "A tamper-proof log any auditor or regulator can read in minutes, not days." },
 ];
 
 function Landing() {
@@ -36,35 +36,35 @@ function Landing() {
       <main id="main">
         <section aria-labelledby="hero-title" className="mx-auto max-w-7xl px-6 pt-16 md:pt-24 pb-20">
           <Badge variant="outline" className="mb-6 border-primary/40 text-primary">
-            EU AI Act high-risk rules — August 2, 2026
+            Trust layer for AI in regulated work
           </Badge>
           <h1 id="hero-title" className="text-4xl sm:text-5xl md:text-7xl font-semibold tracking-tight max-w-4xl leading-[1.05] text-balance">
-            The compliance layer between your AI and the regulator.
+            Stop your AI from saying things it shouldn't.
           </h1>
           <p className="mt-6 text-base sm:text-lg text-muted-foreground max-w-2xl text-pretty">
-            JurisCore AI is a universal governance middleware. It decouples compliance logic from AI functionality
-            so teams in Finance and Healthcare ship AI with confidence, not fear.
+            JurisCore checks every AI message — before it's sent and before it's shown — against your real
+            policies. Bad answers get blocked, private data gets scrubbed, and every decision leaves a receipt.
           </p>
           <div className="mt-10 flex flex-wrap gap-3">
             <Button asChild size="lg">
               <Link to="/dashboard/gateway">
-                Try the live gateway <ArrowRight aria-hidden="true" className="ml-2 h-4 w-4" />
+                See it in action <ArrowRight aria-hidden="true" className="ml-2 h-4 w-4" />
               </Link>
             </Button>
             <Button asChild variant="outline" size="lg">
               <Link to="/dashboard">Open dashboard</Link>
             </Button>
             <Button asChild variant="ghost" size="lg">
-              <Link to="/connect"><Plug aria-hidden="true" className="mr-2 h-4 w-4" /> Connect via MCP</Link>
+              <Link to="/connect"><Plug aria-hidden="true" className="mr-2 h-4 w-4" /> Connect your AI tools</Link>
             </Button>
           </div>
 
 
           <dl className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-8 max-w-3xl">
-            <Stat label="Time-to-ship" before="47 days" after="6 days" />
-            <Stat label="Audit prep" before="Days" after="Minutes" />
-            <Stat label="Guardrail accuracy" before="—" after="97.3%" />
-            <Stat label="Violations blocked" before="—" after="7.1%" />
+            <Stat label="Bad answers caught" before="—" after="7 in 100" />
+            <Stat label="Audit ready in" before="Days" after="Minutes" />
+            <Stat label="New AI features shipped in" before="47 days" after="6 days" />
+            <Stat label="Correct calls" before="—" after="97%" />
           </dl>
         </section>
 
@@ -72,10 +72,10 @@ function Landing() {
           <div className="mx-auto max-w-7xl px-6 py-20 md:py-24">
             <div className="max-w-2xl">
               <h2 id="pipeline-title" className="text-3xl md:text-4xl font-semibold tracking-tight text-balance">
-                A mandatory safety-and-logic gate.
+                How a single question travels through JurisCore.
               </h2>
               <p className="mt-4 text-muted-foreground">
-                Every request flows through four stages before a response ever leaves the system.
+                Four checks, under a second. Nothing reaches your users until every one passes.
               </p>
             </div>
             <ol className="mt-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -98,19 +98,18 @@ function Landing() {
         <section aria-labelledby="mcp-title" className="border-t border-border/60">
           <div className="mx-auto max-w-7xl px-6 py-20 md:py-24 grid md:grid-cols-2 gap-12 items-center">
             <div>
-              <Badge variant="secondary" className="mb-4">MCP Server</Badge>
+              <Badge variant="secondary" className="mb-4">Works with your existing AI tools</Badge>
               <h2 id="mcp-title" className="text-3xl md:text-4xl font-semibold tracking-tight text-balance">
                 Plug it into ChatGPT, Claude, or Cursor.
               </h2>
               <p className="mt-4 text-muted-foreground text-pretty">
-                JurisCore ships as a Model Context Protocol server. Any MCP-aware assistant can call
-                its guardrail tools — <code className="font-mono text-primary">check_prompt</code>,
-                {" "}<code className="font-mono text-primary">retrieve_policy</code>, {" "}
-                <code className="font-mono text-primary">enforce_citations</code> — before responding to a user.
+                Any assistant that supports the Model Context Protocol (MCP) can ask JurisCore for
+                permission before answering anything sensitive — check the prompt, look up the rule,
+                and prove the answer is backed by a real policy.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Button asChild><Link to="/connect">Connection guide</Link></Button>
-                <Button asChild variant="outline"><Link to="/dashboard/rulebooks">View rulebooks</Link></Button>
+                <Button asChild variant="outline"><Link to="/dashboard/rulebooks">See the rules</Link></Button>
               </div>
             </div>
             <figure className="rounded-xl border border-border bg-card p-6 font-mono text-xs overflow-x-auto">

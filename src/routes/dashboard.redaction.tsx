@@ -61,18 +61,18 @@ function Redaction() {
   return (
     <div className="p-6 sm:p-8 space-y-6">
       <PageHeader
-        eyebrow="Live Demo"
+        eyebrow="Try it live"
         icon={<EyeOff className="h-6 w-6" aria-hidden />}
-        title="Redaction Sandbox"
-        description="Every prompt is sanitized before it leaves your perimeter. Edit the raw payload and watch the input guardrail rewrite it live."
+        title="Private-data scrubber"
+        description="Paste anything with a name, SSN, credit card, or API key. Watch JurisCore rewrite it before it ever reaches the AI."
       />
 
       <div className="grid lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center justify-between">
-              <span>Raw payload</span>
-              <Badge variant="outline" className="border-[color:var(--block)]/40 text-[color:var(--block)]">Contains {totalHigh} high-risk items</Badge>
+              <span>What was sent</span>
+              <Badge variant="outline" className="border-[color:var(--block)]/40 text-[color:var(--block)]">{totalHigh} high-risk items found</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -83,7 +83,7 @@ function Redaction() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center justify-between">
-              <span className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-[color:var(--allow)]" aria-hidden /> Sanitized payload</span>
+              <span className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-[color:var(--allow)]" aria-hidden /> What the AI actually sees</span>
               <Badge variant="outline" className="border-[color:var(--allow)]/40 text-[color:var(--allow)]">Safe to send</Badge>
             </CardTitle>
           </CardHeader>
@@ -100,7 +100,7 @@ function Redaction() {
       </div>
 
       <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-sm">Findings</CardTitle></CardHeader>
+        <CardHeader className="pb-3"><CardTitle className="text-sm">What we removed</CardTitle></CardHeader>
         <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-sm" aria-label="Redaction findings">
             <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">

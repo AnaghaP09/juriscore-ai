@@ -83,18 +83,18 @@ function DriftView() {
   return (
     <div className="p-6 sm:p-8 space-y-6">
       <PageHeader
-        eyebrow="Live Demo"
+        eyebrow="Plumb"
         icon={<GitPullRequest className="h-6 w-6" aria-hidden />}
-        title="Drift Workbench"
-        description="The Plumb wedge: an LLM judge that flags when a code change contradicts what the company already told regulators or customers."
+        title="Docs vs. code"
+        description="When your code changes but the docs, marketing decks, or filings don't, Plumb flags the mismatch — with the exact line — before the pull request is merged."
         actions={
           <>
             <div className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2">
               <Switch id="pr-toggle" checked={driftMode === "drift"} onCheckedChange={(c) => { setDriftMode(c ? "drift" : "clean"); setRan(false); }} />
-              <label htmlFor="pr-toggle" className="text-sm">Simulate New PR Review</label>
+              <label htmlFor="pr-toggle" className="text-sm">Simulate a risky pull request</label>
             </div>
             <Button onClick={runJudge} disabled={judging || killSwitch}>
-              {killSwitch ? (<><Lock className="h-4 w-4 mr-2" /> Blocked</>) : (<><Sparkles className="h-4 w-4 mr-2" /> {judging ? "Judging…" : "Run Plumb Judge"}</>)}
+              {killSwitch ? (<><Lock className="h-4 w-4 mr-2" /> Blocked</>) : (<><Sparkles className="h-4 w-4 mr-2" /> {judging ? "Checking…" : "Check for contradictions"}</>)}
             </Button>
           </>
         }
@@ -129,7 +129,7 @@ function DriftView() {
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Compliance Corpus</CardTitle>
+            <CardTitle className="text-sm">What the docs still say</CardTitle>
           </CardHeader>
           <CardContent>
             <Tabs value={doc} onValueChange={(v) => setDoc(v as DocKey)}>
@@ -163,13 +163,13 @@ function DriftView() {
       </div>
 
       <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-sm">Judge verdict</CardTitle></CardHeader>
+        <CardHeader className="pb-3"><CardTitle className="text-sm">Verdict</CardTitle></CardHeader>
         <CardContent>
           {!ran && !judging && (
-            <p className="text-sm text-muted-foreground">Click <span className="text-foreground">Run Plumb Judge</span> to ask {model.label} whether the PR contradicts any indexed document.</p>
+            <p className="text-sm text-muted-foreground">Click <span className="text-foreground">Check for contradictions</span>. We'll ask {model.label} whether this pull request contradicts anything you've already told regulators or customers.</p>
           )}
           {judging && (
-            <p className="text-sm text-muted-foreground" aria-live="polite">Asking {model.label} for a semantic verdict on the diff vs. {DOCS[doc].label}…</p>
+            <p className="text-sm text-muted-foreground" aria-live="polite">Comparing the code change to {DOCS[doc].label}…</p>
           )}
           {ran && (
             <div className="flex flex-wrap items-start gap-6" aria-live="polite">
@@ -178,15 +178,15 @@ function DriftView() {
                   <div className="flex items-center gap-2">
                     <AlertOctagon className="h-6 w-6 text-[color:var(--block)]" aria-hidden />
                     <div>
-                      <div className="font-semibold text-[color:var(--block)]">DRIFTED</div>
-                      <div className="text-xs text-muted-foreground">Merge blocked · author explanation required</div>
+                      <div className="font-semibold text-[color:var(--block)]">Contradiction found</div>
+                      <div className="text-xs text-muted-foreground">Merge blocked — author needs to explain or update the docs</div>
                     </div>
                   </div>
                   <dl className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-                    <div><dt className="text-xs text-muted-foreground">Model</dt><dd className="font-mono">{model.label}</dd></div>
-                    <div><dt className="text-xs text-muted-foreground">Confidence</dt><dd className="font-mono">94%</dd></div>
+                    <div><dt className="text-xs text-muted-foreground">Checked by</dt><dd className="font-mono">{model.label}</dd></div>
+                    <div><dt className="text-xs text-muted-foreground">How sure</dt><dd className="font-mono">94%</dd></div>
                     <div><dt className="text-xs text-muted-foreground">Rule</dt><dd className="font-mono text-primary">SEC-206(4)-1</dd></div>
-                    <div><dt className="text-xs text-muted-foreground">Evidence</dt><dd className="font-mono">line 45 ↔ {doc === "sec" ? "s2" : doc === "deck" ? "d1" : "p1"}</dd></div>
+                    <div><dt className="text-xs text-muted-foreground">Where</dt><dd className="font-mono">line 45 ↔ {doc === "sec" ? "s2" : doc === "deck" ? "d1" : "p1"}</dd></div>
                   </dl>
                 </>
               ) : (
@@ -194,14 +194,14 @@ function DriftView() {
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="h-6 w-6 text-[color:var(--allow)]" aria-hidden />
                     <div>
-                      <div className="font-semibold text-[color:var(--allow)]">NO CONTRADICTION</div>
-                      <div className="text-xs text-muted-foreground">Safe to merge · logged to ledger</div>
+                      <div className="font-semibold text-[color:var(--allow)]">No contradiction</div>
+                      <div className="text-xs text-muted-foreground">Safe to merge — receipt saved</div>
                     </div>
                   </div>
                   <dl className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
-                    <div><dt className="text-xs text-muted-foreground">Model</dt><dd className="font-mono">{model.label}</dd></div>
-                    <div><dt className="text-xs text-muted-foreground">Confidence</dt><dd className="font-mono">88%</dd></div>
-                    <div><dt className="text-xs text-muted-foreground">Docs checked</dt><dd className="font-mono">3</dd></div>
+                    <div><dt className="text-xs text-muted-foreground">Checked by</dt><dd className="font-mono">{model.label}</dd></div>
+                    <div><dt className="text-xs text-muted-foreground">How sure</dt><dd className="font-mono">88%</dd></div>
+                    <div><dt className="text-xs text-muted-foreground">Docs compared</dt><dd className="font-mono">3</dd></div>
                   </dl>
                 </>
               )}

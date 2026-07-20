@@ -22,19 +22,19 @@ type Scenario = "clean" | "pii" | "drift" | "uncited";
 type State = "idle" | "active" | "pass" | "block" | "revise";
 
 const STAGES = [
-  { key: "req", label: "App Request", detail: "Raw client payload" },
-  { key: "input", label: "Input Guardrail", detail: "PII/PHI scrub · injection detection" },
-  { key: "model", label: "LLM Engine", detail: "Target model completion" },
-  { key: "judge", label: "Plumb Semantic Judge", detail: "Code-vs-prose mismatch" },
-  { key: "output", label: "Output + Citations", detail: "Grounding · claim mapping" },
-  { key: "ledger", label: "Immutable Ledger", detail: "Append-only audit write" },
+  { key: "req", label: "Question arrives", detail: "A user or app sends a prompt" },
+  { key: "input", label: "Scrub the question", detail: "Remove private data · block sneaky prompts" },
+  { key: "model", label: "Ask the AI", detail: "Send the clean prompt to your chosen model" },
+  { key: "judge", label: "Cross-check the answer", detail: "Does what the AI said match your policies?" },
+  { key: "output", label: "Require citations", detail: "Every claim must trace to a real rule" },
+  { key: "ledger", label: "Save the receipt", detail: "Tamper-proof log for auditors" },
 ] as const;
 
 const SCENARIO_LABEL: Record<Scenario, string> = {
-  clean: "Clean run — all green",
-  pii: "PII detected · block at stage 2",
-  drift: "Semantic drift · block at stage 4",
-  uncited: "Uncited claim · revise at stage 5",
+  clean: "Safe question — everything passes",
+  pii: "Private data in the question — blocked",
+  drift: "AI answer contradicts an SEC filing — blocked",
+  uncited: "AI made claims with no source — rewritten",
 };
 
 const BLOCK_AT: Record<Scenario, { idx: number; state: State; reason: string; rule: string } | null> = {
@@ -128,10 +128,10 @@ function Pipeline() {
   return (
     <div className="p-6 sm:p-8 space-y-6">
       <PageHeader
-        eyebrow="Live Demo"
+        eyebrow="How it works"
         icon={<Activity className="h-6 w-6" aria-hidden />}
-        title="Runtime Interception Architecture"
-        description="Every request routes through six stages. Pick a scenario and watch the middleware react in real time."
+        title="Step by step"
+        description="Pick a scenario and watch where JurisCore steps in. Six checks, from the moment a question arrives to the receipt saved at the end."
       />
 
       <Card>

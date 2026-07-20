@@ -44,9 +44,9 @@ function AuditLog() {
   return (
     <div className="p-6 sm:p-8 space-y-6">
       <PageHeader
-        eyebrow="Governance"
-        title="Audit Log"
-        description="Standardized chain: Prompt → Guardrail check → Model response → Final approval. Select any row for the full trace."
+        eyebrow="Receipts"
+        title="Audit log"
+        description="Every AI decision, searchable. Click any row to see the full trail — question, checks, answer, verdict. Give this to your auditor."
       />
 
       <div className="flex flex-wrap gap-3" role="search" aria-label="Filter audit entries">

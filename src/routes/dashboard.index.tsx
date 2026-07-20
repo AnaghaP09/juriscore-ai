@@ -33,9 +33,9 @@ function Overview() {
   return (
     <div className="p-6 sm:p-8 space-y-8">
       <PageHeader
-        eyebrow="Governance"
-        title="Governance Overview"
-        description={`Universal visibility for CISOs & CCOs · last 30 days`}
+        eyebrow="What's happening"
+        title="Governance overview"
+        description={`Last 30 days across your AI apps. Green means safe, red means we caught something.`}
         actions={
           <>
             <Badge variant="outline" className="font-mono">{m.kpis.totalRequests.toLocaleString()} requests</Badge>
@@ -70,16 +70,16 @@ function Overview() {
       />
 
       <div className="grid md:grid-cols-4 gap-4">
-        <Kpi icon={AlertTriangle} label="Violation rate" value={`${(m.kpis.violationRate * 100).toFixed(2)}%`} sub={`Target ≤ 0.5% — ${(m.kpis.violationRate * m.kpis.totalRequests).toFixed(0)} blocked`} tone="block" />
-        <Kpi icon={Shield} label="Guardrail accuracy" value={`${(m.kpis.guardrailAccuracy * 100).toFixed(1)}%`} sub="Human-labeled feedback loop" tone="allow" />
-        <Kpi icon={Timer} label="Audit prep time" value={`${m.kpis.auditPrepMinutes} min`} sub="Was: multiple days" tone="allow" />
-        <Kpi icon={Rocket} label="Time to ship" value={`${m.kpis.timeToShipDaysAfter} days`} sub={`Was ${m.kpis.timeToShipDaysBefore} days pre-JurisCore`} tone="allow" />
+        <Kpi icon={AlertTriangle} label="Bad answers caught" value={`${(m.kpis.violationRate * 100).toFixed(2)}%`} sub={`${(m.kpis.violationRate * m.kpis.totalRequests).toFixed(0)} messages stopped before they went out`} tone="block" />
+        <Kpi icon={Shield} label="Correct calls" value={`${(m.kpis.guardrailAccuracy * 100).toFixed(1)}%`} sub="How often our decisions match a human reviewer" tone="allow" />
+        <Kpi icon={Timer} label="Audit ready in" value={`${m.kpis.auditPrepMinutes} min`} sub="Used to take multiple days" tone="allow" />
+        <Kpi icon={Rocket} label="Time to launch a new AI feature" value={`${m.kpis.timeToShipDaysAfter} days`} sub={`Was ${m.kpis.timeToShipDaysBefore} days before JurisCore`} tone="allow" />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-4">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Requests over time</CardTitle>
+            <CardTitle>Requests per day</CardTitle>
           </CardHeader>
           <CardContent className="h-72">
             <ResponsiveContainer width="100%" height="100%">
@@ -107,7 +107,7 @@ function Overview() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Blocks by stage</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Where we stopped things</CardTitle></CardHeader>
           <CardContent className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={stageData} layout="vertical" margin={{ left: 20 }}>
@@ -124,7 +124,7 @@ function Overview() {
 
       <div className="grid lg:grid-cols-3 gap-4">
         <Card>
-          <CardHeader><CardTitle>Domain split</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Finance vs. Healthcare</CardTitle></CardHeader>
           <CardContent className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -140,24 +140,24 @@ function Overview() {
           </CardContent>
         </Card>
         <Card className="lg:col-span-2">
-          <CardHeader><CardTitle>Latency budget</CardTitle></CardHeader>
+          <CardHeader><CardTitle>How fast we respond</CardTitle></CardHeader>
           <CardContent>
             <div className="grid grid-cols-3 gap-6">
               <div>
-                <div className="text-xs uppercase text-muted-foreground">Avg</div>
+                <div className="text-xs uppercase text-muted-foreground">Avg response time</div>
                 <div className="text-3xl font-semibold font-mono mt-1">{m.kpis.avgLatencyMs}<span className="text-base text-muted-foreground ml-1">ms</span></div>
               </div>
               <div>
-                <div className="text-xs uppercase text-muted-foreground">Citation coverage</div>
+                <div className="text-xs uppercase text-muted-foreground">Answers backed by a rule</div>
                 <div className="text-3xl font-semibold font-mono mt-1">{(m.kpis.citationCoverage * 100).toFixed(0)}<span className="text-base text-muted-foreground ml-1">%</span></div>
               </div>
               <div>
-                <div className="text-xs uppercase text-muted-foreground">Allowed</div>
+                <div className="text-xs uppercase text-muted-foreground">Sent through unchanged</div>
                 <div className="text-3xl font-semibold font-mono mt-1">{(m.kpis.allowedRate * 100).toFixed(1)}<span className="text-base text-muted-foreground ml-1">%</span></div>
               </div>
             </div>
             <p className="mt-6 text-sm text-muted-foreground">
-              Every request flows through four stages. Below the 800ms budget the pipeline stays viable for realtime use cases.
+              Every question goes through four checks and still comes back in under a second — fast enough for live chat.
             </p>
           </CardContent>
         </Card>
