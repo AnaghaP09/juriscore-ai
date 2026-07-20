@@ -2,9 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Download, FileText } from "lucide-react";
 import { AUDIT, type AuditEntry, type Verdict } from "@/lib/juriscore/mock";
+import { downloadCSV, openPrintReport, htmlTable, kpiCard } from "@/lib/juriscore/export";
 
 export const Route = createFileRoute("/dashboard/audit")({
   head: () => ({

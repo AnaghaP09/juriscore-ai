@@ -31,12 +31,40 @@ function Overview() {
 
   return (
     <div className="p-4 sm:p-8 space-y-8">
-      <header className="flex items-end justify-between">
+      <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Governance Overview</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Universal visibility for CISOs & CCOs · last 30 days</p>
+          <p className="mt-1 text-sm text-muted-foreground">Universal visibility for CISOs &amp; CCOs · last 30 days</p>
         </div>
-        <Badge variant="outline" className="font-mono">{m.kpis.totalRequests.toLocaleString()} requests</Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="font-mono">{m.kpis.totalRequests.toLocaleString()} requests</Badge>
+          <Button variant="outline" size="sm" onClick={() => {
+            downloadCSV("juriscore_daily_metrics.csv", m.series);
+          }}><Download className="h-4 w-4 mr-2" aria-hidden />CSV</Button>
+          <Button variant="outline" size="sm" onClick={() => {
+            const uc = getUseCaseSummaries();
+            openPrintReport({
+              title: "Governance Overview",
+              subtitle: `Last 30 days · ${m.kpis.totalRequests.toLocaleString()} total requests · ${AUDIT.length} audit entries`,
+              sections: [
+                { heading: "Key KPIs", html: `<div class="grid">${[
+                  kpiCard("Violation rate", `${(m.kpis.violationRate * 100).toFixed(2)}%`, "Target ≤ 0.5%"),
+                  kpiCard("Guardrail accuracy", `${(m.kpis.guardrailAccuracy * 100).toFixed(1)}%`),
+                  kpiCard("Audit prep time", `${m.kpis.auditPrepMinutes} min`, "Was: multiple days"),
+                  kpiCard("Time to ship", `${m.kpis.timeToShipDaysAfter} days`, `Was ${m.kpis.timeToShipDaysBefore} days`),
+                  kpiCard("Avg latency", `${m.kpis.avgLatencyMs} ms`),
+                  kpiCard("Citation coverage", `${(m.kpis.citationCoverage * 100).toFixed(0)}%`),
+                  kpiCard("Allowed", `${(m.kpis.allowedRate * 100).toFixed(1)}%`),
+                  kpiCard("Revised", `${(m.kpis.revisedRate * 100).toFixed(1)}%`),
+                ].join("")}</div>` },
+                { heading: "Blocks by pipeline stage", html: htmlTable(["Stage", "Count"], Object.entries(m.blockedByStage).map(([s, c]) => [s.replace(/_/g, " "), c])) },
+                { heading: "Domain breakdown", html: htmlTable(["Domain", "Total", "Blocked"], m.byDomain.map((d) => [d.domain, d.total, d.blocked])) },
+                { heading: "Use case portfolio", html: htmlTable(["Use case", "Domain", "Volume", "Block %", "Coverage %"], uc.map((u) => [u.name, u.domain, u.volume, (u.blockRate * 100).toFixed(1), (u.citationCoverage * 100).toFixed(0)])) },
+                { heading: "Daily volume (last 30d)", html: htmlTable(["Day", "Allowed", "Revised", "Blocked"], m.series.map((s) => [s.day, s.allowed, s.revised, s.blocked])) },
+              ],
+            });
+          }}><FileText className="h-4 w-4 mr-2" aria-hidden />PDF report</Button>
+        </div>
       </header>
 
       <div className="grid md:grid-cols-4 gap-4">
