@@ -31,10 +31,10 @@ function Ciso() {
   return (
     <div className="p-6 sm:p-8 space-y-6">
       <PageHeader
-        eyebrow="Governance"
+        eyebrow="Executive view"
         icon={<ShieldAlert className="h-6 w-6" aria-hidden />}
-        title="CISO Governance Gateway"
-        description="Executive telemetry across every model, every region, every regulated domain."
+        title="Every AI app in one screen"
+        description="One place to see how your AI is behaving across models, regions, and teams — plus the emergency stop when you need it."
         actions={
           <Button
             size="lg"
@@ -43,7 +43,7 @@ function Ciso() {
             className="gap-2"
           >
             {killSwitch ? <ShieldCheck className="h-5 w-5" /> : <ShieldAlert className="h-5 w-5" />}
-            {killSwitch ? "Disarm Kill Switch" : "Universal CISO Kill Switch"}
+            {killSwitch ? "Turn AI back on" : "Emergency stop — freeze all AI"}
           </Button>
         }
       />
@@ -51,18 +51,18 @@ function Ciso() {
       <div className="grid md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-5">
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">Drift precision</div>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">How often we're right</div>
             <RadialDial value={precision} target={0.85} />
-            <div className="mt-2 text-xs text-muted-foreground">Target ≥ 85% · human-labeled</div>
+            <div className="mt-2 text-xs text-muted-foreground">Goal: at least 85% (checked by humans)</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-5">
             <div className="flex items-start justify-between">
               <div>
-                <div className="text-xs uppercase tracking-wider text-muted-foreground">Doc repositories</div>
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">Rulebooks in use</div>
                 <div className="mt-2 text-3xl font-semibold font-mono">{RULEBOOKS.length}</div>
-                <div className="mt-1 text-xs text-muted-foreground">{RULEBOOKS.reduce((s, r) => s + r.docCount, 0)} indexed docs</div>
+                <div className="mt-1 text-xs text-muted-foreground">{RULEBOOKS.reduce((s, r) => s + r.docCount, 0)} documents indexed</div>
               </div>
               <Database className="h-5 w-5 text-primary" aria-hidden />
             </div>
@@ -73,9 +73,9 @@ function Ciso() {
           <CardContent className="p-5">
             <div className="flex items-start justify-between">
               <div>
-                <div className="text-xs uppercase tracking-wider text-muted-foreground">Policy mismatches</div>
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">Things we caught</div>
                 <div className="mt-2 text-3xl font-semibold font-mono text-[color:var(--block)]">{mismatches.length}</div>
-                <div className="mt-1 text-xs text-muted-foreground">Outstanding · last 24h</div>
+                <div className="mt-1 text-xs text-muted-foreground">Still open · last 24 hours</div>
               </div>
               <AlertTriangle className="h-5 w-5 text-[color:var(--block)]" aria-hidden />
             </div>
@@ -85,9 +85,9 @@ function Ciso() {
           <CardContent className="p-5">
             <div className="flex items-start justify-between">
               <div>
-                <div className="text-xs uppercase tracking-wider text-muted-foreground">Middleware latency</div>
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">Time we add</div>
                 <div className="mt-2 text-3xl font-semibold font-mono">{m.kpis.avgLatencyMs}<span className="text-base text-muted-foreground ml-1">ms</span></div>
-                <div className="mt-1 text-xs text-muted-foreground">Budget 800ms</div>
+                <div className="mt-1 text-xs text-muted-foreground">Well under the 800ms budget</div>
               </div>
               <Timer className="h-5 w-5 text-primary" aria-hidden />
             </div>
@@ -98,7 +98,7 @@ function Ciso() {
 
       <div className="grid lg:grid-cols-2 gap-4">
         <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm">Model endpoint health</CardTitle></CardHeader>
+          <CardHeader className="pb-3"><CardTitle className="text-sm">AI health by region</CardTitle></CardHeader>
           <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-sm" aria-label="Model endpoint health matrix">
               <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
@@ -124,7 +124,7 @@ function Ciso() {
         </Card>
 
         <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm">Outstanding mismatches</CardTitle></CardHeader>
+          <CardHeader className="pb-3"><CardTitle className="text-sm">Things we caught, still open</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {mismatches.map((mm) => (
               <div key={mm.id} className="flex items-start gap-3 py-2 border-b border-border/40 last:border-0 text-sm">
@@ -146,15 +146,15 @@ function Ciso() {
       <Dialog open={confirming} onOpenChange={setConfirming}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><ShieldAlert className="h-5 w-5 text-[color:var(--block)]" /> Engage universal kill switch?</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><ShieldAlert className="h-5 w-5 text-[color:var(--block)]" /> Freeze all AI right now?</DialogTitle>
             <DialogDescription>
-              This immediately blocks all outbound LLM traffic across every model endpoint and region.
-              Every downstream simulator will freeze until you disarm it. Use only in a live incident.
+              This immediately stops every AI request across every model and region. Nothing will get an
+              answer until you turn it back on. Use this in a live incident only.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirming(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => { setKillSwitch(true); setConfirming(false); }}>Engage lockdown</Button>
+            <Button variant="destructive" onClick={() => { setKillSwitch(true); setConfirming(false); }}>Freeze everything</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

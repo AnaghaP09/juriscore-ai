@@ -65,9 +65,9 @@ function UseCases() {
   return (
     <div className="p-6 sm:p-8 space-y-6">
       <PageHeader
-        eyebrow="Governance"
-        title="Use Cases"
-        description="Each use case is governed by a domain rulebook. Click any card for drill-down metrics and audit trail."
+        eyebrow="Your portfolio"
+        title="AI features we're protecting"
+        description="Each card is one AI feature in your product. Click to see how it's behaving and what we've caught."
         actions={
           <>
             <Button variant="outline" size="sm" onClick={exportCSV}><Download className="h-4 w-4 mr-2" aria-hidden />CSV</Button>

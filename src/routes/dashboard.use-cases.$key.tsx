@@ -120,7 +120,7 @@ function UseCaseDetail() {
           </span>
         }
         title={uc.name}
-        description={uc.tagline}
+        description={uc.tagline ?? "What this AI feature does, how often it runs, and when we had to step in."}
       />
 
       <div className="grid md:grid-cols-4 gap-4">

@@ -116,13 +116,13 @@ function Gateway() {
   return (
     <div className="p-6 sm:p-8 space-y-6">
       <PageHeader
-        eyebrow="Live Demo"
+        eyebrow="Try it live"
         icon={<Zap className="h-6 w-6" aria-hidden />}
-        title="LLM Gateway"
-        description="Route a real payload through the JurisCore middleware. Model-agnostic — swap targets without touching your app."
+        title="Send a question through JurisCore"
+        description="Type anything, pick an AI, and watch each check happen. Same setup works with any model — no code change on your side."
         actions={
           <>
-            <label htmlFor="gw-model" className="sr-only">Target model</label>
+            <label htmlFor="gw-model" className="sr-only">Which AI to use</label>
             <Select value={activeModel} onValueChange={(v) => setActiveModel(v as ModelId)}>
               <SelectTrigger id="gw-model" className="w-56">
                 <SelectValue />
@@ -145,9 +145,9 @@ function Gateway() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4">
           <div>
-            <CardTitle>Test payload</CardTitle>
+            <CardTitle>Your test question</CardTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              Active target: <span className="font-mono text-foreground">{active.label}</span> · {active.ctx} · {active.costPer1K}/1K
+              Sending to <span className="font-mono text-foreground">{active.label}</span> · {active.ctx} · {active.costPer1K}/1K tokens
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -166,7 +166,7 @@ function Gateway() {
           <Textarea id="gw-prompt" rows={4} value={prompt} onChange={(e) => setPrompt(e.target.value)} className="font-mono text-sm" />
           <div className="flex flex-wrap items-center gap-3">
             <Button onClick={run} disabled={!!running || killSwitch}>
-              {killSwitch ? (<><Lock className="h-4 w-4 mr-2" /> Blocked by Kill Switch</>) : (<><Send className="h-4 w-4 mr-2" /> Send through JurisCore Layer</>)}
+              {killSwitch ? (<><Lock className="h-4 w-4 mr-2" /> Emergency stop is on</>) : (<><Send className="h-4 w-4 mr-2" /> Send through JurisCore</>)}
             </Button>
             <div className="flex-1 min-w-[16rem]">
               <div className="h-2 rounded-full bg-muted overflow-hidden">
@@ -214,7 +214,7 @@ function Gateway() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-sm flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-primary" /> Compliance</CardTitle></CardHeader>
+            <CardHeader className="pb-3"><CardTitle className="text-sm flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-primary" /> Verdict</CardTitle></CardHeader>
             <CardContent className="space-y-2 text-sm">
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className={

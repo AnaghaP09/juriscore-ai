@@ -22,9 +22,9 @@ function Rulebooks() {
   return (
     <div className="p-6 sm:p-8 space-y-6">
       <PageHeader
-        eyebrow="Governance"
+        eyebrow="Your rules"
         title="Rulebooks"
-        description="Each rulebook is a versioned collection of policy clauses used by the RAG core."
+        description="The policies JurisCore checks every AI answer against. Add your own or start from the built-in SEC, FINRA, HIPAA, and CMS sets."
         actions={
           <Button onClick={() => toast.info("Demo build — upload disabled.")}>
             <Upload className="mr-2 h-4 w-4" /> Add rulebook
@@ -52,7 +52,7 @@ function Rulebooks() {
               </div>
               <div>
                 <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                  <span>Coverage vs current regulation</span>
+                  <span>How much of the current regulation is covered</span>
                   <span className="font-mono">{(r.coverage * 100).toFixed(0)}%</span>
                 </div>
                 <Progress value={r.coverage * 100} />
