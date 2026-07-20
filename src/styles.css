@@ -143,3 +143,43 @@
     }
   }
 }
+
+@utility diff-add {
+  background: color-mix(in oklab, var(--allow) 12%, transparent);
+  border-left: 2px solid color-mix(in oklab, var(--allow) 60%, transparent);
+}
+
+@utility diff-del {
+  background: color-mix(in oklab, var(--block) 12%, transparent);
+  border-left: 2px solid color-mix(in oklab, var(--block) 60%, transparent);
+}
+
+@utility pulse-ring {
+  position: relative;
+  box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 55%, transparent);
+  animation: pulse-ring 1.4s ease-out infinite;
+}
+
+@utility lockdown-scrim {
+  background:
+    radial-gradient(circle at 50% 40%, color-mix(in oklab, var(--block) 25%, transparent) 0%, transparent 60%),
+    color-mix(in oklab, var(--background) 85%, black 20%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+@utility shield-pulse {
+  animation: shield-pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 55%, transparent); }
+  70%  { box-shadow: 0 0 0 12px color-mix(in oklab, var(--primary) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 0%, transparent); }
+}
+
+@keyframes shield-pulse {
+  0%,100% { transform: scale(1); opacity: 1; }
+  50%     { transform: scale(1.06); opacity: 0.85; }
+}
+

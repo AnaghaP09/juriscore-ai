@@ -16,6 +16,11 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard.index'
 import { Route as DashboardUseCasesRouteImport } from './routes/dashboard.use-cases'
 import { Route as DashboardRulebooksRouteImport } from './routes/dashboard.rulebooks'
+import { Route as DashboardRedactionRouteImport } from './routes/dashboard.redaction'
+import { Route as DashboardPipelineRouteImport } from './routes/dashboard.pipeline'
+import { Route as DashboardGatewayRouteImport } from './routes/dashboard.gateway'
+import { Route as DashboardDriftRouteImport } from './routes/dashboard.drift'
+import { Route as DashboardCisoRouteImport } from './routes/dashboard.ciso'
 import { Route as DashboardAuditRouteImport } from './routes/dashboard.audit'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
@@ -56,6 +61,31 @@ const DashboardRulebooksRoute = DashboardRulebooksRouteImport.update({
   path: '/rulebooks',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardRedactionRoute = DashboardRedactionRouteImport.update({
+  id: '/redaction',
+  path: '/redaction',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardPipelineRoute = DashboardPipelineRouteImport.update({
+  id: '/pipeline',
+  path: '/pipeline',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardGatewayRoute = DashboardGatewayRouteImport.update({
+  id: '/gateway',
+  path: '/gateway',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardDriftRoute = DashboardDriftRouteImport.update({
+  id: '/drift',
+  path: '/drift',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardCisoRoute = DashboardCisoRouteImport.update({
+  id: '/ciso',
+  path: '/ciso',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardAuditRoute = DashboardAuditRouteImport.update({
   id: '/audit',
   path: '/audit',
@@ -88,6 +118,11 @@ export interface FileRoutesByFullPath {
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/dashboard/audit': typeof DashboardAuditRoute
+  '/dashboard/ciso': typeof DashboardCisoRoute
+  '/dashboard/drift': typeof DashboardDriftRoute
+  '/dashboard/gateway': typeof DashboardGatewayRoute
+  '/dashboard/pipeline': typeof DashboardPipelineRoute
+  '/dashboard/redaction': typeof DashboardRedactionRoute
   '/dashboard/rulebooks': typeof DashboardRulebooksRoute
   '/dashboard/use-cases': typeof DashboardUseCasesRoute
   '/dashboard/': typeof DashboardIndexRoute
@@ -100,6 +135,11 @@ export interface FileRoutesByTo {
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/dashboard/audit': typeof DashboardAuditRoute
+  '/dashboard/ciso': typeof DashboardCisoRoute
+  '/dashboard/drift': typeof DashboardDriftRoute
+  '/dashboard/gateway': typeof DashboardGatewayRoute
+  '/dashboard/pipeline': typeof DashboardPipelineRoute
+  '/dashboard/redaction': typeof DashboardRedactionRoute
   '/dashboard/rulebooks': typeof DashboardRulebooksRoute
   '/dashboard/use-cases': typeof DashboardUseCasesRoute
   '/dashboard': typeof DashboardIndexRoute
@@ -114,6 +154,11 @@ export interface FileRoutesById {
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/dashboard/audit': typeof DashboardAuditRoute
+  '/dashboard/ciso': typeof DashboardCisoRoute
+  '/dashboard/drift': typeof DashboardDriftRoute
+  '/dashboard/gateway': typeof DashboardGatewayRoute
+  '/dashboard/pipeline': typeof DashboardPipelineRoute
+  '/dashboard/redaction': typeof DashboardRedactionRoute
   '/dashboard/rulebooks': typeof DashboardRulebooksRoute
   '/dashboard/use-cases': typeof DashboardUseCasesRoute
   '/dashboard/': typeof DashboardIndexRoute
@@ -129,6 +174,11 @@ export interface FileRouteTypes {
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/dashboard/audit'
+    | '/dashboard/ciso'
+    | '/dashboard/drift'
+    | '/dashboard/gateway'
+    | '/dashboard/pipeline'
+    | '/dashboard/redaction'
     | '/dashboard/rulebooks'
     | '/dashboard/use-cases'
     | '/dashboard/'
@@ -141,6 +191,11 @@ export interface FileRouteTypes {
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/dashboard/audit'
+    | '/dashboard/ciso'
+    | '/dashboard/drift'
+    | '/dashboard/gateway'
+    | '/dashboard/pipeline'
+    | '/dashboard/redaction'
     | '/dashboard/rulebooks'
     | '/dashboard/use-cases'
     | '/dashboard'
@@ -154,6 +209,11 @@ export interface FileRouteTypes {
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/dashboard/audit'
+    | '/dashboard/ciso'
+    | '/dashboard/drift'
+    | '/dashboard/gateway'
+    | '/dashboard/pipeline'
+    | '/dashboard/redaction'
     | '/dashboard/rulebooks'
     | '/dashboard/use-cases'
     | '/dashboard/'
@@ -221,6 +281,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardRulebooksRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/dashboard/redaction': {
+      id: '/dashboard/redaction'
+      path: '/redaction'
+      fullPath: '/dashboard/redaction'
+      preLoaderRoute: typeof DashboardRedactionRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/pipeline': {
+      id: '/dashboard/pipeline'
+      path: '/pipeline'
+      fullPath: '/dashboard/pipeline'
+      preLoaderRoute: typeof DashboardPipelineRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/gateway': {
+      id: '/dashboard/gateway'
+      path: '/gateway'
+      fullPath: '/dashboard/gateway'
+      preLoaderRoute: typeof DashboardGatewayRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/drift': {
+      id: '/dashboard/drift'
+      path: '/drift'
+      fullPath: '/dashboard/drift'
+      preLoaderRoute: typeof DashboardDriftRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/ciso': {
+      id: '/dashboard/ciso'
+      path: '/ciso'
+      fullPath: '/dashboard/ciso'
+      preLoaderRoute: typeof DashboardCisoRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/audit': {
       id: '/dashboard/audit'
       path: '/audit'
@@ -254,6 +349,11 @@ declare module '@tanstack/react-router' {
 
 interface DashboardRouteChildren {
   DashboardAuditRoute: typeof DashboardAuditRoute
+  DashboardCisoRoute: typeof DashboardCisoRoute
+  DashboardDriftRoute: typeof DashboardDriftRoute
+  DashboardGatewayRoute: typeof DashboardGatewayRoute
+  DashboardPipelineRoute: typeof DashboardPipelineRoute
+  DashboardRedactionRoute: typeof DashboardRedactionRoute
   DashboardRulebooksRoute: typeof DashboardRulebooksRoute
   DashboardUseCasesRoute: typeof DashboardUseCasesRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
@@ -261,6 +361,11 @@ interface DashboardRouteChildren {
 
 const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardAuditRoute: DashboardAuditRoute,
+  DashboardCisoRoute: DashboardCisoRoute,
+  DashboardDriftRoute: DashboardDriftRoute,
+  DashboardGatewayRoute: DashboardGatewayRoute,
+  DashboardPipelineRoute: DashboardPipelineRoute,
+  DashboardRedactionRoute: DashboardRedactionRoute,
   DashboardRulebooksRoute: DashboardRulebooksRoute,
   DashboardUseCasesRoute: DashboardUseCasesRoute,
   DashboardIndexRoute: DashboardIndexRoute,
