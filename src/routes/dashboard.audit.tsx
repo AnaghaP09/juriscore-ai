@@ -80,6 +80,33 @@ function AuditLog() {
         <div aria-live="polite" className="ml-auto text-sm text-muted-foreground self-center">
           Showing {rows.length} of {AUDIT.length}
         </div>
+        <Button variant="outline" size="sm" onClick={() => {
+          downloadCSV("juriscore_audit.csv", rows.map((r) => ({
+            id: r.id, ts: r.ts, domain: r.domain, useCase: r.useCase, verdict: r.verdict,
+            latencyMs: r.latencyMs, blockedStage: r.blockedStage ?? "", reason: r.reason ?? "",
+            ruleId: r.retrievedPolicyIds[0] ?? "", citationCoverage: r.citationCoverage, prompt: r.prompt,
+          })));
+        }}><Download className="h-4 w-4 mr-2" aria-hidden />CSV</Button>
+        <Button variant="outline" size="sm" onClick={() => {
+          const blocked = rows.filter((r) => r.verdict === "block").length;
+          const revised = rows.filter((r) => r.verdict === "revise").length;
+          openPrintReport({
+            title: "Audit Ledger Export",
+            subtitle: `${rows.length} entries · filters: domain=${domain}, verdict=${verdict}${q ? `, query="${q}"` : ""}`,
+            sections: [
+              { heading: "Summary", html: `<div class="grid">${[
+                kpiCard("Entries", String(rows.length)),
+                kpiCard("Blocked", String(blocked)),
+                kpiCard("Revised", String(revised)),
+                kpiCard("Allowed", String(rows.length - blocked - revised)),
+              ].join("")}</div>` },
+              { heading: "Entries", html: htmlTable(
+                ["ID", "Time (UTC)", "Domain", "Use case", "Verdict", "Rule", "Latency", "Reason"],
+                rows.map((r) => [r.id, r.ts.slice(0, 16).replace("T", " "), r.domain, r.useCase, r.verdict, r.retrievedPolicyIds[0] ?? "—", `${r.latencyMs}ms`, r.reason ?? "—"]),
+              ) },
+            ],
+          });
+        }}><FileText className="h-4 w-4 mr-2" aria-hidden />PDF</Button>
       </div>
 
       <div className="rounded-lg border border-border overflow-x-auto">
