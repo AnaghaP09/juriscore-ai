@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PageHeader } from "@/components/page-header";
 import { Download, FileText } from "lucide-react";
 import { AUDIT, type AuditEntry, type Verdict } from "@/lib/juriscore/mock";
 import { downloadCSV, openPrintReport, htmlTable, kpiCard } from "@/lib/juriscore/export";
@@ -41,13 +42,12 @@ function AuditLog() {
   }, [q, domain, verdict]);
 
   return (
-    <div className="p-4 sm:p-8 space-y-6">
-      <header>
-        <h1 className="text-3xl font-semibold tracking-tight">Audit Log</h1>
-        <p className="mt-1 text-sm text-muted-foreground text-pretty">
-          Standardized chain: Prompt → Guardrail check → Model response → Final approval. Select any row for the full trace.
-        </p>
-      </header>
+    <div className="p-6 sm:p-8 space-y-6">
+      <PageHeader
+        eyebrow="Governance"
+        title="Audit Log"
+        description="Standardized chain: Prompt → Guardrail check → Model response → Final approval. Select any row for the full trace."
+      />
 
       <div className="flex flex-wrap gap-3" role="search" aria-label="Filter audit entries">
         <div className="flex-1 min-w-[12rem] max-w-xs">

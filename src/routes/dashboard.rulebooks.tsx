@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { PageHeader } from "@/components/page-header";
 import { RULEBOOKS, POLICIES } from "@/lib/juriscore/mock";
 import { BookOpen, Upload, FileText } from "lucide-react";
 import { toast } from "sonner";
@@ -19,18 +20,17 @@ export const Route = createFileRoute("/dashboard/rulebooks")({
 
 function Rulebooks() {
   return (
-    <div className="p-4 sm:p-8 space-y-6">
-      <header className="flex items-start justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Rulebooks</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Each rulebook is a versioned collection of policy clauses used by the RAG core.
-          </p>
-        </div>
-        <Button onClick={() => toast.info("Demo build — upload disabled.")}>
-          <Upload className="mr-2 h-4 w-4" /> Add rulebook
-        </Button>
-      </header>
+    <div className="p-6 sm:p-8 space-y-6">
+      <PageHeader
+        eyebrow="Governance"
+        title="Rulebooks"
+        description="Each rulebook is a versioned collection of policy clauses used by the RAG core."
+        actions={
+          <Button onClick={() => toast.info("Demo build — upload disabled.")}>
+            <Upload className="mr-2 h-4 w-4" /> Add rulebook
+          </Button>
+        }
+      />
 
       <div className="grid md:grid-cols-2 gap-4">
         {RULEBOOKS.map((r) => (
