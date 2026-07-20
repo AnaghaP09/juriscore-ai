@@ -54,61 +54,63 @@ Authentication: None (public demo)`,
 
 function Connect() {
   return (
-    <div className="min-h-dvh">
+    <div className="min-h-dvh p-0 md:p-4 lg:p-6" style={{ background: "var(--app-bg)" }}>
       <a href="#connect-main" className="skip-link">Skip to main content</a>
-      <header className="border-b border-border/60 backdrop-blur-sm bg-background/80">
-        <div className="mx-auto max-w-5xl px-6 h-16 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
-          <Link to="/" aria-label="JurisCore AI — home" className="flex min-w-0 items-center gap-2 font-semibold">
-            <span aria-hidden="true" className="inline-block h-6 w-6 shrink-0 rounded-sm bg-primary" />
-            <span className="truncate">JurisCore <span className="text-primary">AI</span></span>
-          </Link>
-          <Button asChild variant="ghost" size="sm">
-            <Link to="/dashboard"><ArrowLeft aria-hidden="true" className="mr-2 h-4 w-4" /> Dashboard</Link>
-          </Button>
-        </div>
-      </header>
-
-      <main id="connect-main" className="mx-auto max-w-5xl px-6 py-12 sm:py-16 space-y-12">
-        <div>
-          <Badge className="mb-4"><Plug className="mr-1 h-3 w-3" /> MCP Server · public</Badge>
-          <h1 className="text-4xl font-semibold tracking-tight">Connect JurisCore to your assistant</h1>
-          <p className="mt-3 text-muted-foreground max-w-2xl">
-            JurisCore exposes its guardrail pipeline as a Model Context Protocol server at
-            {" "}<code className="font-mono text-primary">/mcp</code>. Any MCP-aware assistant can call the tools below.
-          </p>
-        </div>
-
-        <section>
-          <h2 className="text-xl font-semibold mb-4">Available tools</h2>
-          <div className="grid md:grid-cols-2 gap-3">
-            {tools.map((t) => (
-              <div key={t.name} className="rounded-md border border-border bg-card p-4">
-                <div className="font-mono text-sm text-primary">{t.name}</div>
-                <div className="text-sm text-muted-foreground mt-1">{t.desc}</div>
-              </div>
-            ))}
+      <div className="bg-card md:rounded-2xl md:shadow-[0_20px_60px_-20px_oklch(0.2_0.05_285/0.35)] overflow-hidden">
+        <header className="border-b border-border/60 bg-card/90 backdrop-blur">
+          <div className="mx-auto max-w-5xl px-6 h-16 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+            <Link to="/" aria-label="JurisCore AI — home" className="flex min-w-0 items-center gap-2 font-semibold">
+              <span aria-hidden="true" className="inline-block h-6 w-6 shrink-0 rounded-sm bg-primary" />
+              <span className="truncate">JurisCore <span className="text-primary">AI</span></span>
+            </Link>
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/dashboard"><ArrowLeft aria-hidden="true" className="mr-2 h-4 w-4" /> Dashboard</Link>
+            </Button>
           </div>
-        </section>
+        </header>
 
-        <section>
-          <h2 className="text-xl font-semibold mb-4">Client configuration</h2>
-          <div className="grid md:grid-cols-3 gap-3">
-            {clients.map((c) => (
-              <Card key={c.name}>
-                <CardHeader><CardTitle className="text-sm">{c.name}</CardTitle></CardHeader>
-                <CardContent>
-                  <pre className="font-mono text-xs overflow-x-auto whitespace-pre-wrap leading-5 text-foreground/85">{c.config}</pre>
-                </CardContent>
-              </Card>
-            ))}
+        <main id="connect-main" className="mx-auto max-w-5xl px-6 py-12 sm:py-16 space-y-12">
+          <div>
+            <Badge className="mb-4"><Plug className="mr-1 h-3 w-3" /> MCP Server · public</Badge>
+            <h1 className="page-title text-4xl">Connect JurisCore to your assistant</h1>
+            <p className="page-sub">
+              JurisCore exposes its guardrail pipeline as a Model Context Protocol server at
+              {" "}<code className="font-mono text-primary">/mcp</code>. Any MCP-aware assistant can call the tools below.
+            </p>
           </div>
-          <p className="mt-4 text-xs text-muted-foreground">
-            Replace <code className="font-mono">&lt;your-app&gt;</code> with the published URL of this project.
-            Since this is a public MCP server, no authentication is required — anyone with the URL can call these
-            (mock) tools.
-          </p>
-        </section>
-      </main>
+
+          <section>
+            <div className="eyebrow mb-3">Available tools</div>
+            <div className="grid md:grid-cols-2 gap-3">
+              {tools.map((t) => (
+                <div key={t.name} className="rounded-2xl border border-border bg-card p-4 card-shadow">
+                  <div className="font-mono text-sm text-primary">{t.name}</div>
+                  <div className="text-sm text-muted-foreground mt-1">{t.desc}</div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <div className="eyebrow mb-3">Client configuration</div>
+            <div className="grid md:grid-cols-3 gap-3">
+              {clients.map((c) => (
+                <Card key={c.name}>
+                  <CardHeader><CardTitle className="text-sm">{c.name}</CardTitle></CardHeader>
+                  <CardContent>
+                    <pre className="font-mono text-xs overflow-x-auto whitespace-pre-wrap leading-5 text-foreground/85">{c.config}</pre>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+            <p className="mt-4 text-xs text-muted-foreground">
+              Replace <code className="font-mono">&lt;your-app&gt;</code> with the published URL of this project.
+              Since this is a public MCP server, no authentication is required — anyone with the URL can call these
+              (mock) tools.
+            </p>
+          </section>
+        </main>
+      </div>
     </div>
   );
 }
