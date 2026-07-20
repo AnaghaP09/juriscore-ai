@@ -47,14 +47,18 @@ function Landing() {
           </p>
           <div className="mt-10 flex flex-wrap gap-3">
             <Button asChild size="lg">
-              <Link to="/dashboard">
-                Open governance dashboard <ArrowRight aria-hidden="true" className="ml-2 h-4 w-4" />
+              <Link to="/dashboard/gateway">
+                Try the live gateway <ArrowRight aria-hidden="true" className="ml-2 h-4 w-4" />
               </Link>
             </Button>
             <Button asChild variant="outline" size="lg">
+              <Link to="/dashboard">Open dashboard</Link>
+            </Button>
+            <Button asChild variant="ghost" size="lg">
               <Link to="/connect"><Plug aria-hidden="true" className="mr-2 h-4 w-4" /> Connect via MCP</Link>
             </Button>
           </div>
+
 
           <dl className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-8 max-w-3xl">
             <Stat label="Time-to-ship" before="47 days" after="6 days" />

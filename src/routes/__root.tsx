@@ -11,6 +11,9 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { DemoStoreProvider } from "@/lib/juriscore/demo-store";
+import { KillSwitchOverlay } from "@/components/kill-switch-overlay";
+
 
 function NotFoundComponent() {
   return (
@@ -132,7 +135,11 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Outlet />
+      <DemoStoreProvider>
+        <Outlet />
+        <KillSwitchOverlay />
+      </DemoStoreProvider>
     </QueryClientProvider>
   );
 }
+

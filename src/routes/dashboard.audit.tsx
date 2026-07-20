@@ -88,14 +88,19 @@ function AuditLog() {
             <tr>
               <th scope="col" className="text-left px-4 py-2 font-medium">ID</th>
               <th scope="col" className="text-left px-4 py-2 font-medium">Time</th>
+              <th scope="col" className="text-left px-4 py-2 font-medium">Target LLM</th>
               <th scope="col" className="text-left px-4 py-2 font-medium">Domain</th>
               <th scope="col" className="text-left px-4 py-2 font-medium">Use case</th>
+              <th scope="col" className="text-left px-4 py-2 font-medium">Rule ID</th>
               <th scope="col" className="text-left px-4 py-2 font-medium">Verdict</th>
               <th scope="col" className="text-right px-4 py-2 font-medium">Latency</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {rows.map((r) => {
+              const modelIdx = r.id.charCodeAt(r.id.length - 1) % 3;
+              const model = ["gemini-1.5-pro", "claude-3.5-sonnet", "gpt-4o"][modelIdx];
+              return (
               <tr
                 key={r.id}
                 tabIndex={0}
@@ -112,15 +117,18 @@ function AuditLog() {
               >
                 <td className="px-4 py-2 font-mono text-xs">{r.id}</td>
                 <td className="px-4 py-2 font-mono text-xs text-muted-foreground whitespace-nowrap">{r.ts.slice(0, 16).replace("T", " ")}</td>
+                <td className="px-4 py-2 font-mono text-xs">{model}</td>
                 <td className="px-4 py-2 capitalize">{r.domain}</td>
                 <td className="px-4 py-2 text-muted-foreground">{r.useCase}</td>
+                <td className="px-4 py-2 font-mono text-xs text-primary">{r.retrievedPolicyIds[0] ?? "—"}</td>
                 <td className="px-4 py-2"><Badge className={`border ${verdictColor(r.verdict)}`} variant="outline">{r.verdict}</Badge></td>
                 <td className="px-4 py-2 text-right font-mono text-xs">{r.latencyMs}ms</td>
               </tr>
-            ))}
+            );})}
             {rows.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">No entries match the current filters.</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-muted-foreground">No entries match the current filters.</td></tr>
             )}
+
           </tbody>
         </table>
       </div>
