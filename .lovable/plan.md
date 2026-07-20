@@ -1,76 +1,92 @@
+# JurisCore AI + Plumb — Interactive Demo Build
 
-## What we're building
+Extend the existing JurisCore dashboard with five new fully-client-side interactive surfaces plus a global "Kill Switch" state. All behavior is simulated in the browser against the existing deterministic mock data — no new backend, no real LLM calls.
 
-**JurisCore AI** as two connected surfaces in one TanStack Start app:
+## New global state (client-only)
 
-1. **MCP server plugin** — mounted at `/mcp`, exposing JurisCore's guardrail pipeline as tools any MCP client (ChatGPT, Claude, Cursor) can call.
-2. **Governance dashboard** — a marketing-grade UI over seeded/mock data showing KPIs, use-case breakdowns, audit log, and a rulebook manager.
+Add `src/lib/juriscore/demo-store.ts` — a tiny Zustand (or React context) store holding:
+- `activeModel`: `"gemini-1.5-pro" | "claude-3.5-sonnet" | "gpt-4o"`
+- `killSwitch`: boolean — when true, every simulator refuses to run and shows the lockdown overlay
+- `driftMode`: `"clean" | "drift"` — toggled from the PR view
+- `recentRuns`: last 20 simulated gateway runs (fed into the Audit ledger view)
 
-No real LLM calls, no auth, no database. All metrics + audit entries are deterministic mock data so the demo is instant and reproducible. A public MCP consent question will be asked at build time (required by the MCP-server flow).
+Overlay component `<KillSwitchOverlay />` mounted in `__root.tsx`: when active, renders a full-viewport shielded backdrop ("Shield Active — Model Endpoints Blocked") with a dismiss/disarm button.
 
----
+## 1. LLM Gateway Panel — `/dashboard/gateway`
 
-## Pages / routes
+- Model selector (dropdown with logo chips for Gemini / Claude / GPT-4o, each carrying a fake context-window + $/1K token label).
+- Prompt textarea + "Send through JurisCore Layer" button.
+- On submit, animate a 4-step simulated run (input scrub → model call → semantic judge → output guardrail) with a progress meter. Uses `scanPrompt` + `retrievePolicies` + `enforceCitations` from existing mock.
+- Result panel (3 columns): **Tokens** (prompt/completion/total, fake calc from length), **Latency** (per-stage bar breakdown summing to a realistic 400–1200ms), **Compliance** (verdict pills + triggered rule IDs).
+- Each run gets pushed to `recentRuns` and rendered in a mini timeline below.
 
-- `/` — **Landing + product overview**: hero ("The Unified Compliance Intelligence Layer"), the 4-stage pipeline diagram (Input Guardrails → RAG Core → Output Guardrails → Audit Log), CTA to dashboard + "Connect via MCP" instructions.
-- `/dashboard` — **Universal Governance Dashboard** (CISO/CCO view)
-  - KPI cards: Audit prep time, Violation incident rate, Time-to-ship, Guardrail accuracy (with target vs current).
-  - Charts: requests over time (allowed vs blocked), latency distribution, top blocked categories.
-  - Domain split: Finance vs Healthcare (stacked bar / donut).
-- `/dashboard/use-cases` — **Use case breakdown** cards from the PRD (Denial Management, Ambient Clinical Docs → Coding, plus finance equivalents): volume, block rate, top failure mode, citation coverage.
-- `/dashboard/audit` — **Audit log explorer**: searchable/filterable table (domain, verdict, tool, date). Row click → drawer with full chain: Prompt → Input Guardrail → Retrieved Policy → Model Response → Citation Check → Final Verdict.
-- `/dashboard/rulebooks` — **Policy/Rulebook manager**: cards per domain (SEC/FINRA, HIPAA, add-your-own), doc count, last updated, coverage %, "Upload PDF/JSON" (mock).
-- `/connect` — **MCP integration guide**: copy-paste config snippets for Claude Desktop / ChatGPT / Cursor pointing to `/mcp`, list of exposed tools with descriptions.
+## 2. Runtime Interception Pipeline — `/dashboard/pipeline`
 
-Replace the placeholder `src/routes/index.tsx` per index-placeholder rule.
+- SVG-based horizontal pipeline of 6 nodes: App Request → Input Guardrail → LLM Engine → Plumb Semantic Judge → Output Guardrail + Citations → Immutable Audit Ledger.
+- "Play" button walks a token through each node with staggered color transitions (idle slate → pulsing blue → green pass / red block). Uses CSS keyframes + `setInterval`.
+- Scenario dropdown: "Clean run", "PII detected (block at stage 2)", "Drift detected (block at stage 4)", "Uncited claim (revise at stage 5)". Each scenario deterministically colors the pipeline.
+- Side detail panel: shows the payload transformation at the currently-focused stage (before/after JSON).
 
----
+## 3. Plumb Drift Workbench — `/dashboard/drift`
 
-## MCP tools exposed (`src/lib/mcp/tools/`)
+Split-screen review UI:
+- **Left**: monospace Git diff of a simulated `payments.ts` change (`kycThreshold`, `crossBorderFeeBps`) rendered with `+` / `-` gutters and syntax color. Hard-coded 2 diffs.
+- **Right**: tabbed doc explorer showing a SEC filing excerpt, a customer sales deck slide, and an internal policy PDF. Each doc has sentences with `data-claim-id`.
+- **"Run Plumb Judge"** button: animates a spinner ("Asking selected model for semantic verdict…"), then in `drift` mode highlights the contradicting sentence on the right and draws an SVG bezier line from that sentence to the offending diff line on the left; badge flips to `DRIFTED`. In `clean` mode all rows go green with `NO CONTRADICTION`.
+- **"Simulate New PR Review"** toggle flips `driftMode` in the store.
+- Verdict card at bottom: model used, confidence %, rule ID (`SEC-206(4)-1`), suggested action (Block merge / Request author explanation).
 
-All are read-only, deterministic, backed by the same mock data the dashboard reads. Each returns structured JSON + a text summary.
+## 4. Redaction Sandbox — `/dashboard/redaction`
 
-- `check_prompt` — input guardrail: PII scan + unsafe-content classification for a given prompt + domain (`finance` | `healthcare`).
-- `retrieve_policy` — RAG lookup against the selected domain rulebook; returns matching policy clauses with IDs.
-- `enforce_citations` — given a draft response + retrieved policies, returns which claims are grounded vs hallucinated.
-- `evaluate_response` — end-to-end: runs the four stages above and returns a final `allow`/`block`/`revise` verdict + audit-log entry ID.
-- `get_audit_entry` — fetch a prior interaction's full chain by ID.
-- `get_metrics` — return current KPI snapshot (mirrors dashboard cards).
+- Two-pane editor. Left: editable textarea prefilled with a realistic ops chat blob containing an AWS key (`AKIA...`), a Postgres URL with password, an SSN, a credit card, and a customer email.
+- Right: live sanitized view — regex-driven pass replaces matches with typed tags: `[REDACTED_AWS_KEY]`, `[REDACTED_DB_URL]`, `[REDACTED_SSN]`, `[REDACTED_PAN]`, `[REDACTED_EMAIL]`.
+- Findings table below: type, count, severity, rule ID (e.g. `SEC-T42`, `AML-K3`, `HIPAA-164.514`).
+- "Send raw" vs "Send sanitized" side-by-side toggle showing which payload would leave the perimeter.
 
-Registered in `src/lib/mcp/index.ts` via `defineMcp`, mounted with `mcpPlugin()` in `vite.config.ts`. **Public MCP** (no auth) — the consent question will be asked before build.
+## 5. CISO Governance Gateway — `/dashboard/ciso`
 
----
+- 4-tile telemetry strip: **Drift Detection Precision** (radial dial targeting 85%+), **Active Document Repositories** (count with sparkline), **Outstanding Policy Mismatches** (list with severity dots), **Avg Middleware Latency** (line sparkline vs 800ms budget).
+- **Universal CISO Kill Switch**: large toggle with confirm dialog. When engaged, sets `killSwitch=true`, triggers overlay, and disables all simulator buttons app-wide (Gateway, Pipeline, Drift, Redaction show a locked state).
+- Recent policy-mismatch feed pulled from `AUDIT` (existing mock), filtered to `verdict !== 'allow'`.
+- Model endpoint health matrix: each of the 3 models × 3 regions with status pills (Healthy / Degraded / Blocked). Kill switch flips all to Blocked.
 
-## Mock data layer
+## Extend existing Audit route
 
-`src/lib/juriscore/mock.ts` — deterministic seed (fixed RNG) producing:
-- ~500 audit-log entries across last 30 days, mixed Finance/Healthcare, ~7% block rate.
-- Domain rulebooks (SEC, FINRA, HIPAA) with a handful of realistic clause stubs.
-- Precomputed KPIs derived from the same log so tools and dashboard stay consistent.
+- New column: `Target LLM` (populated from `recentRuns` for new entries; existing 512 mock entries get a deterministically-assigned model based on entry id hash).
+- New column: `Triggered Rule ID` (already implicit via `retrievedPolicyIds` — surface the first one).
+- Detail drawer already exists — extend with a "Chain of Reasoning" section (bulleted list of stage decisions).
 
-Frontend reads directly from this module (no server round-trip needed). MCP tools import the same module.
+## Navigation & shell
 
----
+Extend the dashboard sidebar in `src/routes/dashboard.tsx` with the 5 new links, grouped:
+- **Live Demo**: Gateway, Pipeline, Drift, Redaction
+- **Governance**: Overview, Use Cases, Audit Log, Rulebooks, CISO
 
-## Design system
+Persistent top bar in the dashboard layout gains: active model chip (from store), kill-switch indicator (red when armed), "Reset demo" button.
 
-Dark, "trust infrastructure" aesthetic — deep navy background, single restrained accent (electric teal for allow, coral for block), Inter for body + JetBrains Mono for policy IDs / IDs in the audit log. All colors as semantic tokens in `src/styles.css`; no hardcoded Tailwind color classes. Real `head()` metadata per route (title, description, OG).
+## Design system additions (`src/styles.css`)
 
----
+- New tokens: `--drift`, `--drift-glow`, `--lockdown-bg`, `--pipeline-idle`, `--pipeline-active`, `--pipeline-pass`, `--pipeline-block`.
+- Utilities: `.pulse-ring` (radiating rings for active pipeline node), `.diff-add` / `.diff-del` (bg-tinted diff lines), `.lockdown-scrim` (backdrop-blur + slow shield-pulse).
+- Reduced-motion variants for all new animations.
+- Reuse existing dark palette; no light-mode work.
 
-## Technical notes
+## Accessibility (carry existing standards forward)
 
-- Stack: TanStack Start (existing template), shadcn/ui, Recharts for charts.
-- Package to add: `@lovable.dev/mcp-js` (with bunfig exclusion), `zod`, `recharts`.
-- Route metadata: replace root `Lovable App` defaults; leaf routes get their own head().
-- No Lovable Cloud, no auth, no DB.
-- Favicon: add a simple JurisCore mark (used by Lovable's MCP connector list).
+- Every new interactive control gets a visible label; icon-only buttons get `aria-label`.
+- Pipeline animation exposes state via `aria-live="polite"` announcements ("Stage 3: Semantic judge complete — drift detected").
+- Kill-switch overlay traps focus and is dismissible with Escape.
+- Drift SVG connector lines are decorative (`aria-hidden`); the contradiction relationship is also expressed in a text summary below the split view for screen readers.
+- Redaction diff exposes findings as a real `<table>` with scoped headers.
 
----
+## Out of scope
 
-## Out of scope (per your answers)
+- No real LLM API calls. Model selection is cosmetic + tunes the fake latency/token math.
+- No new MCP tools (existing 6 remain).
+- No auth changes.
+- No new backend routes or DB.
 
-- Real LLM calls / real vector DB
-- Persistence / auth / user management
-- Human feedback loop UI (P1 in PRD)
-- HR / Legal / Supply Chain domains
+## Files touched
+
+- New: `src/lib/juriscore/demo-store.ts`, `src/components/kill-switch-overlay.tsx`, `src/components/pipeline-graph.tsx`, `src/components/diff-view.tsx`, `src/routes/dashboard.gateway.tsx`, `src/routes/dashboard.pipeline.tsx`, `src/routes/dashboard.drift.tsx`, `src/routes/dashboard.redaction.tsx`, `src/routes/dashboard.ciso.tsx`.
+- Edit: `src/routes/__root.tsx` (mount overlay), `src/routes/dashboard.tsx` (sidebar + top bar), `src/routes/dashboard.audit.tsx` (new columns), `src/styles.css` (tokens + utilities), `src/routes/index.tsx` (add CTA to Gateway demo).
