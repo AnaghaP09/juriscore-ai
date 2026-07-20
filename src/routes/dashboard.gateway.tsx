@@ -5,9 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PageHeader } from "@/components/page-header";
 import { MODELS, modelById, useDemoStore, type ModelId } from "@/lib/juriscore/demo-store";
 import { scanPrompt, retrievePolicies } from "@/lib/juriscore/mock";
-import { Send, Cpu, Timer, ShieldCheck, Lock } from "lucide-react";
+import { Send, Cpu, Timer, ShieldCheck, Lock, Zap } from "lucide-react";
 
 export const Route = createFileRoute("/dashboard/gateway")({
   head: () => ({
@@ -113,33 +114,33 @@ function Gateway() {
   const active = modelById(activeModel);
 
   return (
-    <div className="p-4 sm:p-8 space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">LLM Gateway</h1>
-          <p className="mt-1 text-sm text-muted-foreground text-pretty">
-            Route a real payload through the JurisCore middleware. Model-agnostic — swap targets without touching your app.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <label htmlFor="gw-model" className="sr-only">Target model</label>
-          <Select value={activeModel} onValueChange={(v) => setActiveModel(v as ModelId)}>
-            <SelectTrigger id="gw-model" className="w-56">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {MODELS.map((m) => (
-                <SelectItem key={m.id} value={m.id}>
-                  <span className="inline-flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full" style={{ background: m.accent }} aria-hidden />
-                    {m.label} <span className="text-xs text-muted-foreground">· {m.vendor}</span>
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </header>
+    <div className="p-6 sm:p-8 space-y-6">
+      <PageHeader
+        eyebrow="Live Demo"
+        icon={<Zap className="h-6 w-6" aria-hidden />}
+        title="LLM Gateway"
+        description="Route a real payload through the JurisCore middleware. Model-agnostic — swap targets without touching your app."
+        actions={
+          <>
+            <label htmlFor="gw-model" className="sr-only">Target model</label>
+            <Select value={activeModel} onValueChange={(v) => setActiveModel(v as ModelId)}>
+              <SelectTrigger id="gw-model" className="w-56">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MODELS.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    <span className="inline-flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full" style={{ background: m.accent }} aria-hidden />
+                      {m.label} <span className="text-xs text-muted-foreground">· {m.vendor}</span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
+        }
+      />
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4">

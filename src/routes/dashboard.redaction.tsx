@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/page-header";
 import { EyeOff, ShieldCheck } from "lucide-react";
 
 export const Route = createFileRoute("/dashboard/redaction")({
@@ -58,15 +59,13 @@ function Redaction() {
   const totalHigh = findings.filter((f) => f.severity === "high").reduce((s, f) => s + f.count, 0);
 
   return (
-    <div className="p-4 sm:p-8 space-y-6">
-      <header>
-        <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-2">
-          <EyeOff className="h-6 w-6 text-primary" aria-hidden /> Redaction Sandbox
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground text-pretty">
-          Every prompt is sanitized before it leaves your perimeter. Edit the raw payload and watch the input guardrail rewrite it live.
-        </p>
-      </header>
+    <div className="p-6 sm:p-8 space-y-6">
+      <PageHeader
+        eyebrow="Live Demo"
+        icon={<EyeOff className="h-6 w-6" aria-hidden />}
+        title="Redaction Sandbox"
+        description="Every prompt is sanitized before it leaves your perimeter. Edit the raw payload and watch the input guardrail rewrite it live."
+      />
 
       <div className="grid lg:grid-cols-2 gap-4">
         <Card>

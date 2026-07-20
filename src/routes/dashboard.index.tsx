@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/page-header";
 import { AUDIT, getMetrics, getUseCaseSummaries } from "@/lib/juriscore/mock";
 import { downloadCSV, openPrintReport, kpiCard, htmlTable } from "@/lib/juriscore/export";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -30,42 +31,43 @@ function Overview() {
   }));
 
   return (
-    <div className="p-4 sm:p-8 space-y-8">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Governance Overview</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Universal visibility for CISOs &amp; CCOs · last 30 days</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="font-mono">{m.kpis.totalRequests.toLocaleString()} requests</Badge>
-          <Button variant="outline" size="sm" onClick={() => {
-            downloadCSV("juriscore_daily_metrics.csv", m.series);
-          }}><Download className="h-4 w-4 mr-2" aria-hidden />CSV</Button>
-          <Button variant="outline" size="sm" onClick={() => {
-            const uc = getUseCaseSummaries();
-            openPrintReport({
-              title: "Governance Overview",
-              subtitle: `Last 30 days · ${m.kpis.totalRequests.toLocaleString()} total requests · ${AUDIT.length} audit entries`,
-              sections: [
-                { heading: "Key KPIs", html: `<div class="grid">${[
-                  kpiCard("Violation rate", `${(m.kpis.violationRate * 100).toFixed(2)}%`, "Target ≤ 0.5%"),
-                  kpiCard("Guardrail accuracy", `${(m.kpis.guardrailAccuracy * 100).toFixed(1)}%`),
-                  kpiCard("Audit prep time", `${m.kpis.auditPrepMinutes} min`, "Was: multiple days"),
-                  kpiCard("Time to ship", `${m.kpis.timeToShipDaysAfter} days`, `Was ${m.kpis.timeToShipDaysBefore} days`),
-                  kpiCard("Avg latency", `${m.kpis.avgLatencyMs} ms`),
-                  kpiCard("Citation coverage", `${(m.kpis.citationCoverage * 100).toFixed(0)}%`),
-                  kpiCard("Allowed", `${(m.kpis.allowedRate * 100).toFixed(1)}%`),
-                  kpiCard("Revised", `${(m.kpis.revisedRate * 100).toFixed(1)}%`),
-                ].join("")}</div>` },
-                { heading: "Blocks by pipeline stage", html: htmlTable(["Stage", "Count"], Object.entries(m.blockedByStage).map(([s, c]) => [s.replace(/_/g, " "), c])) },
-                { heading: "Domain breakdown", html: htmlTable(["Domain", "Total", "Blocked"], m.byDomain.map((d) => [d.domain, d.total, d.blocked])) },
-                { heading: "Use case portfolio", html: htmlTable(["Use case", "Domain", "Volume", "Block %", "Coverage %"], uc.map((u) => [u.name, u.domain, u.volume, (u.blockRate * 100).toFixed(1), (u.citationCoverage * 100).toFixed(0)])) },
-                { heading: "Daily volume (last 30d)", html: htmlTable(["Day", "Allowed", "Revised", "Blocked"], m.series.map((s) => [s.day, s.allowed, s.revised, s.blocked])) },
-              ],
-            });
-          }}><FileText className="h-4 w-4 mr-2" aria-hidden />PDF report</Button>
-        </div>
-      </header>
+    <div className="p-6 sm:p-8 space-y-8">
+      <PageHeader
+        eyebrow="Governance"
+        title="Governance Overview"
+        description={`Universal visibility for CISOs & CCOs · last 30 days`}
+        actions={
+          <>
+            <Badge variant="outline" className="font-mono">{m.kpis.totalRequests.toLocaleString()} requests</Badge>
+            <Button variant="outline" size="sm" onClick={() => {
+              downloadCSV("juriscore_daily_metrics.csv", m.series);
+            }}><Download className="h-4 w-4 mr-2" aria-hidden />CSV</Button>
+            <Button variant="outline" size="sm" onClick={() => {
+              const uc = getUseCaseSummaries();
+              openPrintReport({
+                title: "Governance Overview",
+                subtitle: `Last 30 days · ${m.kpis.totalRequests.toLocaleString()} total requests · ${AUDIT.length} audit entries`,
+                sections: [
+                  { heading: "Key KPIs", html: `<div class="grid">${[
+                    kpiCard("Violation rate", `${(m.kpis.violationRate * 100).toFixed(2)}%`, "Target ≤ 0.5%"),
+                    kpiCard("Guardrail accuracy", `${(m.kpis.guardrailAccuracy * 100).toFixed(1)}%`),
+                    kpiCard("Audit prep time", `${m.kpis.auditPrepMinutes} min`, "Was: multiple days"),
+                    kpiCard("Time to ship", `${m.kpis.timeToShipDaysAfter} days`, `Was ${m.kpis.timeToShipDaysBefore} days`),
+                    kpiCard("Avg latency", `${m.kpis.avgLatencyMs} ms`),
+                    kpiCard("Citation coverage", `${(m.kpis.citationCoverage * 100).toFixed(0)}%`),
+                    kpiCard("Allowed", `${(m.kpis.allowedRate * 100).toFixed(1)}%`),
+                    kpiCard("Revised", `${(m.kpis.revisedRate * 100).toFixed(1)}%`),
+                  ].join("")}</div>` },
+                  { heading: "Blocks by pipeline stage", html: htmlTable(["Stage", "Count"], Object.entries(m.blockedByStage).map(([s, c]) => [s.replace(/_/g, " "), c])) },
+                  { heading: "Domain breakdown", html: htmlTable(["Domain", "Total", "Blocked"], m.byDomain.map((d) => [d.domain, d.total, d.blocked])) },
+                  { heading: "Use case portfolio", html: htmlTable(["Use case", "Domain", "Volume", "Block %", "Coverage %"], uc.map((u) => [u.name, u.domain, u.volume, (u.blockRate * 100).toFixed(1), (u.citationCoverage * 100).toFixed(0)])) },
+                  { heading: "Daily volume (last 30d)", html: htmlTable(["Day", "Allowed", "Revised", "Blocked"], m.series.map((s) => [s.day, s.allowed, s.revised, s.blocked])) },
+                ],
+              });
+            }}><FileText className="h-4 w-4 mr-2" aria-hidden />PDF report</Button>
+          </>
+        }
+      />
 
       <div className="grid md:grid-cols-4 gap-4">
         <Kpi icon={AlertTriangle} label="Violation rate" value={`${(m.kpis.violationRate * 100).toFixed(2)}%`} sub={`Target ≤ 0.5% — ${(m.kpis.violationRate * m.kpis.totalRequests).toFixed(0)} blocked`} tone="block" />
@@ -169,13 +171,13 @@ function Kpi({ icon: Icon, label, value, sub, tone }: { icon: React.ComponentTyp
   return (
     <Card>
       <CardContent className="p-5">
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
-            <div className="mt-2 text-3xl font-semibold font-mono">{value}</div>
-            <div className="mt-1 text-xs text-muted-foreground">{sub}</div>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="eyebrow">{label}</div>
+            <div className="stat-value mt-2">{value}</div>
+            <div className="mt-1.5 text-xs text-muted-foreground">{sub}</div>
           </div>
-          <Icon className={`h-5 w-5 ${toneColor}`} />
+          <Icon className={`h-5 w-5 shrink-0 ${toneColor}`} />
         </div>
       </CardContent>
     </Card>

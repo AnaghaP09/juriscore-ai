@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/page-header";
 import { ArrowRight, Download, FileText, GitPullRequest } from "lucide-react";
 import { getUseCaseSummaries } from "@/lib/juriscore/mock";
 import { downloadCSV, openPrintReport, kpiCard, htmlTable, escapeHtml } from "@/lib/juriscore/export";
@@ -62,19 +63,18 @@ function UseCases() {
   };
 
   return (
-    <div className="p-4 sm:p-8 space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Use Cases</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Each use case is governed by a domain rulebook. Click any card for drill-down metrics and audit trail.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={exportCSV}><Download className="h-4 w-4 mr-2" aria-hidden />CSV</Button>
-          <Button variant="outline" size="sm" onClick={exportPDF}><FileText className="h-4 w-4 mr-2" aria-hidden />PDF report</Button>
-        </div>
-      </header>
+    <div className="p-6 sm:p-8 space-y-6">
+      <PageHeader
+        eyebrow="Governance"
+        title="Use Cases"
+        description="Each use case is governed by a domain rulebook. Click any card for drill-down metrics and audit trail."
+        actions={
+          <>
+            <Button variant="outline" size="sm" onClick={exportCSV}><Download className="h-4 w-4 mr-2" aria-hidden />CSV</Button>
+            <Button variant="outline" size="sm" onClick={exportPDF}><FileText className="h-4 w-4 mr-2" aria-hidden />PDF report</Button>
+          </>
+        }
+      />
       <div className="grid md:grid-cols-2 gap-4">
         {items.map((uc) => {
           const isPlumb = uc.key === "plumb-drift";

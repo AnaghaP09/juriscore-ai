@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Play, Lock } from "lucide-react";
+import { PageHeader } from "@/components/page-header";
+import { Play, Lock, Activity } from "lucide-react";
 import { useDemoStore } from "@/lib/juriscore/demo-store";
 
 export const Route = createFileRoute("/dashboard/pipeline")({
@@ -125,13 +126,13 @@ function Pipeline() {
   const blocker = BLOCK_AT[scenario];
 
   return (
-    <div className="p-4 sm:p-8 space-y-6">
-      <header>
-        <h1 className="text-3xl font-semibold tracking-tight">Runtime Interception Architecture</h1>
-        <p className="mt-1 text-sm text-muted-foreground text-pretty">
-          Every request routes through six stages. Pick a scenario and watch the middleware react in real time.
-        </p>
-      </header>
+    <div className="p-6 sm:p-8 space-y-6">
+      <PageHeader
+        eyebrow="Live Demo"
+        icon={<Activity className="h-6 w-6" aria-hidden />}
+        title="Runtime Interception Architecture"
+        description="Every request routes through six stages. Pick a scenario and watch the middleware react in real time."
+      />
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-3 flex-wrap">

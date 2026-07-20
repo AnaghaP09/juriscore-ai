@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PageHeader } from "@/components/page-header";
 import { Sparkles, GitPullRequest, Lock, AlertOctagon, CheckCircle2 } from "lucide-react";
 import { modelById, useDemoStore } from "@/lib/juriscore/demo-store";
 
@@ -80,26 +81,24 @@ function DriftView() {
   const model = modelById(activeModel);
 
   return (
-    <div className="p-4 sm:p-8 space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-2">
-            <GitPullRequest className="h-6 w-6 text-primary" aria-hidden /> Drift Workbench
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground text-pretty">
-            The Plumb wedge: an LLM judge that flags when a code change contradicts what the company already told regulators or customers.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2">
-            <Switch id="pr-toggle" checked={driftMode === "drift"} onCheckedChange={(c) => { setDriftMode(c ? "drift" : "clean"); setRan(false); }} />
-            <label htmlFor="pr-toggle" className="text-sm">Simulate New PR Review</label>
-          </div>
-          <Button onClick={runJudge} disabled={judging || killSwitch}>
-            {killSwitch ? (<><Lock className="h-4 w-4 mr-2" /> Blocked</>) : (<><Sparkles className="h-4 w-4 mr-2" /> {judging ? "Judging…" : "Run Plumb Judge"}</>)}
-          </Button>
-        </div>
-      </header>
+    <div className="p-6 sm:p-8 space-y-6">
+      <PageHeader
+        eyebrow="Live Demo"
+        icon={<GitPullRequest className="h-6 w-6" aria-hidden />}
+        title="Drift Workbench"
+        description="The Plumb wedge: an LLM judge that flags when a code change contradicts what the company already told regulators or customers."
+        actions={
+          <>
+            <div className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2">
+              <Switch id="pr-toggle" checked={driftMode === "drift"} onCheckedChange={(c) => { setDriftMode(c ? "drift" : "clean"); setRan(false); }} />
+              <label htmlFor="pr-toggle" className="text-sm">Simulate New PR Review</label>
+            </div>
+            <Button onClick={runJudge} disabled={judging || killSwitch}>
+              {killSwitch ? (<><Lock className="h-4 w-4 mr-2" /> Blocked</>) : (<><Sparkles className="h-4 w-4 mr-2" /> {judging ? "Judging…" : "Run Plumb Judge"}</>)}
+            </Button>
+          </>
+        }
+      />
 
       <div className="grid lg:grid-cols-2 gap-4">
         <Card>
