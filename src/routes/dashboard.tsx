@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Layers, ScrollText, BookOpen, Plug, ArrowLeft, Zap, GitPullRequest, EyeOff, ShieldAlert, Activity, RotateCcw } from "lucide-react";
+import { LayoutDashboard, Layers, ScrollText, BookOpen, Plug, ArrowLeft, Zap, GitPullRequest, EyeOff, ShieldAlert, Activity, RotateCcw, Inbox, Briefcase, FileSignature, CalendarClock, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MODELS, useDemoStore, type ModelId } from "@/lib/juriscore/demo-store";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -9,8 +9,8 @@ import { Badge } from "@/components/ui/badge";
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
     meta: [
-      { title: "Governance Dashboard — JurisCore AI" },
-      { name: "description", content: "Cross-domain visibility into how AI is behaving company-wide." },
+      { title: "Dashboard — JurisCore AI" },
+      { name: "description", content: "Legal operations cockpit — matters, contracts, hearings, and AI review." },
     ],
   }),
   component: DashboardLayout,
@@ -18,23 +18,33 @@ export const Route = createFileRoute("/dashboard")({
 
 const groups: Array<{ label: string; items: Array<{ to: string; label: string; icon: React.ComponentType<{ className?: string }>; exact?: boolean }> }> = [
   {
+    label: "Work",
+    items: [
+      { to: "/dashboard", label: "Overview", icon: LayoutDashboard, exact: true },
+      { to: "/dashboard/intake", label: "Intake", icon: Inbox },
+      { to: "/dashboard/matters", label: "Matters", icon: Briefcase },
+      { to: "/dashboard/contracts", label: "Contracts", icon: FileSignature },
+      { to: "/dashboard/hearings", label: "Hearings", icon: CalendarClock },
+      { to: "/dashboard/ai-review", label: "AI Review", icon: Sparkles },
+    ],
+  },
+  {
+    label: "AI Governance",
+    items: [
+      { to: "/dashboard/analytics", label: "Analytics", icon: LayoutDashboard },
+      { to: "/dashboard/use-cases", label: "Use Cases", icon: Layers },
+      { to: "/dashboard/audit", label: "Audit Log", icon: ScrollText },
+      { to: "/dashboard/rulebooks", label: "Rulebooks", icon: BookOpen },
+      { to: "/dashboard/ciso", label: "CISO Gateway", icon: ShieldAlert },
+    ],
+  },
+  {
     label: "Live Demo",
     items: [
       { to: "/dashboard/gateway", label: "LLM Gateway", icon: Zap },
       { to: "/dashboard/pipeline", label: "Pipeline", icon: Activity },
       { to: "/dashboard/drift", label: "Drift Workbench", icon: GitPullRequest },
       { to: "/dashboard/redaction", label: "Redaction", icon: EyeOff },
-    ],
-  },
-  {
-    label: "Governance",
-    items: [
-      { to: "/dashboard", label: "Overview", icon: LayoutDashboard, exact: true },
-      { to: "/dashboard/analytics", label: "Analytics", icon: LayoutDashboard },
-      { to: "/dashboard/use-cases", label: "Use Cases", icon: Layers },
-      { to: "/dashboard/audit", label: "Audit Log", icon: ScrollText },
-      { to: "/dashboard/rulebooks", label: "Rulebooks", icon: BookOpen },
-      { to: "/dashboard/ciso", label: "CISO Gateway", icon: ShieldAlert },
     ],
   },
 ];

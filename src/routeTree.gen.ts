@@ -18,11 +18,16 @@ import { Route as DashboardUseCasesRouteImport } from './routes/dashboard.use-ca
 import { Route as DashboardRulebooksRouteImport } from './routes/dashboard.rulebooks'
 import { Route as DashboardRedactionRouteImport } from './routes/dashboard.redaction'
 import { Route as DashboardPipelineRouteImport } from './routes/dashboard.pipeline'
+import { Route as DashboardMattersRouteImport } from './routes/dashboard.matters'
+import { Route as DashboardIntakeRouteImport } from './routes/dashboard.intake'
+import { Route as DashboardHearingsRouteImport } from './routes/dashboard.hearings'
 import { Route as DashboardGatewayRouteImport } from './routes/dashboard.gateway'
 import { Route as DashboardDriftRouteImport } from './routes/dashboard.drift'
+import { Route as DashboardContractsRouteImport } from './routes/dashboard.contracts'
 import { Route as DashboardCisoRouteImport } from './routes/dashboard.ciso'
 import { Route as DashboardAuditRouteImport } from './routes/dashboard.audit'
 import { Route as DashboardAnalyticsRouteImport } from './routes/dashboard.analytics'
+import { Route as DashboardAiReviewRouteImport } from './routes/dashboard.ai-review'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as DashboardUseCasesKeyRouteImport } from './routes/dashboard.use-cases.$key'
@@ -73,6 +78,21 @@ const DashboardPipelineRoute = DashboardPipelineRouteImport.update({
   path: '/pipeline',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardMattersRoute = DashboardMattersRouteImport.update({
+  id: '/matters',
+  path: '/matters',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardIntakeRoute = DashboardIntakeRouteImport.update({
+  id: '/intake',
+  path: '/intake',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardHearingsRoute = DashboardHearingsRouteImport.update({
+  id: '/hearings',
+  path: '/hearings',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardGatewayRoute = DashboardGatewayRouteImport.update({
   id: '/gateway',
   path: '/gateway',
@@ -81,6 +101,11 @@ const DashboardGatewayRoute = DashboardGatewayRouteImport.update({
 const DashboardDriftRoute = DashboardDriftRouteImport.update({
   id: '/drift',
   path: '/drift',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardContractsRoute = DashboardContractsRouteImport.update({
+  id: '/contracts',
+  path: '/contracts',
   getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardCisoRoute = DashboardCisoRouteImport.update({
@@ -96,6 +121,11 @@ const DashboardAuditRoute = DashboardAuditRouteImport.update({
 const DashboardAnalyticsRoute = DashboardAnalyticsRouteImport.update({
   id: '/analytics',
   path: '/analytics',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardAiReviewRoute = DashboardAiReviewRouteImport.update({
+  id: '/ai-review',
+  path: '/ai-review',
   getParentRoute: () => DashboardRoute,
 } as any)
 const Char91DotwellKnownChar93OauthProtectedResourceRoute =
@@ -129,11 +159,16 @@ export interface FileRoutesByFullPath {
   '/mcp': typeof McpRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/dashboard/ai-review': typeof DashboardAiReviewRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/audit': typeof DashboardAuditRoute
   '/dashboard/ciso': typeof DashboardCisoRoute
+  '/dashboard/contracts': typeof DashboardContractsRoute
   '/dashboard/drift': typeof DashboardDriftRoute
   '/dashboard/gateway': typeof DashboardGatewayRoute
+  '/dashboard/hearings': typeof DashboardHearingsRoute
+  '/dashboard/intake': typeof DashboardIntakeRoute
+  '/dashboard/matters': typeof DashboardMattersRoute
   '/dashboard/pipeline': typeof DashboardPipelineRoute
   '/dashboard/redaction': typeof DashboardRedactionRoute
   '/dashboard/rulebooks': typeof DashboardRulebooksRoute
@@ -148,11 +183,16 @@ export interface FileRoutesByTo {
   '/mcp': typeof McpRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/dashboard/ai-review': typeof DashboardAiReviewRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/audit': typeof DashboardAuditRoute
   '/dashboard/ciso': typeof DashboardCisoRoute
+  '/dashboard/contracts': typeof DashboardContractsRoute
   '/dashboard/drift': typeof DashboardDriftRoute
   '/dashboard/gateway': typeof DashboardGatewayRoute
+  '/dashboard/hearings': typeof DashboardHearingsRoute
+  '/dashboard/intake': typeof DashboardIntakeRoute
+  '/dashboard/matters': typeof DashboardMattersRoute
   '/dashboard/pipeline': typeof DashboardPipelineRoute
   '/dashboard/redaction': typeof DashboardRedactionRoute
   '/dashboard/rulebooks': typeof DashboardRulebooksRoute
@@ -169,11 +209,16 @@ export interface FileRoutesById {
   '/mcp': typeof McpRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/dashboard/ai-review': typeof DashboardAiReviewRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/audit': typeof DashboardAuditRoute
   '/dashboard/ciso': typeof DashboardCisoRoute
+  '/dashboard/contracts': typeof DashboardContractsRoute
   '/dashboard/drift': typeof DashboardDriftRoute
   '/dashboard/gateway': typeof DashboardGatewayRoute
+  '/dashboard/hearings': typeof DashboardHearingsRoute
+  '/dashboard/intake': typeof DashboardIntakeRoute
+  '/dashboard/matters': typeof DashboardMattersRoute
   '/dashboard/pipeline': typeof DashboardPipelineRoute
   '/dashboard/redaction': typeof DashboardRedactionRoute
   '/dashboard/rulebooks': typeof DashboardRulebooksRoute
@@ -191,11 +236,16 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
+    | '/dashboard/ai-review'
     | '/dashboard/analytics'
     | '/dashboard/audit'
     | '/dashboard/ciso'
+    | '/dashboard/contracts'
     | '/dashboard/drift'
     | '/dashboard/gateway'
+    | '/dashboard/hearings'
+    | '/dashboard/intake'
+    | '/dashboard/matters'
     | '/dashboard/pipeline'
     | '/dashboard/redaction'
     | '/dashboard/rulebooks'
@@ -210,11 +260,16 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
+    | '/dashboard/ai-review'
     | '/dashboard/analytics'
     | '/dashboard/audit'
     | '/dashboard/ciso'
+    | '/dashboard/contracts'
     | '/dashboard/drift'
     | '/dashboard/gateway'
+    | '/dashboard/hearings'
+    | '/dashboard/intake'
+    | '/dashboard/matters'
     | '/dashboard/pipeline'
     | '/dashboard/redaction'
     | '/dashboard/rulebooks'
@@ -230,11 +285,16 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
+    | '/dashboard/ai-review'
     | '/dashboard/analytics'
     | '/dashboard/audit'
     | '/dashboard/ciso'
+    | '/dashboard/contracts'
     | '/dashboard/drift'
     | '/dashboard/gateway'
+    | '/dashboard/hearings'
+    | '/dashboard/intake'
+    | '/dashboard/matters'
     | '/dashboard/pipeline'
     | '/dashboard/redaction'
     | '/dashboard/rulebooks'
@@ -319,6 +379,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardPipelineRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/dashboard/matters': {
+      id: '/dashboard/matters'
+      path: '/matters'
+      fullPath: '/dashboard/matters'
+      preLoaderRoute: typeof DashboardMattersRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/intake': {
+      id: '/dashboard/intake'
+      path: '/intake'
+      fullPath: '/dashboard/intake'
+      preLoaderRoute: typeof DashboardIntakeRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/hearings': {
+      id: '/dashboard/hearings'
+      path: '/hearings'
+      fullPath: '/dashboard/hearings'
+      preLoaderRoute: typeof DashboardHearingsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/gateway': {
       id: '/dashboard/gateway'
       path: '/gateway'
@@ -331,6 +412,13 @@ declare module '@tanstack/react-router' {
       path: '/drift'
       fullPath: '/dashboard/drift'
       preLoaderRoute: typeof DashboardDriftRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/contracts': {
+      id: '/dashboard/contracts'
+      path: '/contracts'
+      fullPath: '/dashboard/contracts'
+      preLoaderRoute: typeof DashboardContractsRouteImport
       parentRoute: typeof DashboardRoute
     }
     '/dashboard/ciso': {
@@ -352,6 +440,13 @@ declare module '@tanstack/react-router' {
       path: '/analytics'
       fullPath: '/dashboard/analytics'
       preLoaderRoute: typeof DashboardAnalyticsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/ai-review': {
+      id: '/dashboard/ai-review'
+      path: '/ai-review'
+      fullPath: '/dashboard/ai-review'
+      preLoaderRoute: typeof DashboardAiReviewRouteImport
       parentRoute: typeof DashboardRoute
     }
     '/.well-known/oauth-protected-resource': {
@@ -397,11 +492,16 @@ const DashboardUseCasesRouteWithChildren =
   DashboardUseCasesRoute._addFileChildren(DashboardUseCasesRouteChildren)
 
 interface DashboardRouteChildren {
+  DashboardAiReviewRoute: typeof DashboardAiReviewRoute
   DashboardAnalyticsRoute: typeof DashboardAnalyticsRoute
   DashboardAuditRoute: typeof DashboardAuditRoute
   DashboardCisoRoute: typeof DashboardCisoRoute
+  DashboardContractsRoute: typeof DashboardContractsRoute
   DashboardDriftRoute: typeof DashboardDriftRoute
   DashboardGatewayRoute: typeof DashboardGatewayRoute
+  DashboardHearingsRoute: typeof DashboardHearingsRoute
+  DashboardIntakeRoute: typeof DashboardIntakeRoute
+  DashboardMattersRoute: typeof DashboardMattersRoute
   DashboardPipelineRoute: typeof DashboardPipelineRoute
   DashboardRedactionRoute: typeof DashboardRedactionRoute
   DashboardRulebooksRoute: typeof DashboardRulebooksRoute
@@ -410,11 +510,16 @@ interface DashboardRouteChildren {
 }
 
 const DashboardRouteChildren: DashboardRouteChildren = {
+  DashboardAiReviewRoute: DashboardAiReviewRoute,
   DashboardAnalyticsRoute: DashboardAnalyticsRoute,
   DashboardAuditRoute: DashboardAuditRoute,
   DashboardCisoRoute: DashboardCisoRoute,
+  DashboardContractsRoute: DashboardContractsRoute,
   DashboardDriftRoute: DashboardDriftRoute,
   DashboardGatewayRoute: DashboardGatewayRoute,
+  DashboardHearingsRoute: DashboardHearingsRoute,
+  DashboardIntakeRoute: DashboardIntakeRoute,
+  DashboardMattersRoute: DashboardMattersRoute,
   DashboardPipelineRoute: DashboardPipelineRoute,
   DashboardRedactionRoute: DashboardRedactionRoute,
   DashboardRulebooksRoute: DashboardRulebooksRoute,
