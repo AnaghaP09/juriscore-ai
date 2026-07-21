@@ -1,63 +1,59 @@
+# Refine the Overview triage experience
 
-# Make the copy precise and human
+## Current state
+The Overview page is already structured as an operational cockpit: command bar, 6 priority cards, a left triage queue, a center selected-matter panel, and a right rail of AI recommendations + upcoming events + alerts. It uses the new legal status vocabulary and deterministic mock data. The main gaps are interactivity and actionability: cards are mostly static, the queue has no filtering or keyboard support, and the selected matter panel only shows information, not clear next actions.
 
-Right now the landing page and dashboards lean on insider phrases ("compliance middleware", "RAG core", "Policy Orchestrator", "guardrail accuracy", "citation coverage"). This plan rewrites the user-facing text — no logic, no layout changes — so any reader can answer three questions in 10 seconds:
+## Proposed changes
 
-1. **What breaks today?** AI assistants make things up, leak private data, and cite rules that don't exist. Nobody can prove what the AI said or why.
-2. **What does JurisCore do?** It sits between your app and the AI, checks every message going in and coming out against your real rulebook, and keeps a receipt.
-3. **What do I get?** Fewer bad answers, no leaked data, and an audit you can hand to a regulator in minutes instead of days.
+### 1. Make the priority strip actionable
+- Clicking a card updates the work area or routes to the relevant view:
+  - **Urgent matters** — filters the triage queue to Urgent / Escalated.
+  - **Contracts to sign** — navigates to `/dashboard/contracts` filtered to awaiting-client/review status.
+  - **AI needs review** — navigates to `/dashboard/ai-review` with the low-confidence filter active.
+  - **Hearings this week** — navigates to `/dashboard/hearings`.
+  - **New leads** / **Monitoring alerts** — show a quick inline preview or navigate to Intake / AI Review.
+- Add a `cursor-pointer` and hover state to cards that are linked, and keep non-linked cards visually distinct.
 
-## Landing page (`src/routes/index.tsx`)
+### 2. Improve the triage queue
+- Add a compact filter row above the queue: status, matter type, and owner (reusing the same filter pattern from AI Review).
+- Add keyboard navigation: arrow keys move selection, Enter opens the selected matter detail.
+- Highlight unread items and recently updated items with a subtle dot or badge.
+- Show owner initials next to each matter row.
+- Keep the default selection logic: highest-priority urgent matter first, else first queue item.
 
-- **Eyebrow badge** → `Trust layer for AI in regulated work`
-- **H1** → `Stop your AI from saying things it shouldn't.`
-- **Sub** → `JurisCore checks every AI message — before it's sent and before it's shown — against your real policies. Bad answers get blocked, private data gets scrubbed, and every decision leaves a receipt.`
-- **Stats row** — plain-English labels:
-  - `Blocked bad answers` · `7 in 100`
-  - `Audit report ready in` · `Minutes` (was days)
-  - `Shipped in` · `6 days` (was 47)
-  - `Correct calls` · `97%`
-- **Four-stage section** → title `How a single question travels through JurisCore.`
-  - `01 · Screen the question` — remove names, IDs, medical details; block sneaky prompts.
-  - `02 · Find the rule` — pull the exact clause from your rulebook (SEC, HIPAA, etc.).
-  - `03 · Check the answer` — every claim must trace back to that clause, or it gets rewritten or blocked.
-  - `04 · Keep the receipt` — a tamper-proof log any auditor can read.
-- **MCP section** → title `Works with the tools your team already uses.` Sub-copy in plain terms: `Plug JurisCore into ChatGPT, Claude, or Cursor. They'll ask JurisCore before answering anything sensitive.`
+### 3. Add status-based next actions to the selected matter panel
+- Replace the generic "Take next step" button with a context-aware primary action based on the selected matter's status:
+  - **Urgent / Escalated** → "Escalate to partner" or "Review now"
+  - **Pending Review** → "Review documents"
+  - **Awaiting Client** → "Send client reminder"
+  - **Scheduled** → "View calendar"
+- Keep secondary actions: "Open documents", "View audit trail".
+- Add a quick "Mark as reviewed" or "Snooze" tertiary action for triage hygiene.
+- Surface linked contracts and documents as clickable chips.
 
-## Dashboard overview (`src/routes/dashboard.index.tsx`)
+### 4. Refine the right rail
+- **AI recommendations** — only show items for the selected matter; if none, show a reassuring "No AI flags on this matter" state.
+- **Alerts** — keep severity color coding and add a link to the full monitoring view.
+- **This week** — keep the compact hearings list, but link each item to the matter detail.
 
-- Eyebrow → `What's happening`
-- Title → `Governance overview`
-- Description → `Last 30 days across your AI apps. Green means safe, red means we caught something.`
-- KPI card renames + one-line explainers:
-  - `Bad answers caught` — was "Violation rate"
-  - `Correct calls` — was "Guardrail accuracy"
-  - `Audit report ready in` — was "Audit prep time"
-  - `Time to launch new AI feature` — was "Time to ship"
-- Chart titles: `Requests per day`, `Where we stopped things`, `Finance vs. Healthcare`, `How fast we respond`
-- Latency copy → `Every question goes through four checks and still comes back in under a second.`
+### 5. Improve mobile behavior
+- Collapse the 3-column work area into a stacked layout on small screens.
+- Keep the priority strip as a 2×3 grid.
+- Convert the triage queue into a scrollable card list with the selected matter panel below it.
+- Make the command-bar quick actions horizontally scrollable and keep the search bar full width.
 
-## Sub-pages — headers and one-line descriptions only
+### 6. Strengthen empty and loading states
+- Empty queue: friendly message with "New matter" and "Upload document" CTAs.
+- No search results: clear reset-search action.
+- No selected matter: prompt the user to select from the queue.
 
-Same PageHeader pattern, plainer words:
+## Assumptions and guardrails
+- Data remains deterministic from `src/lib/juriscore/legal-mock.ts`; no backend changes in this pass.
+- Actions are client-side demo actions (toasts, state updates, or navigation) rather than real mutations.
+- Existing navigation labels and governance routes remain untouched.
+- Keep the current violet/cream design system and typography.
 
-- **Use cases** → `AI features we're protecting` / `Each card is one AI feature in your product. Click to see how it's behaving.`
-- **Use case detail** → keep name, add sub `What this AI feature does, how often it runs, and when we had to step in.`
-- **Audit** → `Receipts` / `Every AI decision, searchable. Give this to your auditor.`
-- **Rulebooks** → `Your rules` / `The policies JurisCore checks against. Add or edit them here.`
-- **Gateway** → `Try it live` / `Send a fake question through JurisCore and watch each check happen.`
-- **Pipeline** → `How it works, step by step` / `Pick a scenario and see where JurisCore steps in.`
-- **Drift (Plumb)** → `Docs vs. code` / `When your code changes but the docs don't, Plumb flags the mismatch — with the exact line.`
-- **Redaction** → `Private-data scrubber` / `Paste anything with a name, SSN, or API key. Watch it disappear.`
-- **CISO** → `Executive view` / `The health of every AI app in one screen — plus the emergency stop.`
-  - Kill-switch button label → `Emergency stop — freeze all AI`
-
-## What is not changing
-
-- No component structure, routing, styling, tokens, or data-model changes.
-- No new files. Edits are copy-only inside existing JSX strings.
-- Technical terms (`MCP`, `SEC`, `HIPAA`) stay where they're accurate — they get one-line plain-English gloss, not removal.
-
-## Technical notes
-
-Text-only edits in these files: `src/routes/index.tsx`, `src/routes/dashboard.index.tsx`, `src/routes/dashboard.use-cases.tsx`, `src/routes/dashboard.use-cases.$key.tsx`, `src/routes/dashboard.audit.tsx`, `src/routes/dashboard.rulebooks.tsx`, `src/routes/dashboard.gateway.tsx`, `src/routes/dashboard.pipeline.tsx`, `src/routes/dashboard.drift.tsx`, `src/routes/dashboard.redaction.tsx`, `src/routes/dashboard.ciso.tsx`. Verify with `tsgo` after.
+## Success criteria
+- A partner can land on `/dashboard`, see what needs attention, click a priority card, and immediately view the filtered queue.
+- The selected matter panel clearly shows the next recommended action.
+- The page is fully usable on mobile without horizontal scrolling.
