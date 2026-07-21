@@ -11,14 +11,14 @@ import { Shield, AlertTriangle, Timer, Rocket, Download, FileText } from "lucide
 export const Route = createFileRoute("/dashboard/analytics")({
   head: () => ({
     meta: [
-      { title: "Overview — JurisCore AI Dashboard" },
-      { name: "description", content: "KPIs across Finance and Healthcare AI activity." },
+      { title: "Analytics — JurisCore AI Dashboard" },
+      { name: "description", content: "Governance KPIs and trend charts across AI activity." },
     ],
   }),
-  component: Overview,
+  component: Analytics,
 });
 
-function Overview() {
+function Analytics() {
   const m = getMetrics();
   const stageData = Object.entries(m.blockedByStage).map(([k, v]) => ({
     stage: k.replace(/_/g, " "),
