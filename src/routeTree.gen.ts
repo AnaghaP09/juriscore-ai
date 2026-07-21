@@ -22,6 +22,7 @@ import { Route as DashboardGatewayRouteImport } from './routes/dashboard.gateway
 import { Route as DashboardDriftRouteImport } from './routes/dashboard.drift'
 import { Route as DashboardCisoRouteImport } from './routes/dashboard.ciso'
 import { Route as DashboardAuditRouteImport } from './routes/dashboard.audit'
+import { Route as DashboardAnalyticsRouteImport } from './routes/dashboard.analytics'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as DashboardUseCasesKeyRouteImport } from './routes/dashboard.use-cases.$key'
@@ -92,6 +93,11 @@ const DashboardAuditRoute = DashboardAuditRouteImport.update({
   path: '/audit',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardAnalyticsRoute = DashboardAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const Char91DotwellKnownChar93OauthProtectedResourceRoute =
   Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
     id: '/.well-known/oauth-protected-resource',
@@ -123,6 +129,7 @@ export interface FileRoutesByFullPath {
   '/mcp': typeof McpRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/audit': typeof DashboardAuditRoute
   '/dashboard/ciso': typeof DashboardCisoRoute
   '/dashboard/drift': typeof DashboardDriftRoute
@@ -141,6 +148,7 @@ export interface FileRoutesByTo {
   '/mcp': typeof McpRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/audit': typeof DashboardAuditRoute
   '/dashboard/ciso': typeof DashboardCisoRoute
   '/dashboard/drift': typeof DashboardDriftRoute
@@ -161,6 +169,7 @@ export interface FileRoutesById {
   '/mcp': typeof McpRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/audit': typeof DashboardAuditRoute
   '/dashboard/ciso': typeof DashboardCisoRoute
   '/dashboard/drift': typeof DashboardDriftRoute
@@ -182,6 +191,7 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
+    | '/dashboard/analytics'
     | '/dashboard/audit'
     | '/dashboard/ciso'
     | '/dashboard/drift'
@@ -200,6 +210,7 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
+    | '/dashboard/analytics'
     | '/dashboard/audit'
     | '/dashboard/ciso'
     | '/dashboard/drift'
@@ -219,6 +230,7 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
+    | '/dashboard/analytics'
     | '/dashboard/audit'
     | '/dashboard/ciso'
     | '/dashboard/drift'
@@ -335,6 +347,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardAuditRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/dashboard/analytics': {
+      id: '/dashboard/analytics'
+      path: '/analytics'
+      fullPath: '/dashboard/analytics'
+      preLoaderRoute: typeof DashboardAnalyticsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/.well-known/oauth-protected-resource': {
       id: '/.well-known/oauth-protected-resource'
       path: '/.well-known/oauth-protected-resource'
@@ -378,6 +397,7 @@ const DashboardUseCasesRouteWithChildren =
   DashboardUseCasesRoute._addFileChildren(DashboardUseCasesRouteChildren)
 
 interface DashboardRouteChildren {
+  DashboardAnalyticsRoute: typeof DashboardAnalyticsRoute
   DashboardAuditRoute: typeof DashboardAuditRoute
   DashboardCisoRoute: typeof DashboardCisoRoute
   DashboardDriftRoute: typeof DashboardDriftRoute
@@ -390,6 +410,7 @@ interface DashboardRouteChildren {
 }
 
 const DashboardRouteChildren: DashboardRouteChildren = {
+  DashboardAnalyticsRoute: DashboardAnalyticsRoute,
   DashboardAuditRoute: DashboardAuditRoute,
   DashboardCisoRoute: DashboardCisoRoute,
   DashboardDriftRoute: DashboardDriftRoute,

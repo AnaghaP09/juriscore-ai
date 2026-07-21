@@ -30,6 +30,7 @@ const groups: Array<{ label: string; items: Array<{ to: string; label: string; i
     label: "Governance",
     items: [
       { to: "/dashboard", label: "Overview", icon: LayoutDashboard, exact: true },
+      { to: "/dashboard/analytics", label: "Analytics", icon: LayoutDashboard },
       { to: "/dashboard/use-cases", label: "Use Cases", icon: Layers },
       { to: "/dashboard/audit", label: "Audit Log", icon: ScrollText },
       { to: "/dashboard/rulebooks", label: "Rulebooks", icon: BookOpen },
