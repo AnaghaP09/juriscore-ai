@@ -1,10 +1,10 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, useRouter } from "@tanstack/react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { PageHeader } from "@/components/page-header";
-import { ArrowLeft, Download, FileText, GitPullRequest } from "lucide-react";
+import { ArrowLeft, Download, FileText, GitPullRequest, Info } from "lucide-react";
 import { AUDIT, getUseCaseSummaries } from "@/lib/juriscore/mock";
 import { downloadCSV, openPrintReport, kpiCard, htmlTable, escapeHtml } from "@/lib/juriscore/export";
 
@@ -22,6 +22,7 @@ export const Route = createFileRoute("/dashboard/use-cases/$key")({
   },
   component: UseCaseDetail,
   notFoundComponent: NotFoundView,
+  errorComponent: ErrorView,
 });
 
 function NotFoundView() {
@@ -32,6 +33,21 @@ function NotFoundView() {
     </div>
   );
 }
+
+function ErrorView({ error, reset }: { error: Error; reset: () => void }) {
+  const router = useRouter();
+  return (
+    <div className="p-8 space-y-3">
+      <p className="text-sm text-muted-foreground">Couldn't load this use case.</p>
+      <p className="text-xs font-mono text-destructive">{error.message}</p>
+      <div className="flex gap-2">
+        <Button size="sm" variant="outline" onClick={() => { router.invalidate(); reset(); }}>Retry</Button>
+        <Link to="/dashboard/use-cases" className="text-primary text-sm underline self-center">Back to use cases</Link>
+      </div>
+    </div>
+  );
+}
+
 
 function UseCaseDetail() {
   const { uc } = Route.useLoaderData();
