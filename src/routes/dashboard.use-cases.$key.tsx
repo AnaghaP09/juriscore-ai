@@ -196,40 +196,42 @@ function UseCaseDetail() {
             </Card>
           </div>
 
-
-      <Card>
-        <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-sm">Recent audit entries</CardTitle>
-          <span className="text-xs text-muted-foreground">Showing {recent.length} of {entries.length}</span>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
-                <tr>
-                  <th scope="col" className="text-left px-4 py-2 font-medium">ID</th>
-                  <th scope="col" className="text-left px-4 py-2 font-medium">Time</th>
-                  <th scope="col" className="text-left px-4 py-2 font-medium">Verdict</th>
-                  <th scope="col" className="text-left px-4 py-2 font-medium">Rule</th>
-                  <th scope="col" className="text-right px-4 py-2 font-medium">Latency</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recent.map((r) => (
-                  <tr key={r.id} className="border-t border-border/60">
-                    <td className="px-4 py-2 font-mono text-xs">{r.id}</td>
-                    <td className="px-4 py-2 font-mono text-xs text-muted-foreground whitespace-nowrap">{r.ts.slice(0, 16).replace("T", " ")}</td>
-                    <td className="px-4 py-2 capitalize">{r.verdict}</td>
-                    <td className="px-4 py-2 font-mono text-xs text-primary">{r.retrievedPolicyIds[0] ?? "—"}</td>
-                    <td className="px-4 py-2 text-right font-mono text-xs">{r.latencyMs}ms</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
+              <CardTitle className="text-sm">Recent audit entries</CardTitle>
+              <span className="text-xs text-muted-foreground">Showing {recent.length} of {entries.length}</span>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
+                    <tr>
+                      <th scope="col" className="text-left px-4 py-2 font-medium">ID</th>
+                      <th scope="col" className="text-left px-4 py-2 font-medium">Time</th>
+                      <th scope="col" className="text-left px-4 py-2 font-medium">Verdict</th>
+                      <th scope="col" className="text-left px-4 py-2 font-medium">Rule</th>
+                      <th scope="col" className="text-right px-4 py-2 font-medium">Latency</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recent.map((r) => (
+                      <tr key={r.id} className="border-t border-border/60">
+                        <td className="px-4 py-2 font-mono text-xs truncate max-w-[10ch]">{r.id}</td>
+                        <td className="px-4 py-2 font-mono text-xs text-muted-foreground whitespace-nowrap">{r.ts.slice(0, 16).replace("T", " ")}</td>
+                        <td className="px-4 py-2 capitalize">{r.verdict}</td>
+                        <td className="px-4 py-2 font-mono text-xs text-primary">{r.retrievedPolicyIds[0] ?? "—"}</td>
+                        <td className="px-4 py-2 text-right font-mono text-xs">{r.latencyMs}ms</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
+
   );
 }
 
