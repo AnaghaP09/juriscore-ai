@@ -130,8 +130,7 @@ function UseCaseDetail() {
       <PageHeader
         eyebrow={
           <span className="flex items-center gap-2 flex-wrap normal-case tracking-normal">
-            <Badge variant={uc.domain === "finance" ? "default" : "secondary"} className="capitalize">{uc.domain}</Badge>
-            <Badge variant="outline" className="font-mono text-xs">{uc.regulatoryDriver}</Badge>
+            <Badge variant="outline" className="font-mono text-[10px]">{uc.regulatoryDriver}</Badge>
             {isPlumb && <Badge variant="outline" className="border-primary/50 text-primary gap-1"><GitPullRequest className="h-3 w-3" aria-hidden /> Plumb wedge</Badge>}
           </span>
         }
@@ -139,46 +138,64 @@ function UseCaseDetail() {
         description={uc.tagline ?? "What this AI feature does, how often it runs, and when we had to step in."}
       />
 
-      <div className="grid md:grid-cols-4 gap-4">
-        <MetricCard label="Volume (30d)" value={uc.volume.toLocaleString()} />
-        <MetricCard label="Block rate" value={`${(uc.blockRate * 100).toFixed(1)}%`} tone={uc.blockRate > 0.1 ? "block" : "allow"} />
-        <MetricCard label="Citation coverage" value={`${(uc.citationCoverage * 100).toFixed(0)}%`} tone={uc.citationCoverage > 0.8 ? "allow" : "revise"} />
-        <MetricCard label="Avg latency" value={`${avgLatency}ms`} />
-      </div>
-
-      {(uc.persona || uc.capability || uc.valueProp || uc.risk) && (
-        <div className="grid md:grid-cols-2 gap-4">
-          {uc.persona && <ProfileCard title="Persona" body={uc.persona} />}
-          {uc.capability && <ProfileCard title="Capability" body={uc.capability} />}
-          {uc.valueProp && <ProfileCard title="Value delivered" body={uc.valueProp} tone="allow" />}
-          {uc.risk && <ProfileCard title="Risk & mitigation" body={uc.risk} tone="revise" />}
-        </div>
-      )}
-
-      <div className="grid lg:grid-cols-3 gap-4">
-        <Card className="lg:col-span-1">
-          <CardHeader className="pb-3"><CardTitle className="text-sm">Verdict mix</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            <VerdictBar label="Allowed" count={entries.length - blocked - revised} total={entries.length} color="var(--allow)" />
-            <VerdictBar label="Revised" count={revised} total={entries.length} color="var(--revise)" />
-            <VerdictBar label="Blocked" count={blocked} total={entries.length} color="var(--block)" />
+      {entries.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center space-y-3">
+            <Info className="h-6 w-6 mx-auto text-muted-foreground" aria-hidden />
+            <p className="text-sm font-medium">No audit activity yet for this use case</p>
+            <p className="text-xs text-muted-foreground">Once JurisCore processes requests for {uc.name}, metrics and receipts will appear here.</p>
+            <Link to="/dashboard/use-cases" className="text-primary text-sm underline inline-block">Back to use cases</Link>
           </CardContent>
         </Card>
-        <Card className="lg:col-span-2">
-          <CardHeader className="pb-3"><CardTitle className="text-sm">Top failure modes</CardTitle></CardHeader>
-          <CardContent>
-            {topReasons.length === 0 && <p className="text-sm text-muted-foreground">No blocked or revised entries in window.</p>}
-            <ul className="space-y-2">
-              {topReasons.map(([reason, count]) => (
-                <li key={reason} className="flex items-center justify-between text-sm gap-4">
-                  <span className="text-muted-foreground truncate">{reason}</span>
-                  <span className="font-mono text-xs">{count}</span>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      </div>
+      ) : (
+        <>
+          {entries.length < 10 && (
+            <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground flex items-center gap-2">
+              <Info className="h-3.5 w-3.5" aria-hidden /> Low sample size ({entries.length} entries) — metrics may not be representative.
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <MetricCard label="Volume (30d)" value={uc.volume.toLocaleString()} />
+            <MetricCard label="Block rate" value={`${(uc.blockRate * 100).toFixed(1)}%`} tone={uc.blockRate > 0.1 ? "block" : "allow"} />
+            <MetricCard label="Citation coverage" value={`${(uc.citationCoverage * 100).toFixed(0)}%`} tone={uc.citationCoverage > 0.8 ? "allow" : "revise"} />
+            <MetricCard label="Avg latency" value={`${avgLatency}ms`} />
+          </div>
+
+          {(uc.persona || uc.capability || uc.valueProp || uc.risk) && (
+            <div className="grid md:grid-cols-2 gap-4">
+              {uc.persona && <ProfileCard title="Persona" body={uc.persona} />}
+              {uc.capability && <ProfileCard title="Capability" body={uc.capability} />}
+              {uc.valueProp && <ProfileCard title="Value delivered" body={uc.valueProp} tone="allow" />}
+              {uc.risk && <ProfileCard title="Risk & mitigation" body={uc.risk} tone="revise" />}
+            </div>
+          )}
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            <Card className="lg:col-span-1">
+              <CardHeader className="pb-3"><CardTitle className="text-sm">Verdict mix</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <VerdictBar label="Allowed" count={entries.length - blocked - revised} total={entries.length} color="var(--allow)" />
+                <VerdictBar label="Revised" count={revised} total={entries.length} color="var(--revise)" />
+                <VerdictBar label="Blocked" count={blocked} total={entries.length} color="var(--block)" />
+              </CardContent>
+            </Card>
+            <Card className="lg:col-span-2">
+              <CardHeader className="pb-3"><CardTitle className="text-sm">Top failure modes</CardTitle></CardHeader>
+              <CardContent>
+                {topReasons.length === 0 && <p className="text-sm text-muted-foreground">No blocked or revised entries in window.</p>}
+                <ul className="space-y-2">
+                  {topReasons.map(([reason, count]) => (
+                    <li key={reason} className="flex items-center justify-between text-sm gap-4">
+                      <span className="text-muted-foreground truncate">{reason}</span>
+                      <span className="font-mono text-xs">{count}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
+
 
       <Card>
         <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
