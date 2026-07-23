@@ -138,21 +138,46 @@ const SAMPLE_PROMPTS: Record<Domain, string[]> = {
   ],
 };
 
+// Use-case-specific overrides so drill-downs read coherently (esp. Plumb).
+const PROMPTS_BY_USECASE: Record<string, string[]> = {
+  "plumb-drift": [
+    "Judge README claim 'fees are waived above $10k' against fees.ts diff on PR #4821.",
+    "Does the infra doc still match terraform/prod.tf after the VPC refactor?",
+    "Sales deck v12 says 'unlimited seats' — verify against billing/plan.ts.",
+    "Verify onboarding runbook step 4 against auth/oauth.ts current behavior.",
+  ],
+};
+const REASONS_BY_USECASE: Record<string, string[]> = {
+  "plumb-drift": [
+    "Prose claim contradicts current code",
+    "Stale infra doc references removed module",
+    "Sales deck cites deprecated SKU",
+    "README describes old default; changed in PR #4712",
+    "Runbook step no longer matches handler",
+  ],
+};
+
 // --- Generate audit entries ---
 function generateAudit(): AuditEntry[] {
   const entries: AuditEntry[] = [];
   const now = Date.now();
   const days = 30;
-  const total = 512;
+  const total = 560;
   for (let i = 0; i < total; i++) {
-    const uc = USE_CASES[Math.floor(rand() * USE_CASES.length)];
+    // Round-robin across use cases so every drill-down has a solid sample.
+    const uc = USE_CASES[i % USE_CASES.length];
     const ts = new Date(now - Math.floor(rand() * days * 24 * 3600 * 1000)).toISOString();
     const roll = rand();
     const verdict: Verdict = roll < 0.07 ? "block" : roll < 0.13 ? "revise" : "allow";
     const stage: Stage | undefined = verdict === "allow" ? undefined : (pick(["input_guardrail", "output_guardrail", "citation", "policy_retrieval"]) as Stage);
     const policies = POLICIES.filter((p) => p.domain === uc.domain);
     const retrieved = [pick(policies).id, pick(policies).id].filter((v, idx, arr) => arr.indexOf(v) === idx);
-    const prompt = pick(SAMPLE_PROMPTS[uc.domain]);
+    const ucPrompts = PROMPTS_BY_USECASE[uc.key];
+    const prompt = ucPrompts ? pick(ucPrompts) : pick(SAMPLE_PROMPTS[uc.domain]);
+    const ucReasons = REASONS_BY_USECASE[uc.key];
+    const reason = stage
+      ? (ucReasons ? pick(ucReasons) : pick(REASONS_BY_STAGE[stage]))
+      : undefined;
     const coverage = verdict === "allow" ? 0.85 + rand() * 0.15 : verdict === "revise" ? 0.4 + rand() * 0.4 : rand() * 0.4;
     entries.push({
       id: `jc_${(i + 1).toString().padStart(5, "0")}`,
@@ -163,7 +188,7 @@ function generateAudit(): AuditEntry[] {
       verdict,
       latencyMs: Math.round(180 + rand() * 620),
       blockedStage: stage,
-      reason: stage ? pick(REASONS_BY_STAGE[stage]) : undefined,
+      reason,
       prompt,
       retrievedPolicyIds: retrieved,
       draftResponse: verdict === "block"
@@ -175,6 +200,7 @@ function generateAudit(): AuditEntry[] {
   }
   return entries.sort((a, b) => b.ts.localeCompare(a.ts));
 }
+
 
 export const AUDIT: AuditEntry[] = generateAudit();
 
