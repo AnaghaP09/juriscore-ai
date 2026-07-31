@@ -3,7 +3,12 @@
   "private": true,
   "sideEffects": false,
   "type": "module",
+  "engines": {
+    "bun": ">=1.1.0",
+    "node": ">=20.0.0"
+  },
   "scripts": {
+    "setup": "bun scripts/setup.mjs",
     "dev": "vite dev",
     "build": "vite build",
     "build:dev": "vite build --mode development",
