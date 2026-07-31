@@ -1,4 +1,16 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  DEFAULT_ACTIVE_POLICY_IDS,
+  type PolicyDefinition,
+} from "@/lib/juriscore/policies/catalog";
 
 export type ModelId = "gemini-1.5-pro" | "claude-3.5-sonnet" | "gpt-4o";
 export type DriftMode = "clean" | "drift";
@@ -39,6 +51,10 @@ interface DemoStore {
   setDriftMode: (m: DriftMode) => void;
   recentRuns: GatewayRun[];
   pushRun: (r: GatewayRun) => void;
+  activePolicyIds: string[];
+  setPolicyActive: (policyId: string, active: boolean) => void;
+  customPolicies: PolicyDefinition[];
+  addCustomPolicy: (policy: PolicyDefinition) => void;
   resetDemo: () => void;
 }
 
@@ -49,20 +65,81 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
   const [killSwitch, setKillSwitch] = useState(false);
   const [driftMode, setDriftMode] = useState<DriftMode>("clean");
   const [recentRuns, setRecentRuns] = useState<GatewayRun[]>([]);
+  const [activePolicyIds, setActivePolicyIds] = useState<string[]>(DEFAULT_ACTIVE_POLICY_IDS);
+  const [customPolicies, setCustomPolicies] = useState<PolicyDefinition[]>([]);
+
+  useEffect(() => {
+    try {
+      const savedActive = window.localStorage.getItem("juriscore.activePolicyIds");
+      const savedCustom = window.localStorage.getItem("juriscore.customPolicies");
+      if (savedActive) setActivePolicyIds(JSON.parse(savedActive) as string[]);
+      if (savedCustom) setCustomPolicies(JSON.parse(savedCustom) as PolicyDefinition[]);
+    } catch {
+      // Keep the built-in defaults when browser storage is unavailable or malformed.
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("juriscore.activePolicyIds", JSON.stringify(activePolicyIds));
+  }, [activePolicyIds]);
+
+  useEffect(() => {
+    window.localStorage.setItem("juriscore.customPolicies", JSON.stringify(customPolicies));
+  }, [customPolicies]);
 
   const pushRun = useCallback((r: GatewayRun) => {
     setRecentRuns((prev) => [r, ...prev].slice(0, 20));
+  }, []);
+
+  const setPolicyActive = useCallback((policyId: string, active: boolean) => {
+    setActivePolicyIds((current) =>
+      active
+        ? [...new Set([...current, policyId])]
+        : current.filter((id) => id !== policyId),
+    );
+  }, []);
+
+  const addCustomPolicy = useCallback((policy: PolicyDefinition) => {
+    setCustomPolicies((current) => [...current, policy]);
+    setActivePolicyIds((current) => [...new Set([...current, policy.id])]);
   }, []);
 
   const resetDemo = useCallback(() => {
     setKillSwitch(false);
     setDriftMode("clean");
     setRecentRuns([]);
+    setActivePolicyIds(DEFAULT_ACTIVE_POLICY_IDS);
+    setCustomPolicies([]);
   }, []);
 
   const value = useMemo(
-    () => ({ activeModel, setActiveModel, killSwitch, setKillSwitch, driftMode, setDriftMode, recentRuns, pushRun, resetDemo }),
-    [activeModel, killSwitch, driftMode, recentRuns, pushRun, resetDemo],
+    () => ({
+      activeModel,
+      setActiveModel,
+      killSwitch,
+      setKillSwitch,
+      driftMode,
+      setDriftMode,
+      recentRuns,
+      pushRun,
+      activePolicyIds,
+      setPolicyActive,
+      customPolicies,
+      addCustomPolicy,
+      resetDemo,
+    }),
+    [
+      activeModel,
+      killSwitch,
+      driftMode,
+      recentRuns,
+      pushRun,
+      activePolicyIds,
+      setPolicyActive,
+      customPolicies,
+      addCustomPolicy,
+      resetDemo,
+    ],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

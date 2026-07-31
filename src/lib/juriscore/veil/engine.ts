@@ -1,7 +1,8 @@
 import type { ValidatorVerdict } from "../core/contracts";
+import type { VeilPolicyScope } from "../policies/catalog";
 
 export type VeilStrategy = "redact" | "tokenize";
-export type VeilProfile = "healthcare" | "all_sensitive";
+export type VeilProfile = "saas_operations" | "healthcare" | "all_sensitive";
 export type VeilSeverity = "high" | "medium";
 
 export interface VeilFinding {
@@ -22,6 +23,7 @@ export interface VeilResult {
   requiresReview: boolean;
   profile: VeilProfile;
   strategy: VeilStrategy;
+  policyIds: string[];
 }
 
 interface Detector {
@@ -30,7 +32,7 @@ interface Detector {
   label: string;
   code: string;
   severity: VeilSeverity;
-  scope: "common" | "healthcare" | "secrets";
+  scope: VeilPolicyScope;
   pattern: RegExp;
   valueGroup?: number;
 }
@@ -133,6 +135,62 @@ const DETECTORS: Detector[] = [
     pattern: /\b(?:postgres|mysql):\/\/[^\s"']+/g,
   },
   {
+    id: "veil.secret.bearer_token",
+    category: "bearer_token",
+    label: "Bearer token",
+    code: "BEARER_TOKEN",
+    severity: "high",
+    scope: "secrets",
+    pattern: /\bBearer\s+[A-Za-z0-9._~+/-]{16,}={0,2}\b/gi,
+  },
+  {
+    id: "veil.secret.github_token",
+    category: "github_token",
+    label: "GitHub token",
+    code: "GITHUB_TOKEN",
+    severity: "high",
+    scope: "secrets",
+    pattern: /\b(?:ghp|github_pat)_[A-Za-z0-9_]{16,}\b/g,
+  },
+  {
+    id: "veil.secret.private_key",
+    category: "private_key",
+    label: "Private key material",
+    code: "PRIVATE_KEY",
+    severity: "high",
+    scope: "secrets",
+    pattern: /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/g,
+  },
+  {
+    id: "veil.saas.tenant_id",
+    category: "tenant_id",
+    label: "Customer tenant ID",
+    code: "TENANT_ID",
+    severity: "medium",
+    scope: "secrets",
+    pattern: /\b(?:tenant|workspace|account)[ _-]?id\s*[:=]\s*([A-Za-z0-9_-]{6,})\b/gi,
+    valueGroup: 1,
+  },
+  {
+    id: "veil.ai.prompt_override",
+    category: "prompt_injection",
+    label: "Prompt override instruction",
+    code: "PROMPT_OVERRIDE",
+    severity: "high",
+    scope: "prompt_security",
+    pattern:
+      /\b(?:ignore|disregard|override)\s+(?:all\s+)?(?:previous|prior|system)\s+instructions\b/gi,
+  },
+  {
+    id: "veil.ai.system_prompt_request",
+    category: "system_prompt_extraction",
+    label: "System prompt extraction request",
+    code: "SYSTEM_PROMPT_REQUEST",
+    severity: "high",
+    scope: "prompt_security",
+    pattern: /\b(?:reveal|print|show|extract)\s+(?:the\s+)?system\s+prompt\b/gi,
+  },
+  {
     id: "veil.secret.payment_card",
     category: "payment_card",
     label: "Payment card number",
@@ -143,10 +201,16 @@ const DETECTORS: Detector[] = [
   },
 ];
 
-function detectorApplies(detector: Detector, profile: VeilProfile) {
+function detectorApplies(
+  detector: Detector,
+  profile: VeilProfile,
+  policyScopes: VeilPolicyScope[],
+) {
   if (detector.scope === "common") return true;
   if (profile === "all_sensitive") return true;
-  return detector.scope === "healthcare";
+  if (policyScopes.includes(detector.scope)) return true;
+  if (profile === "healthcare") return detector.scope === "healthcare";
+  return detector.scope === "secrets" || detector.scope === "prompt_security";
 }
 
 function cloneGlobal(pattern: RegExp) {
@@ -160,14 +224,23 @@ function escapeRegularExpression(value: string) {
 
 export function protectText(
   text: string,
-  options: { strategy?: VeilStrategy; profile?: VeilProfile } = {},
+  options: {
+    strategy?: VeilStrategy;
+    profile?: VeilProfile;
+    policyIds?: string[];
+    policyScopes?: VeilPolicyScope[];
+  } = {},
 ): VeilResult {
   const strategy = options.strategy ?? "redact";
-  const profile = options.profile ?? "healthcare";
+  const profile = options.profile ?? "saas_operations";
+  const policyIds = options.policyIds ?? [];
+  const policyScopes = options.policyScopes ?? [];
   const findings: VeilFinding[] = [];
   let sanitizedText = text;
 
-  for (const detector of DETECTORS.filter((item) => detectorApplies(item, profile))) {
+  for (const detector of DETECTORS.filter((item) =>
+    detectorApplies(item, profile, policyScopes),
+  )) {
     const replacements: string[] = [];
     const values = Array.from(sanitizedText.matchAll(cloneGlobal(detector.pattern)))
       .map((match) => match[detector.valueGroup ?? 0])
@@ -203,6 +276,9 @@ export function protectText(
   }
 
   const hasHighSeverity = findings.some((finding) => finding.severity === "high");
+  const hasPromptAttack = findings.some((finding) =>
+    ["prompt_injection", "system_prompt_extraction"].includes(finding.category),
+  );
   const rawVerdict: ValidatorVerdict = hasHighSeverity
     ? "block"
     : findings.length > 0
@@ -213,9 +289,10 @@ export function protectText(
     sanitizedText,
     findings,
     rawVerdict,
-    sanitizedVerdict: "allow",
+    sanitizedVerdict: hasPromptAttack ? "revise" : "allow",
     requiresReview: findings.length > 0,
     profile,
     strategy,
+    policyIds,
   };
 }

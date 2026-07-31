@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
@@ -28,6 +28,11 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/page-header";
+import { useDemoStore } from "@/lib/juriscore/demo-store";
+import {
+  policiesForFeature,
+  veilScopesForPolicies,
+} from "@/lib/juriscore/policies/catalog";
 import { protectText, type VeilProfile, type VeilStrategy } from "@/lib/juriscore/veil/engine";
 import {
   ACCEPTED_DOCUMENT_TYPES,
@@ -43,23 +48,22 @@ export const Route = createFileRoute("/dashboard/redaction")({
       { title: "JurisCore Veil — Privacy Workbench" },
       {
         name: "description",
-        content: "Protect sensitive healthcare information before it reaches an AI model.",
+        content: "Protect customer, operational, and security data before it reaches an AI model.",
       },
     ],
   }),
   component: VeilWorkbench,
 });
 
-const SYNTHETIC_SAMPLE = `Synthetic training example — not a real patient
+const SYNTHETIC_SAMPLE = `Synthetic SaaS support incident — no real customer data
 
-Patient: Maya Patel
-DOB: 04/12/1982
-MRN: 88742199
-Member ID: HMO-44912003
-Email: maya.patel@example.test
+Workspace ID: acme-prod-4831
+Customer contact: maya.patel@example.test
 Phone: 415-555-0199
+Database: postgres://support_user:demo-password@db.internal.example/app
+Authorization: Bearer demoToken_92JkLm4NpQr7StUvWxYz
 
-Clinical context: Type 2 diabetes follow-up. Medication adherence was discussed and Maya Patel reported no new adverse effects. Prepare a concise care-team handoff for Maya Patel.`;
+Incident context: Exports started timing out after release 7.4. The customer reproduced the issue twice in the same workspace. Summarize the failure pattern for an engineering handoff without exposing customer identity or credentials.`;
 
 const verdictClass = {
   allow: "border-[color:var(--allow)]/40 text-[color:var(--allow)]",
@@ -82,9 +86,10 @@ const formatBytes = (bytes: number) => {
 };
 
 function VeilWorkbench() {
+  const { activePolicyIds, customPolicies } = useDemoStore();
   const [raw, setRaw] = useState(SYNTHETIC_SAMPLE);
   const [strategy, setStrategy] = useState<VeilStrategy>("redact");
-  const [profile, setProfile] = useState<VeilProfile>("healthcare");
+  const [profile, setProfile] = useState<VeilProfile>("saas_operations");
   const [copied, setCopied] = useState(false);
   const [uploadedDocument, setUploadedDocument] = useState<UploadedDocument | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -92,7 +97,24 @@ function VeilWorkbench() {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewUrlRef = useRef<string | null>(null);
-  const result = useMemo(() => protectText(raw, { strategy, profile }), [profile, raw, strategy]);
+  const activeVeilPolicies = useMemo(
+    () => policiesForFeature(activePolicyIds, "veil", customPolicies),
+    [activePolicyIds, customPolicies],
+  );
+  const policyScopes = useMemo(
+    () => veilScopesForPolicies(activePolicyIds, customPolicies),
+    [activePolicyIds, customPolicies],
+  );
+  const result = useMemo(
+    () =>
+      protectText(raw, {
+        strategy,
+        profile,
+        policyIds: activeVeilPolicies.map((policy) => policy.id),
+        policyScopes,
+      }),
+    [activeVeilPolicies, policyScopes, profile, raw, strategy],
+  );
 
   useEffect(
     () => () => {
@@ -175,8 +197,28 @@ function VeilWorkbench() {
         eyebrow={<span className="brand-case">JurisCore Veil</span>}
         icon={<EyeOff className="h-6 w-6" aria-hidden />}
         title="Protect the prompt"
-        description="Detect and transform configured sensitive information before content reaches an AI model. The clinical context remains visible while selected identifiers are removed or tokenized."
+        description="Protect customer, operational, and security context before it reaches an AI model. Veil removes or tokenizes selected values while preserving the technical signal needed for support and engineering work."
       />
+
+      <Card>
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+          <div>
+            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Applied policies
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {activeVeilPolicies.map((policy) => (
+                <Badge key={policy.id} variant="outline">
+                  {policy.shortName} · {policy.version}
+                </Badge>
+              ))}
+            </div>
+          </div>
+          <Button asChild size="sm" variant="outline">
+            <Link to="/dashboard/rulebooks">Manage policies</Link>
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="pb-3">
@@ -314,6 +356,7 @@ function VeilWorkbench() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="saas_operations">SaaS operations</SelectItem>
             <SelectItem value="healthcare">Healthcare privacy</SelectItem>
             <SelectItem value="all_sensitive">All sensitive data</SelectItem>
           </SelectContent>
@@ -336,8 +379,9 @@ function VeilWorkbench() {
         <CardContent className="flex items-start gap-3 pt-4 text-xs text-muted-foreground">
           <AlertTriangle className="h-4 w-4 shrink-0 text-[color:var(--revise)]" aria-hidden />
           <p>
-            Prototype guardrail: review protected text before model use; this is not proof of
-            complete de-identification or regulatory compliance.
+            Prototype guardrail: review protected text before model use. Policy packs guide the
+            checks; they do not prove complete de-identification, security, or regulatory
+            compliance.
           </p>
         </CardContent>
       </Card>
@@ -503,7 +547,7 @@ function VeilWorkbench() {
             {result.requiresReview && (
               <p className="mt-3 text-xs text-muted-foreground">
                 Review required before sending: {result.findings.length} detector categories
-                transformed.
+                transformed under {result.policyIds.length} active policies.
               </p>
             )}
           </CardContent>

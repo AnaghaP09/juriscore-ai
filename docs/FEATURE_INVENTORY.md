@@ -2,6 +2,18 @@
 
 This inventory prevents accidental loss of prototype work while JurisCore is refocused around Veil and Plumb.
 
+## V1 platform reset — 2026-07-31
+
+- JurisCore is now a commercial platform, not an open-source server;
+- Veil and Plumb are features inside JurisCore rather than separate modules;
+- the primary storyline is AI-assisted SaaS support and engineering;
+- healthcare protection remains an optional Veil policy profile;
+- the Policy Library includes versioned PII, HIPAA, SOC 2, MITRE ATLAS, NIST AI RMF, and NIST CSF references;
+- users can create and activate browser-local custom policies;
+- active policy identifiers and versions flow into Veil and Plumb evaluation receipts;
+- the intended business model is free entry, metered Team usage, and Enterprise controls;
+- previous routes and preserved demonstrations remain in the V1 copy unless explicitly removed later.
+
 ## Existing features to preserve
 
 ### Public and connection surfaces

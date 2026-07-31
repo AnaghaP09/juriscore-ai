@@ -76,7 +76,7 @@ const groups: Array<{
       { to: "/dashboard/analytics", label: "Analytics", icon: LayoutDashboard },
       { to: "/dashboard/use-cases", label: "Use Cases", icon: Layers },
       { to: "/dashboard/audit", label: "Audit Log", icon: ScrollText },
-      { to: "/dashboard/rulebooks", label: "Rulebooks", icon: BookOpen },
+      { to: "/dashboard/rulebooks", label: "Policy Library", icon: BookOpen },
       { to: "/dashboard/ciso", label: "CISO Gateway", icon: ShieldAlert },
     ],
   },

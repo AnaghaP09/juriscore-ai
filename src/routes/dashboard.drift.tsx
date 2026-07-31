@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,9 +13,11 @@ import {
   AlertOctagon,
   CheckCircle2,
   HelpCircle,
+  BookOpen,
 } from "lucide-react";
 import { useDemoStore } from "@/lib/juriscore/demo-store";
 import { compareClaims, type PlumbClaim, type PlumbResult } from "@/lib/juriscore/plumb/engine";
+import { policiesForFeature } from "@/lib/juriscore/policies/catalog";
 
 export const Route = createFileRoute("/dashboard/drift")({
   head: () => ({
@@ -177,12 +179,22 @@ function codeClaims(driftMode: "clean" | "drift"): PlumbClaim[] {
 }
 
 function DriftView() {
-  const { driftMode, setDriftMode, killSwitch } = useDemoStore();
+  const {
+    driftMode,
+    setDriftMode,
+    killSwitch,
+    activePolicyIds,
+    customPolicies,
+  } = useDemoStore();
   const [doc, setDoc] = useState<DocKey>("sec");
   const [judging, setJudging] = useState(false);
   const [ran, setRan] = useState(false);
   const [highlightClaim, setHighlightClaim] = useState<string | null>(null);
   const [evaluation, setEvaluation] = useState<PlumbResult | null>(null);
+  const activePlumbPolicies = useMemo(
+    () => policiesForFeature(activePolicyIds, "plumb", customPolicies),
+    [activePolicyIds, customPolicies],
+  );
 
   const runJudge = async () => {
     if (killSwitch) return;
@@ -191,7 +203,9 @@ function DriftView() {
     setHighlightClaim(null);
     setEvaluation(null);
     await new Promise((r) => setTimeout(r, 1400));
-    const nextEvaluation = compareClaims(codeClaims(driftMode), DOCUMENT_CLAIMS[doc]);
+    const nextEvaluation = compareClaims(codeClaims(driftMode), DOCUMENT_CLAIMS[doc], {
+      policyIds: activePlumbPolicies.map((policy) => policy.id),
+    });
     const driftFinding = nextEvaluation.findings.find((finding) => finding.status === "drifted");
     setJudging(false);
     setRan(true);
@@ -252,6 +266,32 @@ function DriftView() {
           </>
         }
       />
+
+      <Card>
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <BookOpen className="h-3.5 w-3.5" aria-hidden /> Applied policies
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {activePlumbPolicies.length ? (
+                activePlumbPolicies.map((policy) => (
+                  <Badge key={policy.id} variant="outline">
+                    {policy.shortName} · {policy.version}
+                  </Badge>
+                ))
+              ) : (
+                <Badge variant="outline" className="text-[color:var(--revise)]">
+                  No evaluation policy active
+                </Badge>
+              )}
+            </div>
+          </div>
+          <Button asChild size="sm" variant="outline">
+            <Link to="/dashboard/rulebooks">Manage policies</Link>
+          </Button>
+        </CardContent>
+      </Card>
 
       <div className="grid lg:grid-cols-2 gap-4">
         <Card>
@@ -327,7 +367,7 @@ function DriftView() {
                       >
                         {hit && (
                           <span className="inline-block mr-2 text-[10px] font-mono text-[color:var(--block)] uppercase">
-                            Contradicts +line 45
+                            Contradicts +{primaryDrift?.authority?.reference.locator ?? "source"}
                           </span>
                         )}
                         {s.text}
@@ -448,6 +488,10 @@ function DriftView() {
                   </dl>
                 </>
               )}
+              <div className="basis-full text-xs text-muted-foreground">
+                Receipt scope: {evaluation.policyIds.length}{" "}
+                {evaluation.policyIds.length === 1 ? "policy" : "policies"} applied.
+              </div>
             </div>
           )}
         </CardContent>

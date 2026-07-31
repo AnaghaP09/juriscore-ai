@@ -39,10 +39,10 @@ const stages = [
   },
 ];
 
-const modules = [
+const features = [
   {
     icon: EyeOff,
-    eyebrow: "JurisCore Veil",
+    eyebrow: "Veil",
     title: "Protect what goes in",
     description:
       "Detect and transform configured sensitive information before it reaches an AI model, then expose a reviewable transformation receipt.",
@@ -110,7 +110,7 @@ function Landing() {
             className="mx-auto max-w-7xl px-6 pt-16 md:pt-24 pb-20"
           >
             <Badge variant="outline" className="mb-6 border-primary/40 text-primary">
-              Open-source AI validation and guardrails
+              AI validation platform · Free to start
             </Badge>
             <h1
               id="hero-title"
@@ -119,9 +119,10 @@ function Landing() {
               Protect the prompt. Prove the answer.
             </h1>
             <p className="mt-6 text-base sm:text-lg text-muted-foreground max-w-2xl text-pretty">
-              JurisCore sits around your AI model. Veil transforms sensitive inputs before the model
-              sees them. Plumb validates important assertions against the implemented source of
-              truth. Every check returns an allow, revise, or block decision with evidence.
+              JurisCore is the control plane around your AI workflows. Veil protects sensitive
+              inputs before a model sees them. Plumb validates important assertions against the
+              implemented source of truth. Every check returns an allow, revise, or block decision
+              with evidence.
             </p>
             <div className="mt-10 flex flex-wrap gap-3">
               <Button asChild size="lg">
@@ -147,46 +148,75 @@ function Landing() {
             </dl>
           </section>
 
-          <section aria-labelledby="modules-title" className="border-t border-border/60">
+          <section aria-labelledby="features-title" className="border-t border-border/60">
             <div className="mx-auto max-w-7xl px-6 py-20 md:py-24">
               <div className="max-w-2xl">
-                <div className="eyebrow mb-2">Two trust controls, one server</div>
-                <h2 id="modules-title" className="page-title text-3xl md:text-4xl">
-                  Guard the input. Validate the assertion.
+                <div className="eyebrow mb-2">Two features, one platform</div>
+                <h2 id="features-title" className="page-title text-3xl md:text-4xl">
+                  Apply the same policy before and after AI.
                 </h2>
                 <p className="page-sub">
-                  Veil and Plumb share policies, verdicts, evidence references, review controls, and
-                  an audit model.
+                  Veil and Plumb are JurisCore features. They share a policy library, verdicts,
+                  evidence references, review controls, and audit receipts.
                 </p>
               </div>
               <div className="mt-10 grid md:grid-cols-2 gap-4">
-                {modules.map((module) => (
+                {features.map((feature) => (
                   <article
-                    key={module.eyebrow}
+                    key={feature.eyebrow}
                     className="rounded-2xl border border-border bg-card p-6 card-shadow"
                   >
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 rounded-md bg-primary/15 flex items-center justify-center">
-                        <module.icon className="h-5 w-5 text-primary" aria-hidden />
+                        <feature.icon className="h-5 w-5 text-primary" aria-hidden />
                       </div>
                       <div>
                         <div
-                          className={`eyebrow ${module.eyebrow.startsWith("JurisCore") ? "brand-case" : ""}`}
+                          className="eyebrow"
                         >
-                          {module.eyebrow}
+                          {feature.eyebrow}
                         </div>
-                        <h3 className="font-semibold text-lg">{module.title}</h3>
+                        <h3 className="font-semibold text-lg">{feature.title}</h3>
                       </div>
                     </div>
-                    <p className="mt-4 text-sm text-muted-foreground">{module.description}</p>
+                    <p className="mt-4 text-sm text-muted-foreground">{feature.description}</p>
                     <Button asChild variant="outline" className="mt-6">
-                      <Link to={module.to}>
-                        {module.action}
+                      <Link to={feature.to}>
+                        {feature.action}
                         <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
                       </Link>
                     </Button>
                   </article>
                 ))}
+              </div>
+            </div>
+          </section>
+
+          <section aria-labelledby="plans-title" className="border-t border-border/60">
+            <div className="mx-auto max-w-7xl px-6 py-20 md:py-24">
+              <div className="max-w-2xl">
+                <div className="eyebrow mb-2">Product-led, usage-based</div>
+                <h2 id="plans-title" className="page-title text-3xl md:text-4xl">
+                  Start free. Pay when JurisCore becomes infrastructure.
+                </h2>
+                <p className="page-sub">
+                  Explore the core workflow at no cost, then add shared governance, automation,
+                  and enterprise controls as usage grows.
+                </p>
+              </div>
+              <div className="mt-10 grid gap-4 md:grid-cols-3">
+                <Plan
+                  name="Free"
+                  description="Local playground, built-in policy references, and limited Veil and Plumb checks."
+                />
+                <Plan
+                  name="Team"
+                  description="Usage-based API, custom policies, shared receipts, CI checks, and collaboration."
+                />
+                <Plan
+                  name="Enterprise"
+                  description="SSO, RBAC, private policy packs, dedicated data controls, and priority support."
+                />
               </div>
             </div>
           </section>
@@ -253,7 +283,7 @@ function Landing() {
                     <Link to="/connect">Connection guide</Link>
                   </Button>
                   <Button asChild variant="outline">
-                    <Link to="/dashboard/rulebooks">See the rules</Link>
+                    <Link to="/dashboard/rulebooks">Open Policy Library</Link>
                   </Button>
                 </div>
               </div>
@@ -278,12 +308,21 @@ function Landing() {
 
         <footer className="border-t border-border/60">
           <div className="mx-auto max-w-7xl px-6 py-8 text-sm text-muted-foreground flex flex-wrap gap-2 justify-between">
-            <span>JurisCore · Prototype · Synthetic and mock data</span>
-            <span className="font-mono">v0.2.0</span>
+            <span>JurisCore · Commercial platform prototype · Synthetic and mock data</span>
+            <span className="font-mono">v1 platform</span>
           </div>
         </footer>
       </div>
     </div>
+  );
+}
+
+function Plan({ name, description }: { name: string; description: string }) {
+  return (
+    <article className="rounded-2xl border border-border bg-card p-6 card-shadow">
+      <h3 className="text-lg font-semibold">{name}</h3>
+      <p className="mt-3 text-sm text-muted-foreground">{description}</p>
+    </article>
   );
 }
 

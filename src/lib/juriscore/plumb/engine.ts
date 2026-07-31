@@ -25,13 +25,18 @@ export interface PlumbResult {
   verdict: ValidatorVerdict;
   findings: PlumbFinding[];
   counts: Record<PlumbStatus, number>;
+  policyIds: string[];
 }
 
 function normalizeValue(value: PlumbValue) {
   return typeof value === "string" ? value.trim().toLocaleLowerCase() : value;
 }
 
-export function compareClaims(authorities: PlumbClaim[], assertions: PlumbClaim[]): PlumbResult {
+export function compareClaims(
+  authorities: PlumbClaim[],
+  assertions: PlumbClaim[],
+  options: { policyIds?: string[] } = {},
+): PlumbResult {
   const findings = assertions.map<PlumbFinding>((assertion) => {
     const candidates = authorities.filter((authority) => authority.subject === assertion.subject);
     if (candidates.length !== 1) {
@@ -80,8 +85,15 @@ export function compareClaims(authorities: PlumbClaim[], assertions: PlumbClaim[
   };
 
   return {
-    verdict: counts.drifted > 0 ? "block" : counts.cannot_determine > 0 ? "revise" : "allow",
+    verdict:
+      counts.drifted > 0
+        ? "block"
+        : counts.cannot_determine > 0 ||
+            (options.policyIds !== undefined && options.policyIds.length === 0)
+          ? "revise"
+          : "allow",
     findings,
     counts,
+    policyIds: options.policyIds ?? [],
   };
 }

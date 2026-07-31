@@ -1,12 +1,23 @@
-# JurisCore
+# JurisCore V1 Platform
 
-JurisCore is an open-source AI validation and guardrail server. It protects sensitive information before it reaches a model and validates material assertions against authoritative sources before they reach a user.
+JurisCore is a commercial AI validation and guardrail platform for teams building AI into SaaS products. It protects data before model use, validates important claims against authoritative sources, and returns an allow, revise, or block decision with evidence.
 
-The two flagship modules are **JurisCore Veil**, a healthcare-focused privacy workflow, and **Plumb**, a source-of-truth drift evaluator for technical SaaS products. **JurisCore Reclaim** remains a future roadmap workflow that will compose both capabilities.
+JurisCore has two core features:
 
-This repository currently preserves the exported Lovable prototype. Several screens and MCP tools use deterministic demo data; production services, persistence, authentication, and integrations will be implemented against the project requirements.
+- **Veil** protects customer, operational, security, and regulated data before it enters or leaves an AI workflow.
+- **Plumb** checks documentation and product claims against code, configuration, schemas, policies, and APIs.
 
-The working product scope and measurement rules are documented in [the product contract](docs/PRODUCT_CONTRACT.md), [the evaluation plan](docs/EVALUATION_PLAN.md), [the prototype gap analysis](docs/PROTOTYPE_GAP_ANALYSIS.md), [the internal feature inventory](docs/FEATURE_INVENTORY.md), and [the latest prototype validation report](docs/VALIDATION_REPORT.md).
+Both features use the same Policy Library. The prototype includes versioned references for PII, HIPAA, SOC 2, MITRE ATLAS, NIST AI RMF, and NIST CSF, plus browser-local custom policies. Policy packs guide checks; they do not certify compliance.
+
+## Commercial model
+
+JurisCore is not an open-source product. The intended model is product-led and usage-based:
+
+- **Free:** local playground, built-in policy references, and limited Veil and Plumb checks.
+- **Team:** metered API usage, custom policies, shared receipts, CI checks, and collaboration.
+- **Enterprise:** SSO, RBAC, private policy packs, dedicated data controls, and priority support.
+
+The source in this repository is a private product prototype and remains all rights reserved.
 
 ## Local development
 
@@ -14,24 +25,20 @@ Prerequisites:
 
 - [Bun](https://bun.sh/)
 
-Install dependencies and start the development server:
-
 ```sh
 bun install
 bun run dev
 ```
 
-Run the available project checks:
+Run the core validation suite and production build:
 
 ```sh
-bun run lint
+bun run check:core
 bun run build
 ```
 
-## Project status
-
-This is the initial prototype baseline. Product requirements and evaluation observations are being reviewed separately before the production architecture and implementation roadmap are finalized.
+See [the product contract](docs/PRODUCT_CONTRACT.md), [feature inventory](docs/FEATURE_INVENTORY.md), and [validation report](docs/VALIDATION_REPORT.md) for current scope and evidence maturity.
 
 ## Licensing
 
-No open-source license has been selected yet. Until a license is added, all rights are reserved.
+Copyright © JurisCore. All rights reserved. No open-source license is granted.

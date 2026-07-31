@@ -1,114 +1,96 @@
 # JurisCore product contract
 
-Status: working source of truth for product and implementation decisions.
+Status: V1 working source of truth.
 
 ## Product definition
 
-JurisCore is an open-source AI validation and guardrail server. Applications place it around an AI model to do two things:
+JurisCore is a commercial AI validation and guardrail platform. It is infrastructure for SaaS teams, not another chatbot.
 
-1. **Protect what goes into AI.** Detect, transform, or block sensitive inputs before they reach a model.
-2. **Prove what comes out of AI.** Validate material assertions against authoritative sources before they reach a user or workflow.
+The platform does two jobs:
 
-The product promise is: **Protect the prompt. Prove the answer.**
+1. **Control model context.** Detect, transform, or block sensitive and unsafe inputs before they reach a model.
+2. **Control product truth.** Validate material claims against authoritative sources before they reach a user, release, or workflow.
 
-JurisCore is infrastructure rather than another chatbot. It returns a structured allow, revise, or block decision with findings, evidence, and an audit receipt.
+The product promise remains: **Protect the prompt. Prove the answer.** Every check returns an allow, revise, or block decision with findings, evidence, active policy versions, and an audit receipt.
 
-## Product flow
+## Product structure
 
-1. A trusted application submits content and a validation policy.
-2. JurisCore applies input detectors and transformations.
-3. Only permitted content is sent to the selected model provider.
-4. JurisCore evaluates the returned content or another candidate artifact.
-5. The server returns a verdict, evidence, and review requirements.
-6. The application records or acts on that result according to its policy.
+JurisCore is the product and platform. Veil and Plumb are features within it.
 
-Model providers are adapters. Validation policy, evidence, verdicts, and audit records belong to JurisCore.
+| Feature | Role | Product question |
+| --- | --- | --- |
+| Veil | Data and prompt protection around model use | Is this context permitted to enter or leave the AI workflow? |
+| Plumb | Source-of-truth validation for SaaS artifacts | Does this claim still agree with the authoritative technical source? |
 
-## Flagship modules
+The features share the Policy Library, verdict contracts, evidence references, human review controls, evaluation tooling, and audit receipts.
 
-| Module         | Role                                                 | Product question                                                      |
-| -------------- | ---------------------------------------------------- | --------------------------------------------------------------------- |
-| JurisCore Veil | Sensitive-data protection before and after model use | Is this information permitted to reach or leave the model?            |
-| Plumb          | Source-of-truth validation for SaaS artifacts        | Does this assertion still agree with the implemented source of truth? |
+## Veil
 
-Both modules share policy configuration, detectors, assertion contracts, evidence references, verdicts, human-review controls, evaluation tooling, and audit receipts.
+Veil is versatile input and output protection for AI-assisted SaaS work. It detects selected personal identifiers, customer and tenant identifiers, credentials, secrets, regulated health identifiers, and prompt-attack patterns. It can redact values when identity is irrelevant or tokenize them when relationships must be preserved.
 
-## JurisCore Veil
+### Use case 1: support and incident copilots
 
-Veil is a healthcare-focused privacy workflow built on the JurisCore input and output guardrails. It detects selected categories of personal, health, financial, and secret data; transforms them using redaction or controlled tokens; and exposes exactly what changed before content is sent onward.
+A support engineer wants an AI model to summarize a ticket, incident transcript, or log bundle. Veil protects customer contact details, tenant identifiers, database URLs, access tokens, and other configured values while retaining the technical failure pattern.
 
-### Use case 1: safe clinical-document assistance
+### Use case 2: engineering copilots
 
-A healthcare worker wants an LLM to summarize or restructure a clinical note. Veil detects configured identifiers, shows a preview, produces a sanitized copy, and checks the model response for accidental sensitive-data exposure.
+A developer wants an AI model to explain logs, review configuration, or draft a runbook. Veil blocks or transforms credentials and prompt attacks while preserving the code and operational context needed to troubleshoot.
 
-### Use case 2: safe healthcare-operations assistance
-
-A billing, coding, support, or revenue-cycle team wants an LLM to classify, summarize, or draft from patient-related material. Veil removes or tokenizes prohibited identifiers while preserving permitted operational and clinical context.
-
-Veil is not represented as HIPAA compliant merely because it performs pattern detection. Deployment controls, data flows, contractual requirements, access controls, retention, and independent validation remain separate obligations.
+Healthcare remains an optional Veil policy profile through the HIPAA reference pack. It is not the platform's defining storyline.
 
 ## Plumb
 
-Plumb is the JurisCore source-integrity module for technical SaaS products. It compares claims in documentation or product-facing artifacts with authoritative implementation sources and returns matches, drifted, or cannot determine with citations on both sides.
+Plumb checks assertions in documentation, support content, runbooks, release notes, sales material, and AI-generated answers against code, configuration, schemas, policies, and APIs.
 
 ### Use case 1: pull-request documentation drift
 
-When a pull request changes an API, configuration, price, limit, or operational behavior, Plumb checks related READMEs, API documentation, and runbooks before merge.
+When a pull request changes an API, limit, price, configuration, or behavior, Plumb checks the associated documentation before merge and identifies the exact source mismatch.
 
-### Use case 2: product-promise drift
+### Use case 2: AI answer and product-promise drift
 
-On demand or on a schedule, Plumb compares Help Center content, product documentation, sales claims, security documentation, and runbooks with code, configuration, schemas, and APIs.
+On demand or on a schedule, Plumb checks generated support answers, Help Center content, sales claims, security documentation, and runbooks against the implemented source of truth.
 
-## Shared server capabilities
+## Shared Policy Library
 
-The durable server will own:
+The Policy Library provides versioned evaluation packs for both features. V1 includes:
 
-- policy and rule configuration;
-- detector and transformation pipelines;
-- source ingestion, provenance, and versioning;
-- provider-neutral model execution;
-- assertion extraction and source validation;
-- evidence references with exact locators;
-- allow, revise, and block verdicts;
-- human-review requirements and decisions;
-- tenant boundaries and authorization;
-- append-only audit receipts;
-- evaluation datasets, runs, and maturity labels;
-- versioned APIs for Lovable and other clients.
+- PII and sensitive-data baseline mapped to the NIST Privacy Framework;
+- HIPAA Privacy Rule reference from HHS;
+- SOC 2 Trust Services Criteria reference from AICPA;
+- MITRE ATLAS AI threat reference;
+- NIST AI RMF 1.0 and Generative AI Profile;
+- NIST Cybersecurity Framework 2.0;
+- custom organizational policies created by users.
 
-## First release boundary
+Built-in packs store source title, publisher, URL, version, and retrieval date. They translate references into product checks but do not reproduce restricted standards, determine legal applicability, certify compliance, or replace qualified review.
 
-The first usable release will:
+## Commercial model
 
-- run Veil against synthetic healthcare text using configurable redaction or tokenization;
-- show the original, transformed output, findings, and verdicts without storing detected raw values in findings;
-- run Plumb against structured code-versus-document fixtures;
-- return supported, drifted, or cannot-determine findings with source locators;
-- preserve existing prototype routes and demonstrations;
-- expose shared machine-readable contracts and deterministic checks;
-- clearly label simulated metrics and model behavior.
+JurisCore uses a free-entry, paid-expansion model:
 
-The first release will not:
+- Free gives developers a local playground, built-in policy references, and limited Veil and Plumb checks.
+- Team adds metered API usage, custom policies, shared receipts, CI checks, and collaboration.
+- Enterprise adds SSO, RBAC, private policy packs, dedicated data controls, contractual assurances, and support.
 
-- claim that regular-expression detection is complete de-identification;
-- make an autonomous medical, legal, coverage, or compliance decision;
-- send real patient information through a prototype workflow;
-- claim a benchmark result that has not been reproduced;
-- train a model on customer data by default;
-- make Plumb an autonomous merge authority;
-- treat a model confidence score as proof.
+## V1 boundary
 
-## Roadmap: JurisCore Reclaim
+V1 will:
 
-Reclaim is a future healthcare denial-evidence and appeal-preparation workflow. It will compose both sides of JurisCore: Veil protects patient information, while the validation engine checks appeal assertions against payer policy and permitted clinical evidence. Reclaim is not part of the initial product claim or first release.
+- demonstrate Veil on synthetic SaaS and optional healthcare data;
+- apply active built-in or custom policies to Veil and Plumb receipts;
+- demonstrate Plumb on structured code-versus-document fixtures;
+- preserve existing prototype routes;
+- expose deterministic checks and clearly label simulated evidence.
+
+V1 will not claim complete de-identification, automatic compliance, production-grade secret detection, benchmark results not reproduced, autonomous merge authority, or production tenant isolation.
 
 ## Product principles
 
-1. Evidence before fluency.
-2. Sensitive values do not belong in findings or logs.
-3. A transformed input and an original input receive separate verdicts.
-4. Cannot determine is a valid outcome.
-5. Consequential actions remain under human control.
-6. Model providers are replaceable adapters.
-7. Metrics must declare whether they are targets, synthetic, benchmark, pilot, or production results.
-8. Lovable is the prototype layer; the repository and server contracts are the durable source of truth.
+1. JurisCore is the platform; Veil and Plumb are features.
+2. Evidence before fluency.
+3. Sensitive values do not belong in findings or logs.
+4. Policy versions belong in every receipt.
+5. Cannot determine is a valid outcome.
+6. Consequential actions remain under human control.
+7. Model providers are replaceable adapters.
+8. Metrics declare whether they are targets, synthetic, benchmark, pilot, or production results.
