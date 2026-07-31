@@ -53,9 +53,16 @@ const groups: Array<{
   }>;
 }> = [
   {
-    label: "Work",
+    label: "JurisCore",
     items: [
       { to: "/dashboard", label: "Overview", icon: LayoutDashboard, exact: true },
+      { to: "/dashboard/redaction", label: "Veil · Privacy", icon: EyeOff },
+      { to: "/dashboard/drift", label: "Plumb · Drift", icon: GitPullRequest },
+    ],
+  },
+  {
+    label: "Work",
+    items: [
       { to: "/dashboard/intake", label: "Intake", icon: Inbox },
       { to: "/dashboard/matters", label: "Matters", icon: Briefcase },
       { to: "/dashboard/contracts", label: "Contracts", icon: FileSignature },
@@ -78,8 +85,6 @@ const groups: Array<{
     items: [
       { to: "/dashboard/gateway", label: "LLM Gateway", icon: Zap },
       { to: "/dashboard/pipeline", label: "Pipeline", icon: Activity },
-      { to: "/dashboard/drift", label: "Plumb · Drift", icon: GitPullRequest },
-      { to: "/dashboard/redaction", label: "Veil · Privacy", icon: EyeOff },
     ],
   },
 ];

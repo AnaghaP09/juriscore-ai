@@ -46,6 +46,7 @@ These routes may be relabeled, connected to shared engines, or marked as demo da
 - PDF and PNG source previews plus editable extracted text;
 - multi-page PDF text extraction and PNG OCR progress handling;
 - per-document Veil protection summary and simulated weekly overview metrics;
+- primary navigation placement for Veil and Plumb directly after Overview;
 - reusable Veil detector and transformation engine;
 - context-preserving tokens for repeated detected values;
 - safe findings that omit detected raw values;
