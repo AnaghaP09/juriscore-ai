@@ -1,26 +1,37 @@
-# Lovable Insight Hub
+# JurisCore
 
-build this as plugin to another tool to integrate and use it also should have the dashboard to highlights based on the use cases and metrics
+JurisCore is an open-source AI validation and guardrail server. It protects sensitive information before it reaches a model and validates material assertions against authoritative sources before they reach a user.
 
-This project was built with [Lovable](https://lovable.dev).
+The two flagship modules are **JurisCore Veil**, a healthcare-focused privacy workflow, and **Plumb**, a source-of-truth drift evaluator for technical SaaS products. **JurisCore Reclaim** remains a future roadmap workflow that will compose both capabilities.
 
-**Live app**: https://plugin-muse-sparkle.lovable.app
+This repository currently preserves the exported Lovable prototype. Several screens and MCP tools use deterministic demo data; production services, persistence, authentication, and integrations will be implemented against the project requirements.
 
-## Build with Lovable
+The working product scope and measurement rules are documented in [the product contract](docs/PRODUCT_CONTRACT.md), [the evaluation plan](docs/EVALUATION_PLAN.md), [the prototype gap analysis](docs/PROTOTYPE_GAP_ANALYSIS.md), [the internal feature inventory](docs/FEATURE_INVENTORY.md), and [the latest prototype validation report](docs/VALIDATION_REPORT.md).
 
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/46239422-6cb4-4f54-9901-4ce4e359cfdc).
+## Local development
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+Prerequisites:
 
-## Development
+- [Bun](https://bun.sh/)
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+Install dependencies and start the development server:
 
 ```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
+bun install
+bun run dev
 ```
+
+Run the available project checks:
+
+```sh
+bun run lint
+bun run build
+```
+
+## Project status
+
+This is the initial prototype baseline. Product requirements and evaluation observations are being reviewed separately before the production architecture and implementation roadmap are finalized.
+
+## Licensing
+
+No open-source license has been selected yet. Until a license is added, all rights are reserved.
