@@ -1,6 +1,6 @@
 # JurisCore Veil: Redact vs Tokenize
 
-**Use-case and decision guide**  
+**Use-case and decision guide**
 Version 0.1 · 31 July 2026 · Prototype validation
 
 ## Executive summary
