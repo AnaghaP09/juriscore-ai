@@ -4,15 +4,24 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
-import { ArrowRight, Download, FileText, GitPullRequest } from "lucide-react";
+import { ArrowRight, Download, EyeOff, FileText, GitPullRequest } from "lucide-react";
 import { getUseCaseSummaries } from "@/lib/juriscore/mock";
-import { downloadCSV, openPrintReport, kpiCard, htmlTable, escapeHtml } from "@/lib/juriscore/export";
+import {
+  downloadCSV,
+  openPrintReport,
+  kpiCard,
+  htmlTable,
+  escapeHtml,
+} from "@/lib/juriscore/export";
 
 export const Route = createFileRoute("/dashboard/use-cases")({
   head: () => ({
     meta: [
       { title: "Use Cases — JurisCore AI" },
-      { name: "description", content: "Governed AI use cases in Finance and Healthcare." },
+      {
+        name: "description",
+        content: "JurisCore modules and preserved governed-AI prototype use cases.",
+      },
     ],
   }),
   component: UseCases,
@@ -22,12 +31,23 @@ function UseCases() {
   const items = getUseCaseSummaries();
 
   const exportCSV = () => {
-    downloadCSV("juriscore_use_cases.csv", items.map((u) => ({
-      key: u.key, name: u.name, domain: u.domain, regulatoryDriver: u.regulatoryDriver,
-      volume: u.volume, blockRate: u.blockRate, citationCoverage: u.citationCoverage,
-      topFailureMode: u.topFailureMode, persona: u.persona ?? "", capability: u.capability ?? "",
-      valueProp: u.valueProp ?? "", risk: u.risk ?? "",
-    })));
+    downloadCSV(
+      "juriscore_use_cases.csv",
+      items.map((u) => ({
+        key: u.key,
+        name: u.name,
+        domain: u.domain,
+        regulatoryDriver: u.regulatoryDriver,
+        volume: u.volume,
+        blockRate: u.blockRate,
+        citationCoverage: u.citationCoverage,
+        topFailureMode: u.topFailureMode,
+        persona: u.persona ?? "",
+        capability: u.capability ?? "",
+        valueProp: u.valueProp ?? "",
+        risk: u.risk ?? "",
+      })),
+    );
   };
 
   const exportPDF = () => {
@@ -51,12 +71,24 @@ function UseCases() {
           heading: "Use case matrix",
           html: htmlTable(
             ["Use case", "Domain", "Volume", "Block %", "Coverage %", "Top failure"],
-            items.map((u) => [u.name, u.domain, u.volume, (u.blockRate * 100).toFixed(1), (u.citationCoverage * 100).toFixed(0), u.topFailureMode]),
+            items.map((u) => [
+              u.name,
+              u.domain,
+              u.volume,
+              (u.blockRate * 100).toFixed(1),
+              (u.citationCoverage * 100).toFixed(0),
+              u.topFailureMode,
+            ]),
           ),
         },
         {
           heading: "Failure modes & risks",
-          html: items.map((u) => `<div style="margin-bottom:12px"><strong>${escapeHtml(u.name)}</strong><br><span style="color:#555">${escapeHtml(u.risk ?? u.failureMode)}</span></div>`).join(""),
+          html: items
+            .map(
+              (u) =>
+                `<div style="margin-bottom:12px"><strong>${escapeHtml(u.name)}</strong><br><span style="color:#555">${escapeHtml(u.risk ?? u.failureMode)}</span></div>`,
+            )
+            .join(""),
         },
       ],
     });
@@ -65,33 +97,48 @@ function UseCases() {
   return (
     <div className="p-6 sm:p-8 space-y-6">
       <PageHeader
-        eyebrow="Your portfolio"
-        title="AI features we're protecting"
-        description="Each card is one AI feature in your product. Click to see how it's behaving and what we've caught."
+        eyebrow="Modules and preserved prototypes"
+        title="What JurisCore can validate"
+        description="Veil and Plumb are the flagship modules. The other original finance and healthcare demonstrations remain available while the shared server is built."
         actions={
           <>
-            <Button variant="outline" size="sm" onClick={exportCSV}><Download className="h-4 w-4 mr-2" aria-hidden />CSV</Button>
-            <Button variant="outline" size="sm" onClick={exportPDF}><FileText className="h-4 w-4 mr-2" aria-hidden />PDF report</Button>
+            <Button variant="outline" size="sm" onClick={exportCSV}>
+              <Download className="h-4 w-4 mr-2" aria-hidden />
+              CSV
+            </Button>
+            <Button variant="outline" size="sm" onClick={exportPDF}>
+              <FileText className="h-4 w-4 mr-2" aria-hidden />
+              PDF report
+            </Button>
           </>
         }
       />
       <div className="grid md:grid-cols-2 gap-4">
         {items.map((uc) => {
           const isPlumb = uc.key === "plumb-drift";
+          const isVeil = uc.key === "veil-privacy";
           return (
-            <Card key={uc.key} className={isPlumb ? "border-primary/40" : ""}>
+            <Card key={uc.key} className={isPlumb || isVeil ? "border-primary/40" : ""}>
               <CardHeader className="flex flex-row items-start justify-between space-y-0">
                 <div>
                   <CardTitle className="text-base flex items-center gap-2">
                     {isPlumb && <GitPullRequest className="h-4 w-4 text-primary" aria-hidden />}
+                    {isVeil && <EyeOff className="h-4 w-4 text-primary" aria-hidden />}
                     {uc.name}
                   </CardTitle>
                   <div className="mt-1 text-xs text-muted-foreground">{uc.regulatoryDriver}</div>
                 </div>
-                <Badge variant={uc.domain === "finance" ? "default" : "secondary"} className="capitalize">{uc.domain}</Badge>
+                <Badge
+                  variant={uc.domain === "finance" ? "default" : "secondary"}
+                  className="capitalize"
+                >
+                  {uc.domain}
+                </Badge>
               </CardHeader>
               <CardContent className="space-y-4">
-                {uc.tagline && <p className="text-sm text-muted-foreground text-pretty">{uc.tagline}</p>}
+                {uc.tagline && (
+                  <p className="text-sm text-muted-foreground text-pretty">{uc.tagline}</p>
+                )}
                 <div className="grid grid-cols-3 gap-4">
                   <Metric label="Volume" value={uc.volume.toString()} />
                   <Metric label="Block rate" value={`${(uc.blockRate * 100).toFixed(1)}%`} />
@@ -105,7 +152,9 @@ function UseCases() {
                   <Progress value={uc.citationCoverage * 100} />
                 </div>
                 <div className="rounded-md border border-border bg-muted/30 p-3 text-xs">
-                  <div className="uppercase tracking-wider text-muted-foreground mb-1">Top failure mode</div>
+                  <div className="uppercase tracking-wider text-muted-foreground mb-1">
+                    Top failure mode
+                  </div>
                   <div>{uc.topFailureMode}</div>
                 </div>
                 <Link

@@ -5,7 +5,13 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { AI_REVIEW, type AiReviewItem, type MatterType } from "@/lib/juriscore/legal-mock";
 
 export const Route = createFileRoute("/dashboard/ai-review")({
@@ -64,7 +70,9 @@ function AiReviewPage() {
         <CardContent className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <FilterField label="Outcome">
             <Select value={outcome} onValueChange={setOutcome}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All outcomes</SelectItem>
                 <SelectItem value="human_review">Needs human</SelectItem>
@@ -75,7 +83,9 @@ function AiReviewPage() {
           </FilterField>
           <FilterField label="Confidence">
             <Select value={minConf} onValueChange={setMinConf}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="any">Any</SelectItem>
                 <SelectItem value="low">Low (&lt; 0.75)</SelectItem>
@@ -85,19 +95,31 @@ function AiReviewPage() {
           </FilterField>
           <FilterField label="Matter type">
             <Select value={type} onValueChange={setType}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All types</SelectItem>
-                {types.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                {types.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </FilterField>
           <FilterField label="Owner">
             <Select value={owner} onValueChange={setOwner}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All owners</SelectItem>
-                {owners.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                {owners.map((o) => (
+                  <SelectItem key={o} value={o}>
+                    {o}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </FilterField>
@@ -116,7 +138,9 @@ function AiReviewPage() {
         </Card>
       ) : (
         <ul className="space-y-3">
-          {filtered.map((r) => <ReviewRow key={r.id} item={r} />)}
+          {filtered.map((r) => (
+            <ReviewRow key={r.id} item={r} />
+          ))}
         </ul>
       )}
     </div>
@@ -148,8 +172,12 @@ function ReviewRow({ item }: { item: AiReviewItem }) {
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <Badge className={OUTCOME_STYLE[item.outcome]}>{OUTCOME_LABEL[item.outcome]}</Badge>
-              <Badge variant="outline" className="tabular-nums">Confidence {conf}%</Badge>
-              <Badge variant="outline" className="tabular-nums">Citations {cite}%</Badge>
+              <Badge variant="outline" className="tabular-nums">
+                Confidence {conf}%
+              </Badge>
+              <Badge variant="outline" className="tabular-nums">
+                Citations {cite}%
+              </Badge>
             </div>
           </div>
 
@@ -166,11 +194,15 @@ function ReviewRow({ item }: { item: AiReviewItem }) {
 
           <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
             <div className="text-xs text-muted-foreground tabular-nums">
-              {new Date(item.ts).toLocaleString()}
+              {new Date(item.ts).toISOString().replace("T", " ").slice(0, 16)} UTC
             </div>
             <div className="flex gap-2">
-              <Button size="sm" variant="outline">Approve as-is</Button>
-              <Button size="sm" variant="outline">Send back to author</Button>
+              <Button size="sm" variant="outline">
+                Approve as-is
+              </Button>
+              <Button size="sm" variant="outline">
+                Send back to author
+              </Button>
               {item.auditId && (
                 <Button size="sm" variant="ghost" asChild className="gap-1.5">
                   <Link to="/dashboard/audit">

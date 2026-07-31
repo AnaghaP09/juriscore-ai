@@ -29,10 +29,8 @@ import { Route as DashboardAuditRouteImport } from './routes/dashboard.audit'
 import { Route as DashboardAnalyticsRouteImport } from './routes/dashboard.analytics'
 import { Route as DashboardAiReviewRouteImport } from './routes/dashboard.ai-review'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
-import { Route as Char91DotwellKnownChar93AiPluginChar91DotChar93jsonRouteImport } from './routes/[.well-known]/ai-plugin[.]json'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as DashboardUseCasesKeyRouteImport } from './routes/dashboard.use-cases.$key'
-import { Route as ApiPublicPluginManifestRouteImport } from './routes/api/public/plugin-manifest'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
 
 const McpRoute = McpRouteImport.update({
@@ -136,12 +134,6 @@ const Char91DotwellKnownChar93OauthProtectedResourceRoute =
     path: '/.well-known/oauth-protected-resource',
     getParentRoute: () => rootRouteImport,
   } as any)
-const Char91DotwellKnownChar93AiPluginChar91DotChar93jsonRoute =
-  Char91DotwellKnownChar93AiPluginChar91DotChar93jsonRouteImport.update({
-    id: '/.well-known/ai-plugin.json',
-    path: '/.well-known/ai-plugin.json',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const Char91DotmcpChar93ListToolsRoute =
   Char91DotmcpChar93ListToolsRouteImport.update({
     id: '/.mcp/list-tools',
@@ -152,11 +144,6 @@ const DashboardUseCasesKeyRoute = DashboardUseCasesKeyRouteImport.update({
   id: '/$key',
   path: '/$key',
   getParentRoute: () => DashboardUseCasesRoute,
-} as any)
-const ApiPublicPluginManifestRoute = ApiPublicPluginManifestRouteImport.update({
-  id: '/api/public/plugin-manifest',
-  path: '/api/public/plugin-manifest',
-  getParentRoute: () => rootRouteImport,
 } as any)
 const Char91DotmcpChar93InvokeToolToolRoute =
   Char91DotmcpChar93InvokeToolToolRouteImport.update({
@@ -171,7 +158,6 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRouteWithChildren
   '/mcp': typeof McpRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
-  '/.well-known/ai-plugin.json': typeof Char91DotwellKnownChar93AiPluginChar91DotChar93jsonRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/dashboard/ai-review': typeof DashboardAiReviewRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
@@ -189,7 +175,6 @@ export interface FileRoutesByFullPath {
   '/dashboard/use-cases': typeof DashboardUseCasesRouteWithChildren
   '/dashboard/': typeof DashboardIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
-  '/api/public/plugin-manifest': typeof ApiPublicPluginManifestRoute
   '/dashboard/use-cases/$key': typeof DashboardUseCasesKeyRoute
 }
 export interface FileRoutesByTo {
@@ -197,7 +182,6 @@ export interface FileRoutesByTo {
   '/connect': typeof ConnectRoute
   '/mcp': typeof McpRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
-  '/.well-known/ai-plugin.json': typeof Char91DotwellKnownChar93AiPluginChar91DotChar93jsonRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/dashboard/ai-review': typeof DashboardAiReviewRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
@@ -215,7 +199,6 @@ export interface FileRoutesByTo {
   '/dashboard/use-cases': typeof DashboardUseCasesRouteWithChildren
   '/dashboard': typeof DashboardIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
-  '/api/public/plugin-manifest': typeof ApiPublicPluginManifestRoute
   '/dashboard/use-cases/$key': typeof DashboardUseCasesKeyRoute
 }
 export interface FileRoutesById {
@@ -225,7 +208,6 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRouteWithChildren
   '/mcp': typeof McpRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
-  '/.well-known/ai-plugin.json': typeof Char91DotwellKnownChar93AiPluginChar91DotChar93jsonRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/dashboard/ai-review': typeof DashboardAiReviewRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
@@ -243,7 +225,6 @@ export interface FileRoutesById {
   '/dashboard/use-cases': typeof DashboardUseCasesRouteWithChildren
   '/dashboard/': typeof DashboardIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
-  '/api/public/plugin-manifest': typeof ApiPublicPluginManifestRoute
   '/dashboard/use-cases/$key': typeof DashboardUseCasesKeyRoute
 }
 export interface FileRouteTypes {
@@ -254,7 +235,6 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/mcp'
     | '/.mcp/list-tools'
-    | '/.well-known/ai-plugin.json'
     | '/.well-known/oauth-protected-resource'
     | '/dashboard/ai-review'
     | '/dashboard/analytics'
@@ -272,7 +252,6 @@ export interface FileRouteTypes {
     | '/dashboard/use-cases'
     | '/dashboard/'
     | '/.mcp/invoke-tool/$tool'
-    | '/api/public/plugin-manifest'
     | '/dashboard/use-cases/$key'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -280,7 +259,6 @@ export interface FileRouteTypes {
     | '/connect'
     | '/mcp'
     | '/.mcp/list-tools'
-    | '/.well-known/ai-plugin.json'
     | '/.well-known/oauth-protected-resource'
     | '/dashboard/ai-review'
     | '/dashboard/analytics'
@@ -298,7 +276,6 @@ export interface FileRouteTypes {
     | '/dashboard/use-cases'
     | '/dashboard'
     | '/.mcp/invoke-tool/$tool'
-    | '/api/public/plugin-manifest'
     | '/dashboard/use-cases/$key'
   id:
     | '__root__'
@@ -307,7 +284,6 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/mcp'
     | '/.mcp/list-tools'
-    | '/.well-known/ai-plugin.json'
     | '/.well-known/oauth-protected-resource'
     | '/dashboard/ai-review'
     | '/dashboard/analytics'
@@ -325,7 +301,6 @@ export interface FileRouteTypes {
     | '/dashboard/use-cases'
     | '/dashboard/'
     | '/.mcp/invoke-tool/$tool'
-    | '/api/public/plugin-manifest'
     | '/dashboard/use-cases/$key'
   fileRoutesById: FileRoutesById
 }
@@ -335,10 +310,8 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRouteWithChildren
   McpRoute: typeof McpRoute
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
-  Char91DotwellKnownChar93AiPluginChar91DotChar93jsonRoute: typeof Char91DotwellKnownChar93AiPluginChar91DotChar93jsonRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
-  ApiPublicPluginManifestRoute: typeof ApiPublicPluginManifestRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -483,13 +456,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/.well-known/ai-plugin.json': {
-      id: '/.well-known/ai-plugin.json'
-      path: '/.well-known/ai-plugin.json'
-      fullPath: '/.well-known/ai-plugin.json'
-      preLoaderRoute: typeof Char91DotwellKnownChar93AiPluginChar91DotChar93jsonRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/.mcp/list-tools': {
       id: '/.mcp/list-tools'
       path: '/.mcp/list-tools'
@@ -503,13 +469,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/use-cases/$key'
       preLoaderRoute: typeof DashboardUseCasesKeyRouteImport
       parentRoute: typeof DashboardUseCasesRoute
-    }
-    '/api/public/plugin-manifest': {
-      id: '/api/public/plugin-manifest'
-      path: '/api/public/plugin-manifest'
-      fullPath: '/api/public/plugin-manifest'
-      preLoaderRoute: typeof ApiPublicPluginManifestRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/.mcp/invoke-tool/$tool': {
       id: '/.mcp/invoke-tool/$tool'
@@ -578,12 +537,9 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRouteWithChildren,
   McpRoute: McpRoute,
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
-  Char91DotwellKnownChar93AiPluginChar91DotChar93jsonRoute:
-    Char91DotwellKnownChar93AiPluginChar91DotChar93jsonRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
-  ApiPublicPluginManifestRoute: ApiPublicPluginManifestRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

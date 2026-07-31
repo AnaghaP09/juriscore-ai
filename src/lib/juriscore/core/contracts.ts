@@ -155,13 +155,13 @@ export const JURISCORE_PRODUCT = {
   platform: {
     key: "juriscore",
     name: "JurisCore",
-    description: "Open-source AI validation and guardrails. Protect the prompt. Prove the answer.",
+    description: "Commercial AI validation and guardrails. Protect the prompt. Prove the answer.",
   },
-  modules: {
+  features: {
     veil: {
       key: "veil",
-      name: "JurisCore Veil",
-      description: "Protects sensitive information before and after model use.",
+      name: "Veil",
+      description: "Protects customer, operational, security, and regulated data around model use.",
     },
     plumb: {
       key: "plumb",

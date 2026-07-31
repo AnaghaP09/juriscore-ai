@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>JurisCore — Protect the prompt. Prove the answer.</title>
+    <meta
+      name="description"
+      content="JurisCore is an AI validation and guardrail platform. Veil protects sensitive inputs before a model sees them; Plumb validates claims against the source of truth. Available as a CLI and a web app."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23312e2b'/></svg>"
+    />
+    <style>
+      :root {
+        --radius: 1.25rem;
+        --app-bg: oklch(0.86 0.02 90);
+        --background: oklch(0.975 0.025 90);
+        --foreground: oklch(0.18 0.01 80);
+        --card: oklch(0.995 0.012 90);
+        --primary: oklch(0.2 0.01 80);
+        --primary-foreground: oklch(0.98 0.02 90);
+        --secondary: oklch(0.955 0.03 90);
+        --muted-foreground: oklch(0.5 0.015 80);
+        --border: oklch(0.9 0.02 88);
+        --shadow: 0 20px 60px -20px oklch(0.2 0.05 285 / 0.35);
+        --shadow-sm: 0 1px 2px oklch(0.2 0.05 285 / 0.08),
+          0 8px 24px -12px oklch(0.2 0.05 285 / 0.18);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--app-bg);
+        color: var(--foreground);
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+      code,
+      pre,
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          "Liberation Mono", monospace;
+      }
+      a {
+        color: inherit;
+      }
+
+      .shell {
+        max-width: 1120px;
+        margin: 0 auto;
+        background: var(--card);
+        border-radius: 20px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+      @media (max-width: 820px) {
+        .shell {
+          border-radius: 0;
+        }
+      }
+      .wrap {
+        max-width: 1040px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+
+      /* Header */
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 40;
+        background: color-mix(in oklab, var(--card) 90%, transparent);
+        backdrop-filter: blur(8px);
+        border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+      }
+      .nav {
+        height: 64px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        text-decoration: none;
+      }
+      .brand .mark {
+        height: 24px;
+        width: 24px;
+        border-radius: 6px;
+        background: var(--primary);
+        display: inline-block;
+      }
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 22px;
+        font-size: 14px;
+        color: var(--muted-foreground);
+      }
+      .nav-links a.link {
+        text-decoration: none;
+        transition: color 0.15s;
+      }
+      .nav-links a.link:hover {
+        color: var(--foreground);
+      }
+      @media (max-width: 640px) {
+        .nav-links a.link {
+          display: none;
+        }
+      }
+
+      /* Buttons */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        padding: 10px 16px;
+        border-radius: 10px;
+        border: 1px solid transparent;
+        text-decoration: none;
+        cursor: pointer;
+        transition: transform 0.05s, background 0.15s, border-color 0.15s;
+        white-space: nowrap;
+      }
+      .btn:active {
+        transform: translateY(1px);
+      }
+      .btn-primary {
+        background: var(--primary);
+        color: var(--primary-foreground);
+      }
+      .btn-primary:hover {
+        background: color-mix(in oklab, var(--primary) 88%, white);
+      }
+      .btn-outline {
+        background: transparent;
+        border-color: var(--border);
+        color: var(--foreground);
+      }
+      .btn-outline:hover {
+        background: var(--secondary);
+      }
+      .btn-lg {
+        padding: 13px 22px;
+        font-size: 15px;
+        border-radius: 12px;
+      }
+
+      /* Hero */
+      .hero {
+        padding: 72px 0 80px;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--primary);
+        border: 1px solid color-mix(in oklab, var(--primary) 40%, transparent);
+        border-radius: 999px;
+        padding: 5px 12px;
+        margin-bottom: 24px;
+      }
+      .dot {
+        height: 7px;
+        width: 7px;
+        border-radius: 999px;
+        background: currentColor;
+      }
+      h1 {
+        font-size: clamp(2.5rem, 6vw, 4.5rem);
+        line-height: 1.04;
+        letter-spacing: -0.02em;
+        font-weight: 600;
+        margin: 0;
+        max-width: 16ch;
+      }
+      .lead {
+        margin: 24px 0 0;
+        font-size: clamp(1rem, 2.2vw, 1.2rem);
+        color: var(--muted-foreground);
+        max-width: 62ch;
+      }
+      .cta {
+        margin-top: 36px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .stats {
+        margin: 64px 0 0;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 28px;
+        max-width: 820px;
+      }
+      @media (max-width: 720px) {
+        .stats {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+      .stat .k {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted-foreground);
+      }
+      .stat .v {
+        margin-top: 8px;
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .stat .n {
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+
+      /* Sections */
+      section.band {
+        border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+        padding: 80px 0;
+      }
+      section.tint {
+        background: color-mix(in oklab, var(--secondary) 55%, transparent);
+      }
+      .eyebrow {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--muted-foreground);
+        margin-bottom: 10px;
+      }
+      h2 {
+        font-size: clamp(1.7rem, 3.5vw, 2.4rem);
+        letter-spacing: -0.02em;
+        font-weight: 600;
+        margin: 0;
+        max-width: 22ch;
+      }
+      .sub {
+        margin-top: 14px;
+        color: var(--muted-foreground);
+        max-width: 60ch;
+      }
+
+      .grid-2 {
+        margin-top: 40px;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+      }
+      .grid-3 {
+        margin-top: 40px;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+      }
+      .grid-4 {
+        margin-top: 44px;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+      }
+      @media (max-width: 860px) {
+        .grid-2,
+        .grid-3,
+        .grid-4 {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .card {
+        border: 1px solid var(--border);
+        background: var(--card);
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: var(--shadow-sm);
+      }
+      .icon {
+        height: 40px;
+        width: 40px;
+        border-radius: 9px;
+        background: color-mix(in oklab, var(--primary) 15%, transparent);
+        color: var(--primary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .icon svg {
+        height: 20px;
+        width: 20px;
+      }
+      .card h3 {
+        margin: 16px 0 0;
+        font-size: 1.15rem;
+      }
+      .card p {
+        margin: 10px 0 0;
+        font-size: 14px;
+        color: var(--muted-foreground);
+      }
+      .card .feat-eyebrow {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--muted-foreground);
+        margin-top: 16px;
+      }
+      .step-n {
+        float: right;
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+
+      /* Terminal / code */
+      .terminal {
+        margin-top: 40px;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: oklch(0.16 0.01 80);
+        color: oklch(0.92 0.02 90);
+        box-shadow: var(--shadow-sm);
+        overflow: hidden;
+      }
+      .terminal .bar {
+        display: flex;
+        gap: 7px;
+        padding: 13px 16px;
+        border-bottom: 1px solid oklch(1 0 0 / 0.08);
+      }
+      .terminal .bar i {
+        height: 11px;
+        width: 11px;
+        border-radius: 999px;
+        background: oklch(1 0 0 / 0.22);
+      }
+      .terminal pre {
+        margin: 0;
+        padding: 20px;
+        font-size: 13.5px;
+        line-height: 1.9;
+        overflow-x: auto;
+      }
+      .terminal .c {
+        color: oklch(0.72 0.09 150);
+      }
+      .terminal .p {
+        color: oklch(0.62 0.02 90);
+      }
+      .terminal .o {
+        color: oklch(0.72 0.02 90);
+      }
+
+      .download {
+        text-align: center;
+        border-radius: 18px;
+        border: 1px solid var(--border);
+        background: var(--card);
+        padding: 48px 24px;
+        margin-top: 40px;
+        box-shadow: var(--shadow-sm);
+      }
+      .download h2 {
+        margin: 0 auto;
+      }
+      .download .sub {
+        margin-left: auto;
+        margin-right: auto;
+      }
+      .download .cta {
+        justify-content: center;
+      }
+      .fine {
+        margin-top: 18px;
+        font-size: 12.5px;
+        color: var(--muted-foreground);
+      }
+
+      footer {
+        border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+        padding: 28px 0;
+        font-size: 13px;
+        color: var(--muted-foreground);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: space-between;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <header>
+        <div class="wrap nav">
+          <a class="brand" href="#top" aria-label="JurisCore home">
+            <span class="mark" aria-hidden="true"></span>
+            <span>JurisCore</span>
+          </a>
+          <nav class="nav-links" aria-label="Primary">
+            <a class="link" href="#features">Features</a>
+            <a class="link" href="#cli">CLI</a>
+            <a class="link" href="#download">Download</a>
+            <a
+              class="btn btn-primary"
+              href="https://github.com/AnaghaP09/juriscore-ai"
+              >View on GitHub</a
+            >
+          </nav>
+        </div>
+      </header>
+
+      <main id="top">
+        <!-- Hero -->
+        <section class="wrap hero">
+          <span class="badge"><span class="dot"></span> AI validation platform · Free to start</span>
+          <h1>Protect the prompt. Prove the answer.</h1>
+          <p class="lead">
+            JurisCore is the control plane around your AI workflows. <strong>Veil</strong>
+            protects sensitive inputs before a model sees them. <strong>Plumb</strong> validates
+            important assertions against the implemented source of truth. Every check returns an
+            allow, revise, or block decision with evidence — from the command line or the web app.
+          </p>
+          <div class="cta">
+            <a class="btn btn-primary btn-lg" href="#download">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Download
+            </a>
+            <a class="btn btn-outline btn-lg" href="#cli">Quickstart</a>
+            <a class="btn btn-outline btn-lg" href="https://github.com/AnaghaP09/juriscore-ai">View source</a>
+          </div>
+
+          <dl class="stats">
+            <div class="stat"><dt class="k">Input control</dt><dd class="v">Detect · transform</dd><dd class="n mono">Veil</dd></div>
+            <div class="stat"><dt class="k">Source validation</dt><dd class="v">Match · drift</dd><dd class="n mono">Plumb</dd></div>
+            <div class="stat"><dt class="k">Decision contract</dt><dd class="v">Allow · revise · block</dd><dd class="n mono">Shared</dd></div>
+            <div class="stat"><dt class="k">Traceability</dt><dd class="v">Evidence + receipt</dd><dd class="n mono">Shared</dd></div>
+          </dl>
+        </section>
+
+        <!-- Features -->
+        <section class="band" id="features">
+          <div class="wrap">
+            <div class="eyebrow">Two features, one platform</div>
+            <h2>Apply the same policy before and after AI.</h2>
+            <p class="sub">
+              Veil and Plumb are JurisCore features. They share a policy library, verdicts,
+              evidence references, review controls, and audit receipts.
+            </p>
+            <div class="grid-2">
+              <article class="card">
+                <div class="icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/></svg>
+                </div>
+                <div class="feat-eyebrow">Veil</div>
+                <h3>Protect what goes in</h3>
+                <p>
+                  Detect and transform configured sensitive information — PII, credentials,
+                  secrets, tenant identifiers, prompt attacks — before it reaches an AI model, then
+                  expose a reviewable transformation receipt.
+                </p>
+              </article>
+              <article class="card">
+                <div class="icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" y1="9" x2="6" y2="21"/></svg>
+                </div>
+                <div class="feat-eyebrow">Plumb</div>
+                <h3>Prove what comes out</h3>
+                <p>
+                  Compare documentation and product assertions with code, configuration, schemas,
+                  and APIs. Return matches, drift, or cannot determine — each with citations.
+                </p>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <!-- CLI quickstart -->
+        <section class="band tint" id="cli">
+          <div class="wrap">
+            <div class="eyebrow">Command line &amp; CI</div>
+            <h2>Run JurisCore from your terminal.</h2>
+            <p class="sub">
+              The Veil and Plumb engines are deterministic and run headless, so they drop straight
+              into scripts and CI pipelines. Install with a single toolchain — Bun — on macOS or
+              Windows.
+            </p>
+            <div class="terminal" role="img" aria-label="Terminal showing JurisCore install and check commands">
+              <div class="bar" aria-hidden="true"><i></i><i></i><i></i></div>
+              <pre><span class="p"># 1 · install Bun (macOS)</span>
+<span class="c">curl</span> -fsSL https://bun.sh/install | bash
+
+<span class="p"># 2 · get the code and install (macOS + Windows)</span>
+<span class="c">git</span> clone https://github.com/AnaghaP09/juriscore-ai.git
+<span class="c">cd</span> juriscore-ai
+<span class="c">bun</span> run setup
+
+<span class="p"># 3 · run the deterministic validation suite</span>
+<span class="c">bun</span> run check:core
+<span class="o">  ✔ Veil    input protection checks passed</span>
+<span class="o">  ✔ Plumb   source-of-truth checks passed</span>
+<span class="o">  ✔ Contracts verdict + evidence checks passed</span>
+
+<span class="p"># or launch the web app</span>
+<span class="c">bun</span> run dev  <span class="o">→ http://localhost:8080</span></pre>
+            </div>
+            <p class="fine">
+              On Windows, <code>bun run setup</code> self-heals antivirus file-locks automatically.
+              A dedicated <code>juriscore</code> command is on the roadmap; today the same checks
+              run through <code>bun run check:*</code>.
+            </p>
+          </div>
+        </section>
+
+        <!-- How it works -->
+        <section class="band">
+          <div class="wrap">
+            <div class="eyebrow">How it works</div>
+            <h2>One validation contract around every model.</h2>
+            <p class="sub">
+              The application selects the policy. JurisCore returns a verdict, findings, and
+              evidence.
+            </p>
+            <ol class="grid-4" style="list-style: none; padding: 0;">
+              <li class="card"><span class="step-n mono">01</span><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><h3>Screen the input</h3><p>Apply the selected policy before content reaches the model. Detect sensitive categories, secrets, and prompt attacks.</p></li>
+              <li class="card"><span class="step-n mono">02</span><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></div><h3>Transform or block</h3><p>Redact or tokenize prohibited values, preserve permitted context, and stop the request when policy requires it.</p></li>
+              <li class="card"><span class="step-n mono">03</span><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg></div><h3>Validate the assertion</h3><p>Compare material claims with the authoritative source. Return matches, drift, or cannot determine with references.</p></li>
+              <li class="card"><span class="step-n mono">04</span><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M9 3v4h6V3"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg></div><h3>Keep the receipt</h3><p>Return a structured verdict and evidence record that the application can review, store, or enforce.</p></li>
+            </ol>
+          </div>
+        </section>
+
+        <!-- Plans -->
+        <section class="band tint">
+          <div class="wrap">
+            <div class="eyebrow">Product-led, usage-based</div>
+            <h2>Start free. Pay when JurisCore becomes infrastructure.</h2>
+            <p class="sub">
+              Explore the core workflow at no cost, then add shared governance, automation, and
+              enterprise controls as usage grows.
+            </p>
+            <div class="grid-3">
+              <article class="card"><h3>Free</h3><p>Local playground, built-in policy references, and limited Veil and Plumb checks.</p></article>
+              <article class="card"><h3>Team</h3><p>Usage-based API, custom policies, shared receipts, CI checks, and collaboration.</p></article>
+              <article class="card"><h3>Enterprise</h3><p>SSO, RBAC, private policy packs, dedicated data controls, and priority support.</p></article>
+            </div>
+          </div>
+        </section>
+
+        <!-- Download -->
+        <section class="band" id="download">
+          <div class="wrap">
+            <div class="download">
+              <div class="eyebrow">Get the package</div>
+              <h2>Download JurisCore</h2>
+              <p class="sub">
+                Grab the source, run <code>bun run setup</code>, and you have both the CLI checks
+                and the web app running locally on macOS or Windows.
+              </p>
+              <div class="cta">
+                <a
+                  class="btn btn-primary btn-lg"
+                  href="https://github.com/AnaghaP09/juriscore-ai/archive/refs/heads/main.zip"
+                >
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Download .zip
+                </a>
+                <a class="btn btn-outline btn-lg" href="https://github.com/AnaghaP09/juriscore-ai/releases">Releases</a>
+                <a class="btn btn-outline btn-lg" href="https://github.com/AnaghaP09/juriscore-ai">View on GitHub</a>
+              </div>
+              <p class="fine">
+                Requires <a href="https://bun.sh/" style="color: var(--foreground);">Bun</a> ≥ 1.1.
+                Full setup steps are in the repository README. No API keys or database needed for
+                local use.
+              </p>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="wrap">
+        <span>JurisCore · Commercial platform prototype · Synthetic and mock data</span>
+        <span class="mono">v1 platform</span>
+      </footer>
+    </div>
+  </body>
+</html>

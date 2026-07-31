@@ -36,8 +36,8 @@ const approvedCase = {
   },
 };
 
-assert.equal(JURISCORE_PRODUCT.modules.veil.name, "JurisCore Veil");
-assert.equal(JURISCORE_PRODUCT.modules.plumb.name, "Plumb");
+assert.equal(JURISCORE_PRODUCT.features.veil.name, "Veil");
+assert.equal(JURISCORE_PRODUCT.features.plumb.name, "Plumb");
 assert.equal(JURISCORE_PRODUCT.roadmap.reclaim.name, "JurisCore Reclaim");
 assert.equal(reclaimCaseSchema.parse(approvedCase).review.status, "approved");
 

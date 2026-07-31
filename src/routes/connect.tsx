@@ -23,15 +23,13 @@ const tools = [
   { name: "get_metrics", desc: "Governance KPI snapshot: violation rate, accuracy, latency." },
 ];
 
-const BASE = "https://plugin-muse-sparkle.lovable.app";
-
 const clients = [
   {
     name: "Claude Desktop",
     config: `{
   "mcpServers": {
     "juriscore": {
-      "url": "${BASE}/mcp"
+      "url": "https://<your-app>.lovable.app/mcp"
     }
   }
 }`,
@@ -41,22 +39,18 @@ const clients = [
     config: `// ~/.cursor/mcp.json
 {
   "mcpServers": {
-    "juriscore": { "url": "${BASE}/mcp" }
+    "juriscore": { "url": "https://<your-app>.lovable.app/mcp" }
   }
 }`,
   },
   {
     name: "ChatGPT (Custom Connector)",
     config: `Server URL:
-  ${BASE}/mcp
-
-Manifest:
-  ${BASE}/.well-known/ai-plugin.json
+  https://<your-app>.lovable.app/mcp
 
 Authentication: None (public demo)`,
   },
 ];
-
 
 function Connect() {
   return (
@@ -110,26 +104,11 @@ function Connect() {
               ))}
             </div>
             <p className="mt-4 text-xs text-muted-foreground">
-              This is a public MCP server — no authentication is required, so anyone with the URL can call these
-              (mock) tools and read the data they return.
+              Replace <code className="font-mono">&lt;your-app&gt;</code> with the published URL of this project.
+              Since this is a public MCP server, no authentication is required — anyone with the URL can call these
+              (mock) tools.
             </p>
           </section>
-
-          <section>
-            <div className="eyebrow mb-3">Plugin manifest</div>
-            <div className="rounded-2xl border border-border bg-card p-4 card-shadow space-y-2 text-sm">
-              <p className="text-muted-foreground">
-                Host tools that auto-discover plugins can read the manifest instead of manual config. It advertises the
-                MCP endpoint, transport, auth mode, and tool catalog.
-              </p>
-              <ul className="space-y-1 font-mono text-xs">
-                <li><a className="text-primary hover:underline" href="/.well-known/ai-plugin.json">{BASE}/.well-known/ai-plugin.json</a></li>
-                <li><a className="text-primary hover:underline" href="/api/public/plugin-manifest">{BASE}/api/public/plugin-manifest</a></li>
-                <li><a className="text-primary hover:underline" href="/.well-known/oauth-protected-resource">{BASE}/.well-known/oauth-protected-resource</a></li>
-              </ul>
-            </div>
-          </section>
-
         </main>
       </div>
     </div>

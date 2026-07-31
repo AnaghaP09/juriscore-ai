@@ -75,43 +75,244 @@ const pick = <T>(arr: T[]) => arr[Math.floor(rand() * arr.length)];
 
 // --- Rulebooks & clauses ---
 export const RULEBOOKS: Rulebook[] = [
-  { id: "sec", domain: "finance", name: "SEC Marketing & Disclosure", agency: "U.S. SEC", docCount: 42, clauseCount: 318, lastUpdated: "2026-06-14", coverage: 0.94, status: "active" },
-  { id: "finra", domain: "finance", name: "FINRA Communications", agency: "FINRA", docCount: 27, clauseCount: 194, lastUpdated: "2026-05-30", coverage: 0.91, status: "active" },
-  { id: "hipaa", domain: "healthcare", name: "HIPAA Privacy & Security", agency: "HHS OCR", docCount: 61, clauseCount: 452, lastUpdated: "2026-07-02", coverage: 0.96, status: "active" },
-  { id: "cms-pa", domain: "healthcare", name: "CMS Prior Authorization Transparency", agency: "CMS", docCount: 18, clauseCount: 87, lastUpdated: "2026-04-11", coverage: 0.82, status: "active" },
-  { id: "eu-ai-act", domain: "finance", name: "EU AI Act — High-Risk Systems", agency: "European Commission", docCount: 9, clauseCount: 63, lastUpdated: "2026-06-28", coverage: 0.71, status: "draft" },
+  {
+    id: "sec",
+    domain: "finance",
+    name: "SEC Marketing & Disclosure",
+    agency: "U.S. SEC",
+    docCount: 42,
+    clauseCount: 318,
+    lastUpdated: "2026-06-14",
+    coverage: 0.94,
+    status: "active",
+  },
+  {
+    id: "finra",
+    domain: "finance",
+    name: "FINRA Communications",
+    agency: "FINRA",
+    docCount: 27,
+    clauseCount: 194,
+    lastUpdated: "2026-05-30",
+    coverage: 0.91,
+    status: "active",
+  },
+  {
+    id: "hipaa",
+    domain: "healthcare",
+    name: "HIPAA Privacy & Security",
+    agency: "HHS OCR",
+    docCount: 61,
+    clauseCount: 452,
+    lastUpdated: "2026-07-02",
+    coverage: 0.96,
+    status: "active",
+  },
+  {
+    id: "cms-pa",
+    domain: "healthcare",
+    name: "CMS Prior Authorization Transparency",
+    agency: "CMS",
+    docCount: 18,
+    clauseCount: 87,
+    lastUpdated: "2026-04-11",
+    coverage: 0.82,
+    status: "active",
+  },
+  {
+    id: "eu-ai-act",
+    domain: "finance",
+    name: "EU AI Act — High-Risk Systems",
+    agency: "European Commission",
+    docCount: 9,
+    clauseCount: 63,
+    lastUpdated: "2026-06-28",
+    coverage: 0.71,
+    status: "draft",
+  },
 ];
 
 export const POLICIES: PolicyClause[] = [
-  { id: "SEC-206(4)-1", domain: "finance", rulebook: "sec", title: "Investment Adviser Marketing Rule", snippet: "Any advertisement must not contain untrue statements of material fact or omit material facts." },
-  { id: "SEC-10b-5", domain: "finance", rulebook: "sec", title: "Anti-fraud disclosure", snippet: "It is unlawful to make any untrue statement of a material fact in connection with a security." },
-  { id: "FINRA-2210", domain: "finance", rulebook: "finra", title: "Communications with the Public", snippet: "All member communications must be fair, balanced, and provide a sound basis for evaluating facts." },
-  { id: "FINRA-2111", domain: "finance", rulebook: "finra", title: "Suitability", snippet: "A recommendation must be suitable given the customer's investment profile." },
-  { id: "HIPAA-164.502", domain: "healthcare", rulebook: "hipaa", title: "Minimum Necessary Standard", snippet: "Use or disclose only the minimum PHI necessary to accomplish the intended purpose." },
-  { id: "HIPAA-164.514", domain: "healthcare", rulebook: "hipaa", title: "De-identification of PHI", snippet: "PHI must be de-identified using Safe Harbor or Expert Determination methods before disclosure." },
-  { id: "HIPAA-164.308", domain: "healthcare", rulebook: "hipaa", title: "Administrative Safeguards", snippet: "Covered entities must perform periodic risk analysis and management of PHI systems." },
-  { id: "CMS-PA-2026-01", domain: "healthcare", rulebook: "cms-pa", title: "AI-influenced coverage disclosure", snippet: "Insurers must disclose when an AI system was used to influence a coverage determination." },
-  { id: "EU-AIA-Art14", domain: "finance", rulebook: "eu-ai-act", title: "Human Oversight", snippet: "High-risk AI systems must be designed to be effectively overseen by natural persons." },
+  {
+    id: "SEC-206(4)-1",
+    domain: "finance",
+    rulebook: "sec",
+    title: "Investment Adviser Marketing Rule",
+    snippet:
+      "Any advertisement must not contain untrue statements of material fact or omit material facts.",
+  },
+  {
+    id: "SEC-10b-5",
+    domain: "finance",
+    rulebook: "sec",
+    title: "Anti-fraud disclosure",
+    snippet:
+      "It is unlawful to make any untrue statement of a material fact in connection with a security.",
+  },
+  {
+    id: "FINRA-2210",
+    domain: "finance",
+    rulebook: "finra",
+    title: "Communications with the Public",
+    snippet:
+      "All member communications must be fair, balanced, and provide a sound basis for evaluating facts.",
+  },
+  {
+    id: "FINRA-2111",
+    domain: "finance",
+    rulebook: "finra",
+    title: "Suitability",
+    snippet: "A recommendation must be suitable given the customer's investment profile.",
+  },
+  {
+    id: "HIPAA-164.502",
+    domain: "healthcare",
+    rulebook: "hipaa",
+    title: "Minimum Necessary Standard",
+    snippet: "Use or disclose only the minimum PHI necessary to accomplish the intended purpose.",
+  },
+  {
+    id: "HIPAA-164.514",
+    domain: "healthcare",
+    rulebook: "hipaa",
+    title: "De-identification of PHI",
+    snippet:
+      "PHI must be de-identified using Safe Harbor or Expert Determination methods before disclosure.",
+  },
+  {
+    id: "HIPAA-164.308",
+    domain: "healthcare",
+    rulebook: "hipaa",
+    title: "Administrative Safeguards",
+    snippet: "Covered entities must perform periodic risk analysis and management of PHI systems.",
+  },
+  {
+    id: "CMS-PA-2026-01",
+    domain: "healthcare",
+    rulebook: "cms-pa",
+    title: "AI-influenced coverage disclosure",
+    snippet:
+      "Insurers must disclose when an AI system was used to influence a coverage determination.",
+  },
+  {
+    id: "EU-AIA-Art14",
+    domain: "finance",
+    rulebook: "eu-ai-act",
+    title: "Human Oversight",
+    snippet: "High-risk AI systems must be designed to be effectively overseen by natural persons.",
+  },
 ];
 
 // --- Use cases (from the PRD) ---
-const USE_CASES: Omit<UseCaseSummary, "volume" | "blockRate" | "citationCoverage" | "topFailureMode">[] = [
-  { key: "denial-mgmt", domain: "healthcare", name: "Denial Management & Appeals Generation", regulatoryDriver: "CMS Prior Authorization Transparency", failureMode: "Cites wrong payer policy or untraceable denial reason", persona: "Revenue-cycle lead · Payer relations", capability: "Generates appeal letter grounded in payer policy + denial code, with citation to each cited clause.", valueProp: "Cuts appeal drafting from 45 min to 4 min while keeping a defensible policy citation on every claim.", risk: "Hallucinated CPT codes or payer clauses → appeal rejected. Guardrail forces retrieval-grounded citations before send." },
-  { key: "ambient-coding", domain: "healthcare", name: "Ambient Clinical Documentation → Medical Coding", regulatoryDriver: "HIPAA Security Rule risk-analysis", failureMode: "Under/over-coding; PHI leaked in ungoverned scribing pipeline", persona: "CMIO · Clinical coder", capability: "Redacts PHI at ingest, assigns ICD-10 with evidence spans lifted from the transcript.", valueProp: "Scribe → code pipeline with per-code evidence and PHI redaction proofs the auditor can review.", risk: "Silent under-coding = revenue loss; silent over-coding = fraud exposure. Both surfaced on the metrics tab." },
-  { key: "adviser-marketing", domain: "finance", name: "Adviser Marketing Copy Review", regulatoryDriver: "SEC Marketing Rule 206(4)-1", failureMode: "Unsubstantiated performance claim reaches client", persona: "CCO · Marketing reviewer", capability: "Flags unhedged performance claims, missing disclosures, cherry-picked periods before copy leaves the firm.", valueProp: "Every piece of client-facing copy carries a machine-checked citation trail the SEC can inspect.", risk: "Over-blocking legitimate copy annoys marketing. Review path lets CCO one-click override with logged rationale." },
-  { key: "kyc-summarization", domain: "finance", name: "KYC / AML Case Summarization", regulatoryDriver: "FINRA + BSA/AML", failureMode: "PII leakage into downstream analytics; missing citations", persona: "AML analyst · MLRO", capability: "Summarizes case files with PII scrubbed and every risk assertion linked back to the source doc.", valueProp: "Analyst starts from a defensible 2-page summary instead of 60 pages of KYC uploads.", risk: "Missed red flag = regulatory action. Coverage % surfaces which cases were summarized without full evidence." },
-  { key: "suitability-check", domain: "finance", name: "Retail Suitability Explanations", regulatoryDriver: "FINRA 2111", failureMode: "Recommendation not backed by client profile evidence", persona: "Wealth adviser · Compliance", capability: "Explains why a product is suitable using the client profile fields as citations.", valueProp: "Every recommendation ships with a suitability rationale traceable to profile data — arbitration-ready.", risk: "Boilerplate rationales that don't reflect the actual client profile. Judge checks profile fields are cited by ID." },
-  { key: "prior-auth", domain: "healthcare", name: "Prior Authorization Drafting", regulatoryDriver: "CMS-0057-F", failureMode: "AI-generated determination lacks clinical citation", persona: "Utilization mgmt · Clinical reviewer", capability: "Drafts PA request citing payer criteria + patient chart evidence per requirement.", valueProp: "Meets CMS-0057-F transparency: every AI-influenced determination has cited clinical + policy evidence.", risk: "Wrong criteria cited = denial + audit finding. Rulebook version pinned per submission." },
+const USE_CASES: Omit<
+  UseCaseSummary,
+  "volume" | "blockRate" | "citationCoverage" | "topFailureMode"
+>[] = [
+  {
+    key: "veil-privacy",
+    domain: "healthcare",
+    name: "Veil — Healthcare Privacy Gateway",
+    regulatoryDriver: "Configurable healthcare privacy policy",
+    failureMode: "Sensitive patient or identity data reaches an external model",
+    tagline:
+      "Protect the prompt: transform configured sensitive data before an AI call and inspect the result before release.",
+    persona: "AI platform lead · Security engineer · Healthcare operations",
+    capability:
+      "Detects and redacts or tokenizes configured identifiers while preserving permitted clinical and operational context.",
+    valueProp:
+      "Lets teams prototype and govern AI-assisted workflows without silently sending the original sensitive payload to the model.",
+    risk: "Detector misses or false positives can expose data or remove necessary context. Findings remain reviewable and must be benchmarked by category.",
+  },
+  {
+    key: "denial-mgmt",
+    domain: "healthcare",
+    name: "Denial Management & Appeals Generation",
+    regulatoryDriver: "CMS Prior Authorization Transparency",
+    failureMode: "Cites wrong payer policy or untraceable denial reason",
+    persona: "Revenue-cycle lead · Payer relations",
+    capability:
+      "Generates appeal letter grounded in payer policy + denial code, with citation to each cited clause.",
+    valueProp:
+      "Cuts appeal drafting from 45 min to 4 min while keeping a defensible policy citation on every claim.",
+    risk: "Hallucinated CPT codes or payer clauses → appeal rejected. Guardrail forces retrieval-grounded citations before send.",
+  },
+  {
+    key: "ambient-coding",
+    domain: "healthcare",
+    name: "Ambient Clinical Documentation → Medical Coding",
+    regulatoryDriver: "HIPAA Security Rule risk-analysis",
+    failureMode: "Under/over-coding; PHI leaked in ungoverned scribing pipeline",
+    persona: "CMIO · Clinical coder",
+    capability:
+      "Redacts PHI at ingest, assigns ICD-10 with evidence spans lifted from the transcript.",
+    valueProp:
+      "Scribe → code pipeline with per-code evidence and PHI redaction proofs the auditor can review.",
+    risk: "Silent under-coding = revenue loss; silent over-coding = fraud exposure. Both surfaced on the metrics tab.",
+  },
+  {
+    key: "adviser-marketing",
+    domain: "finance",
+    name: "Adviser Marketing Copy Review",
+    regulatoryDriver: "SEC Marketing Rule 206(4)-1",
+    failureMode: "Unsubstantiated performance claim reaches client",
+    persona: "CCO · Marketing reviewer",
+    capability:
+      "Flags unhedged performance claims, missing disclosures, cherry-picked periods before copy leaves the firm.",
+    valueProp:
+      "Every piece of client-facing copy carries a machine-checked citation trail the SEC can inspect.",
+    risk: "Over-blocking legitimate copy annoys marketing. Review path lets CCO one-click override with logged rationale.",
+  },
+  {
+    key: "kyc-summarization",
+    domain: "finance",
+    name: "KYC / AML Case Summarization",
+    regulatoryDriver: "FINRA + BSA/AML",
+    failureMode: "PII leakage into downstream analytics; missing citations",
+    persona: "AML analyst · MLRO",
+    capability:
+      "Summarizes case files with PII scrubbed and every risk assertion linked back to the source doc.",
+    valueProp:
+      "Analyst starts from a defensible 2-page summary instead of 60 pages of KYC uploads.",
+    risk: "Missed red flag = regulatory action. Coverage % surfaces which cases were summarized without full evidence.",
+  },
+  {
+    key: "suitability-check",
+    domain: "finance",
+    name: "Retail Suitability Explanations",
+    regulatoryDriver: "FINRA 2111",
+    failureMode: "Recommendation not backed by client profile evidence",
+    persona: "Wealth adviser · Compliance",
+    capability: "Explains why a product is suitable using the client profile fields as citations.",
+    valueProp:
+      "Every recommendation ships with a suitability rationale traceable to profile data — arbitration-ready.",
+    risk: "Boilerplate rationales that don't reflect the actual client profile. Judge checks profile fields are cited by ID.",
+  },
+  {
+    key: "prior-auth",
+    domain: "healthcare",
+    name: "Prior Authorization Drafting",
+    regulatoryDriver: "CMS-0057-F",
+    failureMode: "AI-generated determination lacks clinical citation",
+    persona: "Utilization mgmt · Clinical reviewer",
+    capability: "Drafts PA request citing payer criteria + patient chart evidence per requirement.",
+    valueProp:
+      "Meets CMS-0057-F transparency: every AI-influenced determination has cited clinical + policy evidence.",
+    risk: "Wrong criteria cited = denial + audit finding. Rulebook version pinned per submission.",
+  },
   {
     key: "plumb-drift",
     domain: "finance",
     name: "Plumb — Source-of-truth Drift Detector",
     regulatoryDriver: "SEC 206(4)-1 · internal disclosure controls",
-    failureMode: "Prose artifact (README, sales deck, infra doc) drifts from shipped code and mis-sells behavior",
-    tagline: "Treats running code as ground truth; flags every artifact that has drifted from it, with a citation.",
+    failureMode:
+      "Prose artifact (README, sales deck, infra doc) drifts from shipped code and mis-sells behavior",
+    tagline:
+      "Treats running code as ground truth; flags every artifact that has drifted from it, with a citation.",
     persona: "Staff / platform engineer · Eng lead",
-    capability: "LLM judge answers: does this prose claim still match the code? Emits a line-level citation on every flag.",
-    valueProp: "Docs-vs-code drift flagged on each PR — merge a PR and get 'your README still says the old behavior,' citing the line.",
+    capability:
+      "LLM judge answers: does this prose claim still match the code? Emits a line-level citation on every flag.",
+    valueProp:
+      "Docs-vs-code drift flagged on each PR — merge a PR and get 'your README still says the old behavior,' citing the line.",
     risk: "False-positive flags → alert fatigue → tool muted. Ships with calibrated confidence + one-click 'not drift' training loop.",
   },
 ];
@@ -119,10 +320,22 @@ const USE_CASES: Omit<UseCaseSummary, "volume" | "blockRate" | "citationCoverage
 const TOOLS = ["evaluate_response", "check_prompt", "retrieve_policy", "enforce_citations"];
 
 const REASONS_BY_STAGE: Record<Stage, string[]> = {
-  input_guardrail: ["PII detected in prompt (SSN)", "PHI (patient MRN) present", "Jailbreak attempt detected", "Restricted concept: material non-public information"],
-  policy_retrieval: ["No matching policy clause above similarity threshold", "Cross-domain policy leak"],
+  input_guardrail: [
+    "PII detected in prompt (SSN)",
+    "PHI (patient MRN) present",
+    "Jailbreak attempt detected",
+    "Restricted concept: material non-public information",
+  ],
+  policy_retrieval: [
+    "No matching policy clause above similarity threshold",
+    "Cross-domain policy leak",
+  ],
   output_guardrail: ["Restricted concept: unhedged performance claim", "Toxic content flagged"],
-  citation: ["Uncited claim in response", "Citation points to non-approved source", "Fabricated policy reference"],
+  citation: [
+    "Uncited claim in response",
+    "Citation points to non-approved source",
+    "Fabricated policy reference",
+  ],
 };
 
 const SAMPLE_PROMPTS: Record<Domain, string[]> = {
@@ -140,6 +353,11 @@ const SAMPLE_PROMPTS: Record<Domain, string[]> = {
 
 // Use-case-specific overrides so drill-downs read coherently (esp. Plumb).
 const PROMPTS_BY_USECASE: Record<string, string[]> = {
+  "veil-privacy": [
+    "Sanitize this synthetic clinical note before summarization: Patient name, DOB, MRN, email, and member ID included.",
+    "Tokenize patient identifiers while preserving the medication-adherence context.",
+    "Check whether this healthcare operations prompt contains configured sensitive categories before the model call.",
+  ],
   "plumb-drift": [
     "Judge README claim 'fees are waived above $10k' against fees.ts diff on PR #4821.",
     "Does the infra doc still match terraform/prod.tf after the VPC refactor?",
@@ -148,6 +366,13 @@ const PROMPTS_BY_USECASE: Record<string, string[]> = {
   ],
 };
 const REASONS_BY_USECASE: Record<string, string[]> = {
+  "veil-privacy": [
+    "Medical record number detected before model call",
+    "Labeled patient identity requires transformation",
+    "Insurance member identifier detected",
+    "Email or phone number requires configured handling",
+    "Sanitized payload requires human preview",
+  ],
   "plumb-drift": [
     "Prose claim contradicts current code",
     "Stale infra doc references removed module",
@@ -169,16 +394,28 @@ function generateAudit(): AuditEntry[] {
     const ts = new Date(now - Math.floor(rand() * days * 24 * 3600 * 1000)).toISOString();
     const roll = rand();
     const verdict: Verdict = roll < 0.07 ? "block" : roll < 0.13 ? "revise" : "allow";
-    const stage: Stage | undefined = verdict === "allow" ? undefined : (pick(["input_guardrail", "output_guardrail", "citation", "policy_retrieval"]) as Stage);
+    const stage: Stage | undefined =
+      verdict === "allow"
+        ? undefined
+        : (pick(["input_guardrail", "output_guardrail", "citation", "policy_retrieval"]) as Stage);
     const policies = POLICIES.filter((p) => p.domain === uc.domain);
-    const retrieved = [pick(policies).id, pick(policies).id].filter((v, idx, arr) => arr.indexOf(v) === idx);
+    const retrieved = [pick(policies).id, pick(policies).id].filter(
+      (v, idx, arr) => arr.indexOf(v) === idx,
+    );
     const ucPrompts = PROMPTS_BY_USECASE[uc.key];
     const prompt = ucPrompts ? pick(ucPrompts) : pick(SAMPLE_PROMPTS[uc.domain]);
     const ucReasons = REASONS_BY_USECASE[uc.key];
     const reason = stage
-      ? (ucReasons ? pick(ucReasons) : pick(REASONS_BY_STAGE[stage]))
+      ? ucReasons
+        ? pick(ucReasons)
+        : pick(REASONS_BY_STAGE[stage])
       : undefined;
-    const coverage = verdict === "allow" ? 0.85 + rand() * 0.15 : verdict === "revise" ? 0.4 + rand() * 0.4 : rand() * 0.4;
+    const coverage =
+      verdict === "allow"
+        ? 0.85 + rand() * 0.15
+        : verdict === "revise"
+          ? 0.4 + rand() * 0.4
+          : rand() * 0.4;
     entries.push({
       id: `jc_${(i + 1).toString().padStart(5, "0")}`,
       ts,
@@ -191,16 +428,17 @@ function generateAudit(): AuditEntry[] {
       reason,
       prompt,
       retrievedPolicyIds: retrieved,
-      draftResponse: verdict === "block"
-        ? "[blocked before generation]"
-        : `Draft response referencing ${retrieved.join(", ")}. ${uc.name} output.`,
+      draftResponse:
+        verdict === "block"
+          ? "[blocked before generation]"
+          : `Draft response referencing ${retrieved.join(", ")}. ${uc.name} output.`,
       citationCoverage: Number(coverage.toFixed(2)),
-      finalResponse: verdict === "block" ? null : `Approved response citing ${retrieved.join(", ")}.`,
+      finalResponse:
+        verdict === "block" ? null : `Approved response citing ${retrieved.join(", ")}.`,
     });
   }
   return entries.sort((a, b) => b.ts.localeCompare(a.ts));
 }
-
 
 export const AUDIT: AuditEntry[] = generateAudit();
 
@@ -214,7 +452,8 @@ export function getMetrics() {
   const avgCoverage = AUDIT.reduce((s, a) => s + a.citationCoverage, 0) / total;
 
   // Time-series: requests per day
-  const byDay: Record<string, { day: string; allowed: number; blocked: number; revised: number }> = {};
+  const byDay: Record<string, { day: string; allowed: number; blocked: number; revised: number }> =
+    {};
   for (const a of AUDIT) {
     const day = a.ts.slice(0, 10);
     byDay[day] ??= { day, allowed: 0, blocked: 0, revised: 0 };
@@ -288,9 +527,15 @@ const PII_PATTERNS: Array<[RegExp, string]> = [
 
 export function scanPrompt(prompt: string, domain: Domain) {
   const findings: { type: string; severity: "high" | "medium" }[] = [];
-  for (const [rx, type] of PII_PATTERNS) if (rx.test(prompt)) findings.push({ type, severity: "high" });
-  if (/ignore (all )?previous|system prompt/i.test(prompt)) findings.push({ type: "Prompt injection", severity: "high" });
-  if (domain === "healthcare" && /patient|diagnosis|prescription/i.test(prompt) && !findings.length) {
+  for (const [rx, type] of PII_PATTERNS)
+    if (rx.test(prompt)) findings.push({ type, severity: "high" });
+  if (/ignore (all )?previous|system prompt/i.test(prompt))
+    findings.push({ type: "Prompt injection", severity: "high" });
+  if (
+    domain === "healthcare" &&
+    /patient|diagnosis|prescription/i.test(prompt) &&
+    !findings.length
+  ) {
     findings.push({ type: "PHI-adjacent content — apply Minimum Necessary", severity: "medium" });
   }
   return { verdict: findings.some((f) => f.severity === "high") ? "block" : "allow", findings };
@@ -300,8 +545,10 @@ export function retrievePolicies(query: string, domain: Domain, limit = 3) {
   const scored = POLICIES.filter((p) => p.domain === domain).map((p) => {
     const q = query.toLowerCase();
     let score = 0;
-    for (const w of p.snippet.toLowerCase().split(/\s+/)) if (q.includes(w) && w.length > 4) score += 1;
-    for (const w of p.title.toLowerCase().split(/\s+/)) if (q.includes(w) && w.length > 4) score += 2;
+    for (const w of p.snippet.toLowerCase().split(/\s+/))
+      if (q.includes(w) && w.length > 4) score += 1;
+    for (const w of p.title.toLowerCase().split(/\s+/))
+      if (q.includes(w) && w.length > 4) score += 2;
     return { ...p, score: score + rand() * 0.5 };
   });
   return scored.sort((a, b) => b.score - a.score).slice(0, limit);
@@ -309,7 +556,12 @@ export function retrievePolicies(query: string, domain: Domain, limit = 3) {
 
 export function enforceCitations(response: string, allowedPolicyIds: string[]) {
   const cited = allowedPolicyIds.filter((id) => response.includes(id));
-  const orphanClaims = response.split(/[.!?]/).filter((s) => /must|required|shall|prohibited/i.test(s) && !allowedPolicyIds.some((id) => s.includes(id)));
+  const orphanClaims = response
+    .split(/[.!?]/)
+    .filter(
+      (s) =>
+        /must|required|shall|prohibited/i.test(s) && !allowedPolicyIds.some((id) => s.includes(id)),
+    );
   const coverage = cited.length / Math.max(allowedPolicyIds.length, 1);
   return {
     verdict: orphanClaims.length > 0 || coverage < 0.5 ? "revise" : "allow",

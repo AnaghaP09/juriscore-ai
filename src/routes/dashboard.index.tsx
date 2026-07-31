@@ -33,6 +33,7 @@ import {
   ArrowRight,
   Sparkles,
   ClipboardCheck,
+  EyeOff,
 } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
@@ -45,6 +46,12 @@ export const Route = createFileRoute("/dashboard/")({
   }),
   component: Overview,
 });
+
+const VEIL_WEEKLY_DEMO = {
+  totalProtected: 1248,
+  redacted: 1032,
+  tokenized: 216,
+};
 
 function Overview() {
   const counts = getPriorityCounts();
@@ -118,6 +125,8 @@ function Overview() {
         <PriorityCard icon={Bell} label="Monitoring alerts" value={counts.monitoringAlerts} sub="Compliance + high sev" />
       </section>
 
+      <VeilWeeklyCard />
+
       {/* Work area */}
       {queue.length === 0 ? (
         <EmptyState />
@@ -188,6 +197,51 @@ function Overview() {
         </div>
         <MiniTrend />
       </section>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+function VeilWeeklyCard() {
+  return (
+    <section aria-labelledby="veil-weekly-heading">
+      <Card>
+        <CardContent className="p-4 sm:p-5">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_repeat(3,minmax(8rem,0.55fr))_auto] lg:items-center">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <EyeOff className="h-5 w-5 text-primary" aria-hidden />
+                <h2 id="veil-weekly-heading" className="font-semibold">
+                  Veil privacy
+                </h2>
+                <Badge variant="outline">This week</Badge>
+                <Badge variant="secondary">Simulated</Badge>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Sensitive occurrences protected before model use.
+              </p>
+            </div>
+            <WeeklyVeilMetric label="Total protected" value={VEIL_WEEKLY_DEMO.totalProtected} />
+            <WeeklyVeilMetric label="Redacted" value={VEIL_WEEKLY_DEMO.redacted} />
+            <WeeklyVeilMetric label="Tokenized" value={VEIL_WEEKLY_DEMO.tokenized} />
+            <Button size="sm" variant="outline" asChild>
+              <Link to="/dashboard/redaction">
+                Open Veil <ArrowRight className="ml-1.5 h-3.5 w-3.5" aria-hidden />
+              </Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
+function WeeklyVeilMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+      <div className="font-mono text-xl font-semibold">{value.toLocaleString("en-US")}</div>
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
     </div>
   );
 }
