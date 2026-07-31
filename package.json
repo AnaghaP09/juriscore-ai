@@ -7,6 +7,10 @@
     "dev": "vite dev",
     "build": "vite build",
     "build:dev": "vite build --mode development",
+    "check:contracts": "tsx scripts/check-core-contracts.ts",
+    "check:veil": "tsx scripts/check-veil.ts",
+    "check:plumb": "tsx scripts/check-plumb.ts",
+    "check:core": "bun run check:contracts && bun run check:veil && bun run check:plumb",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write ."
