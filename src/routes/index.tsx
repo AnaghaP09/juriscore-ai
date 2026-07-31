@@ -170,7 +170,11 @@ function Landing() {
                         <module.icon className="h-5 w-5 text-primary" aria-hidden />
                       </div>
                       <div>
-                        <div className="eyebrow">{module.eyebrow}</div>
+                        <div
+                          className={`eyebrow ${module.eyebrow.startsWith("JurisCore") ? "brand-case" : ""}`}
+                        >
+                          {module.eyebrow}
+                        </div>
                         <h3 className="font-semibold text-lg">{module.title}</h3>
                       </div>
                     </div>

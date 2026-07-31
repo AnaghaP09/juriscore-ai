@@ -27,8 +27,14 @@ Validated behavior:
 - detection of the configured synthetic patient-name, date-of-birth, MRN, member-ID, email, and phone fixtures;
 - preservation of the synthetic clinical context;
 - findings that omit the detected raw values;
-- visible transformation receipt and review requirement;
-- copyable transformed payload.
+- visible per-document protection summary and review requirement;
+- copyable transformed payload;
+- browser-local PDF, DOCX, and PNG ingestion with a 25 MB file limit;
+- page-by-page extraction for text-based PDFs;
+- local OCR for PNG documents;
+- source preview for PDFs and PNGs plus editable extracted text;
+- consistent aliases for repeated occurrences of detected values;
+- simulated weekly Veil overview showing total protected, redacted, and tokenized counts;
 
 A visual test discovered and fixed a cross-line patient-name detector defect that could leave a labeled date of birth visible. A regression assertion now covers that case.
 
@@ -36,7 +42,8 @@ Not yet validated or implemented:
 
 - complete identifier coverage or statistical de-identification;
 - output-side inspection of a real model response;
-- document upload and parsing;
+- OCR fallback for image-only multi-page PDFs;
+- pixel-faithful DOCX rendering in the browser;
 - policy administration;
 - production storage, encryption, retention, authorization, or tenant isolation;
 - any regulatory-compliance claim.
@@ -74,6 +81,8 @@ Browser testing found and fixed one pre-existing AI Review hydration mismatch ca
 - TypeScript check: pass;
 - production build: pass;
 - formatting and whitespace check: pass;
+- changed-file lint checks: pass;
+- repository-wide lint: existing formatting backlog remains outside this prototype slice;
 - `.env.local` containing the API credential remains ignored by Git.
 
 ## Current evidence maturity

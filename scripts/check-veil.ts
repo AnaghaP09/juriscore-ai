@@ -8,6 +8,7 @@ Member ID: HMO-44912003
 Email: maya.patel@example.test
 Phone: 415-555-0199
 Clinical context: Type 2 diabetes follow-up with medication adherence discussed.
+Maya Patel reported no new symptoms.
 Contact maya.patel@example.test after review.`;
 
 const redacted = protectText(syntheticClinicalNote, {
@@ -36,6 +37,14 @@ const tokenized = protectText(syntheticClinicalNote, {
 });
 
 assert.equal(tokenized.sanitizedText.match(/\[EMAIL_1\]/g)?.length, 2);
+assert.equal(tokenized.sanitizedText.match(/\[PATIENT_NAME_1\]/g)?.length, 2);
+assert.doesNotMatch(tokenized.sanitizedText, /Maya Patel/);
 assert.equal(protectText("Clinical context only.").rawVerdict, "allow");
+assert.equal(
+  protectText("A member identifier is required for the workflow.").findings.some(
+    (finding) => finding.category === "insurance_member_id",
+  ),
+  false,
+);
 
 console.log("JurisCore Veil checks passed.");

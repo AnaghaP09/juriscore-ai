@@ -184,6 +184,13 @@ function DashboardLayout() {
                   ))}
                 </SelectContent>
               </Select>
+              <Badge
+                variant="outline"
+                className="hidden border-border text-muted-foreground sm:inline-flex"
+                title="This model selector drives the prototype simulation. No provider is connected yet."
+              >
+                Not connected
+              </Badge>
             </div>
             <div className="ml-auto flex items-center gap-3">
               {killSwitch && (

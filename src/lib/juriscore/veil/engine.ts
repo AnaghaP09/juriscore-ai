@@ -32,28 +32,31 @@ interface Detector {
   severity: VeilSeverity;
   scope: "common" | "healthcare" | "secrets";
   pattern: RegExp;
+  valueGroup?: number;
 }
 
 const DETECTORS: Detector[] = [
   {
     id: "veil.health.patient_name",
     category: "patient_name",
-    label: "Labeled patient name",
+    label: "Patient name",
     code: "PATIENT_NAME",
     severity: "high",
     scope: "healthcare",
     pattern:
-      /\b(?:Patient Name|Patient|Name)[ \t]*:[ \t]*[A-Z][A-Za-z'-]+(?:[ \t]+[A-Z][A-Za-z'-]+){1,3}\b/gi,
+      /\b(?:Patient Name|Patient|Name)[ \t]*:[ \t]*([A-Z][A-Za-z'-]+(?:[ \t]+[A-Z][A-Za-z'-]+){1,3})\b/gi,
+    valueGroup: 1,
   },
   {
     id: "veil.health.date_of_birth",
     category: "date_of_birth",
-    label: "Labeled date of birth",
+    label: "Date of birth",
     code: "DOB",
     severity: "high",
     scope: "healthcare",
     pattern:
-      /\b(?:DOB|Date of Birth)\s*[:\-]\s*(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{2}-\d{2})\b/gi,
+      /\b(?:DOB|Date of Birth)[ \t]*[:-][ \t]*((?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{2}-\d{2}))\b/gi,
+    valueGroup: 1,
   },
   {
     id: "veil.health.mrn",
@@ -62,7 +65,8 @@ const DETECTORS: Detector[] = [
     code: "MRN",
     severity: "high",
     scope: "healthcare",
-    pattern: /\bMRN\s*[:#-]?\s*[A-Z0-9-]{4,}\b/gi,
+    pattern: /\bMRN\b[ \t]*[:#-]?[ \t]*([A-Z0-9-]{4,})\b/gi,
+    valueGroup: 1,
   },
   {
     id: "veil.health.member_id",
@@ -71,7 +75,8 @@ const DETECTORS: Detector[] = [
     code: "MEMBER_ID",
     severity: "high",
     scope: "healthcare",
-    pattern: /\b(?:Member|Insurance)\s+ID\s*[:#-]?\s*[A-Z0-9-]{5,}\b/gi,
+    pattern: /\b(?:Member|Insurance)[ \t]+ID\b[ \t]*[:#-]?[ \t]*([A-Z0-9-]{5,})\b/gi,
+    valueGroup: 1,
   },
   {
     id: "veil.common.ssn",
@@ -149,6 +154,10 @@ function cloneGlobal(pattern: RegExp) {
   return new RegExp(pattern.source, flags);
 }
 
+function escapeRegularExpression(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export function protectText(
   text: string,
   options: { strategy?: VeilStrategy; profile?: VeilProfile } = {},
@@ -160,18 +169,24 @@ export function protectText(
 
   for (const detector of DETECTORS.filter((item) => detectorApplies(item, profile))) {
     const replacements: string[] = [];
-    const tokensByValue = new Map<string, string>();
+    const values = Array.from(sanitizedText.matchAll(cloneGlobal(detector.pattern)))
+      .map((match) => match[detector.valueGroup ?? 0])
+      .filter((value): value is string => Boolean(value));
+    const uniqueValues = [...new Map(values.map((value) => [value.toLowerCase(), value])).values()];
     let count = 0;
-    sanitizedText = sanitizedText.replace(cloneGlobal(detector.pattern), (matchedValue) => {
-      count += 1;
-      let replacement = `[REDACTED_${detector.code}]`;
-      if (strategy === "tokenize") {
-        replacement =
-          tokensByValue.get(matchedValue) ?? `[${detector.code}_${tokensByValue.size + 1}]`;
-        tokensByValue.set(matchedValue, replacement);
-      }
-      replacements.push(replacement);
-      return replacement;
+
+    uniqueValues.forEach((value, index) => {
+      const replacement =
+        strategy === "tokenize" ? `[${detector.code}_${index + 1}]` : `[REDACTED_${detector.code}]`;
+      const flags = detector.pattern.flags.includes("i") ? "gi" : "g";
+      sanitizedText = sanitizedText.replace(
+        new RegExp(escapeRegularExpression(value), flags),
+        () => {
+          count += 1;
+          replacements.push(replacement);
+          return replacement;
+        },
+      );
     });
 
     if (count > 0) {

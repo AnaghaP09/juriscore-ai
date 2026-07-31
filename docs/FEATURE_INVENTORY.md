@@ -42,7 +42,12 @@ These routes may be relabeled, connected to shared engines, or marked as demo da
 
 - revised JurisCore protect-and-prove product contract;
 - JurisCore Veil branding and healthcare privacy workflow;
+- browser-local PDF, DOCX, and PNG document ingestion for Veil;
+- PDF and PNG source previews plus editable extracted text;
+- multi-page PDF text extraction and PNG OCR progress handling;
+- per-document Veil protection summary and simulated weekly overview metrics;
 - reusable Veil detector and transformation engine;
+- context-preserving tokens for repeated detected values;
 - safe findings that omit detected raw values;
 - separate raw-input and sanitized-output verdicts;
 - reusable Plumb structured source-claim comparator;
@@ -50,7 +55,8 @@ These routes may be relabeled, connected to shared engines, or marked as demo da
 - shared validation and evidence contracts;
 - deterministic Veil, Plumb, and contract checks;
 - maturity labels for simulated or target metrics;
-- additive landing-page and navigation updates.
+- additive landing-page and navigation updates;
+- external Redact-versus-Tokenize use-case and decision guide.
 
 ## Roadmap work, not an initial product claim
 
@@ -58,6 +64,7 @@ These routes may be relabeled, connected to shared engines, or marked as demo da
 - production persistence and migrations;
 - authentication, role-based access, and tenant isolation;
 - production audit receipts;
+- receipt-backed weekly Veil metrics to replace the simulated overview totals;
 - real provider adapters and output-side model validation;
 - source ingestion and retrieval services;
 - GitHub pull-request integration for Plumb;
