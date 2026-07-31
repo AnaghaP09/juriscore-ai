@@ -23,13 +23,15 @@ const tools = [
   { name: "get_metrics", desc: "Governance KPI snapshot: violation rate, accuracy, latency." },
 ];
 
+const BASE = "https://plugin-muse-sparkle.lovable.app";
+
 const clients = [
   {
     name: "Claude Desktop",
     config: `{
   "mcpServers": {
     "juriscore": {
-      "url": "https://<your-app>.lovable.app/mcp"
+      "url": "${BASE}/mcp"
     }
   }
 }`,
@@ -39,18 +41,22 @@ const clients = [
     config: `// ~/.cursor/mcp.json
 {
   "mcpServers": {
-    "juriscore": { "url": "https://<your-app>.lovable.app/mcp" }
+    "juriscore": { "url": "${BASE}/mcp" }
   }
 }`,
   },
   {
     name: "ChatGPT (Custom Connector)",
     config: `Server URL:
-  https://<your-app>.lovable.app/mcp
+  ${BASE}/mcp
+
+Manifest:
+  ${BASE}/.well-known/ai-plugin.json
 
 Authentication: None (public demo)`,
   },
 ];
+
 
 function Connect() {
   return (
