@@ -292,6 +292,22 @@
         color: var(--muted-foreground);
       }
 
+      .dl {
+        margin-top: 22px;
+        padding: 22px 24px;
+        border: 1px solid var(--border);
+        background: color-mix(in oklab, var(--secondary) 45%, transparent);
+        border-radius: 16px;
+      }
+      .cta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .dl .fine {
+        margin-top: 16px;
+      }
+
       .card {
         border: 1px solid var(--border);
         background: var(--card);
@@ -339,7 +355,7 @@
           <nav class="nav-links" aria-label="Primary">
             <a class="link" href="./index.html#features">Features</a>
             <a class="link" href="./index.html#cli">Quickstart</a>
-            <a class="link" href="./index.html#download">Download</a>
+            <a class="link" href="https://github.com/AnaghaP09/juriscore-ai/releases/latest">Download</a>
             <a class="btn btn-primary" href="https://github.com/AnaghaP09/juriscore-ai">View on GitHub</a>
           </nav>
         </div>
@@ -372,6 +388,38 @@
             <div class="release-meta">
               <span class="version mono">2026.08.01</span>
               <span class="version-tag">V1 platform</span>
+            </div>
+
+            <div class="dl">
+              <div class="cta">
+                <a
+                  class="btn btn-primary"
+                  href="https://github.com/AnaghaP09/juriscore-ai/releases/download/v2026.08.01/juriscore-2026.08.01.zip"
+                >
+                  <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Download 2026.08.01
+                </a>
+                <a
+                  class="btn btn-outline"
+                  href="https://github.com/AnaghaP09/juriscore-ai/releases/download/v2026.08.01/juriscore-2026.08.01-docker-image.tar.gz"
+                  >Container image (offline)</a
+                >
+                <a
+                  class="btn btn-outline"
+                  href="https://github.com/AnaghaP09/juriscore-ai/releases/tag/v2026.08.01"
+                  >Release on GitHub</a
+                >
+              </div>
+              <p class="fine">
+                The archive is the built app with every dependency already inside it, a start script,
+                and a plain-language <code>RUN.md</code>. Install
+                <a href="https://bun.sh/">Bun</a>, run <code>./start.sh</code> on macOS or Linux or
+                <code>start.cmd</code> on Windows, and open the address it prints. Starting it
+                installs nothing and contacts no registry. The container tar is for offline and
+                air-gapped installs via <code>docker load -i</code>. Both artifacts are built only
+                after <code>bun run check:core</code> and the production build pass, and the
+                packaged server is started and checked before the release is published.
+              </p>
             </div>
 
             <h3>Sovereign and on-premises positioning</h3>
