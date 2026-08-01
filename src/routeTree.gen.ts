@@ -9,33 +9,28 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as McpRouteImport } from './routes/mcp'
-import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as ConnectRouteImport } from './routes/connect'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as DashboardIndexRouteImport } from './routes/dashboard.index'
-import { Route as DashboardUseCasesRouteImport } from './routes/dashboard.use-cases'
-import { Route as DashboardRulebooksRouteImport } from './routes/dashboard.rulebooks'
-import { Route as DashboardRedactionRouteImport } from './routes/dashboard.redaction'
-import { Route as DashboardPipelineRouteImport } from './routes/dashboard.pipeline'
-import { Route as DashboardGatewayRouteImport } from './routes/dashboard.gateway'
-import { Route as DashboardDriftRouteImport } from './routes/dashboard.drift'
-import { Route as DashboardCisoRouteImport } from './routes/dashboard.ciso'
-import { Route as DashboardAuditRouteImport } from './routes/dashboard.audit'
-import { Route as DashboardAnalyticsRouteImport } from './routes/dashboard.analytics'
-import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
+import { Route as ConnectRouteImport } from './routes/connect'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as McpRouteImport } from './routes/mcp'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
-import { Route as DashboardUseCasesKeyRouteImport } from './routes/dashboard.use-cases.$key'
+import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
+import { Route as DashboardIndexRouteImport } from './routes/dashboard.index'
+import { Route as DashboardAnalyticsRouteImport } from './routes/dashboard.analytics'
+import { Route as DashboardAuditRouteImport } from './routes/dashboard.audit'
+import { Route as DashboardCisoRouteImport } from './routes/dashboard.ciso'
+import { Route as DashboardDriftRouteImport } from './routes/dashboard.drift'
+import { Route as DashboardGatewayRouteImport } from './routes/dashboard.gateway'
+import { Route as DashboardPipelineRouteImport } from './routes/dashboard.pipeline'
+import { Route as DashboardRedactionRouteImport } from './routes/dashboard.redaction'
+import { Route as DashboardRulebooksRouteImport } from './routes/dashboard.rulebooks'
+import { Route as DashboardUseCasesRouteImport } from './routes/dashboard.use-cases'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
+import { Route as DashboardUseCasesKeyRouteImport } from './routes/dashboard.use-cases.$key'
 
-const McpRoute = McpRouteImport.update({
-  id: '/mcp',
-  path: '/mcp',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConnectRoute = ConnectRouteImport.update({
@@ -43,54 +38,31 @@ const ConnectRoute = ConnectRouteImport.update({
   path: '/connect',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
+const McpRoute = McpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Char91DotmcpChar93ListToolsRoute =
+  Char91DotmcpChar93ListToolsRouteImport.update({
+    id: '/.mcp/list-tools',
+    path: '/.mcp/list-tools',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const Char91DotwellKnownChar93OauthProtectedResourceRoute =
+  Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
+    id: '/.well-known/oauth-protected-resource',
+    path: '/.well-known/oauth-protected-resource',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardUseCasesRoute = DashboardUseCasesRouteImport.update({
-  id: '/use-cases',
-  path: '/use-cases',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardRulebooksRoute = DashboardRulebooksRouteImport.update({
-  id: '/rulebooks',
-  path: '/rulebooks',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardRedactionRoute = DashboardRedactionRouteImport.update({
-  id: '/redaction',
-  path: '/redaction',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardPipelineRoute = DashboardPipelineRouteImport.update({
-  id: '/pipeline',
-  path: '/pipeline',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardGatewayRoute = DashboardGatewayRouteImport.update({
-  id: '/gateway',
-  path: '/gateway',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardDriftRoute = DashboardDriftRouteImport.update({
-  id: '/drift',
-  path: '/drift',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardCisoRoute = DashboardCisoRouteImport.update({
-  id: '/ciso',
-  path: '/ciso',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardAuditRoute = DashboardAuditRouteImport.update({
-  id: '/audit',
-  path: '/audit',
   getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardAnalyticsRoute = DashboardAnalyticsRouteImport.update({
@@ -98,22 +70,45 @@ const DashboardAnalyticsRoute = DashboardAnalyticsRouteImport.update({
   path: '/analytics',
   getParentRoute: () => DashboardRoute,
 } as any)
-const Char91DotwellKnownChar93OauthProtectedResourceRoute =
-  Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
-    id: '/.well-known/oauth-protected-resource',
-    path: '/.well-known/oauth-protected-resource',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const Char91DotmcpChar93ListToolsRoute =
-  Char91DotmcpChar93ListToolsRouteImport.update({
-    id: '/.mcp/list-tools',
-    path: '/.mcp/list-tools',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const DashboardUseCasesKeyRoute = DashboardUseCasesKeyRouteImport.update({
-  id: '/$key',
-  path: '/$key',
-  getParentRoute: () => DashboardUseCasesRoute,
+const DashboardAuditRoute = DashboardAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardCisoRoute = DashboardCisoRouteImport.update({
+  id: '/ciso',
+  path: '/ciso',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardDriftRoute = DashboardDriftRouteImport.update({
+  id: '/drift',
+  path: '/drift',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardGatewayRoute = DashboardGatewayRouteImport.update({
+  id: '/gateway',
+  path: '/gateway',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardPipelineRoute = DashboardPipelineRouteImport.update({
+  id: '/pipeline',
+  path: '/pipeline',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardRedactionRoute = DashboardRedactionRouteImport.update({
+  id: '/redaction',
+  path: '/redaction',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardRulebooksRoute = DashboardRulebooksRouteImport.update({
+  id: '/rulebooks',
+  path: '/rulebooks',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardUseCasesRoute = DashboardUseCasesRouteImport.update({
+  id: '/use-cases',
+  path: '/use-cases',
+  getParentRoute: () => DashboardRoute,
 } as any)
 const Char91DotmcpChar93InvokeToolToolRoute =
   Char91DotmcpChar93InvokeToolToolRouteImport.update({
@@ -121,6 +116,11 @@ const Char91DotmcpChar93InvokeToolToolRoute =
     path: '/.mcp/invoke-tool/$tool',
     getParentRoute: () => rootRouteImport,
   } as any)
+const DashboardUseCasesKeyRoute = DashboardUseCasesKeyRouteImport.update({
+  id: '/$key',
+  path: '/$key',
+  getParentRoute: () => DashboardUseCasesRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -256,18 +256,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/mcp': {
-      id: '/mcp'
-      path: '/mcp'
-      fullPath: '/mcp'
-      preLoaderRoute: typeof McpRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/connect': {
@@ -277,88 +270,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConnectRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/dashboard/': {
-      id: '/dashboard/'
-      path: '/'
-      fullPath: '/dashboard/'
-      preLoaderRoute: typeof DashboardIndexRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/use-cases': {
-      id: '/dashboard/use-cases'
-      path: '/use-cases'
-      fullPath: '/dashboard/use-cases'
-      preLoaderRoute: typeof DashboardUseCasesRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/rulebooks': {
-      id: '/dashboard/rulebooks'
-      path: '/rulebooks'
-      fullPath: '/dashboard/rulebooks'
-      preLoaderRoute: typeof DashboardRulebooksRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/redaction': {
-      id: '/dashboard/redaction'
-      path: '/redaction'
-      fullPath: '/dashboard/redaction'
-      preLoaderRoute: typeof DashboardRedactionRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/pipeline': {
-      id: '/dashboard/pipeline'
-      path: '/pipeline'
-      fullPath: '/dashboard/pipeline'
-      preLoaderRoute: typeof DashboardPipelineRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/gateway': {
-      id: '/dashboard/gateway'
-      path: '/gateway'
-      fullPath: '/dashboard/gateway'
-      preLoaderRoute: typeof DashboardGatewayRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/drift': {
-      id: '/dashboard/drift'
-      path: '/drift'
-      fullPath: '/dashboard/drift'
-      preLoaderRoute: typeof DashboardDriftRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/ciso': {
-      id: '/dashboard/ciso'
-      path: '/ciso'
-      fullPath: '/dashboard/ciso'
-      preLoaderRoute: typeof DashboardCisoRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/audit': {
-      id: '/dashboard/audit'
-      path: '/audit'
-      fullPath: '/dashboard/audit'
-      preLoaderRoute: typeof DashboardAuditRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/analytics': {
-      id: '/dashboard/analytics'
-      path: '/analytics'
-      fullPath: '/dashboard/analytics'
-      preLoaderRoute: typeof DashboardAnalyticsRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/.well-known/oauth-protected-resource': {
-      id: '/.well-known/oauth-protected-resource'
-      path: '/.well-known/oauth-protected-resource'
-      fullPath: '/.well-known/oauth-protected-resource'
-      preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
+    '/mcp': {
+      id: '/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof McpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/.mcp/list-tools': {
@@ -368,12 +291,82 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char91DotmcpChar93ListToolsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/dashboard/use-cases/$key': {
-      id: '/dashboard/use-cases/$key'
-      path: '/$key'
-      fullPath: '/dashboard/use-cases/$key'
-      preLoaderRoute: typeof DashboardUseCasesKeyRouteImport
-      parentRoute: typeof DashboardUseCasesRoute
+    '/.well-known/oauth-protected-resource': {
+      id: '/.well-known/oauth-protected-resource'
+      path: '/.well-known/oauth-protected-resource'
+      fullPath: '/.well-known/oauth-protected-resource'
+      preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard/': {
+      id: '/dashboard/'
+      path: '/'
+      fullPath: '/dashboard/'
+      preLoaderRoute: typeof DashboardIndexRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/analytics': {
+      id: '/dashboard/analytics'
+      path: '/analytics'
+      fullPath: '/dashboard/analytics'
+      preLoaderRoute: typeof DashboardAnalyticsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/audit': {
+      id: '/dashboard/audit'
+      path: '/audit'
+      fullPath: '/dashboard/audit'
+      preLoaderRoute: typeof DashboardAuditRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/ciso': {
+      id: '/dashboard/ciso'
+      path: '/ciso'
+      fullPath: '/dashboard/ciso'
+      preLoaderRoute: typeof DashboardCisoRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/drift': {
+      id: '/dashboard/drift'
+      path: '/drift'
+      fullPath: '/dashboard/drift'
+      preLoaderRoute: typeof DashboardDriftRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/gateway': {
+      id: '/dashboard/gateway'
+      path: '/gateway'
+      fullPath: '/dashboard/gateway'
+      preLoaderRoute: typeof DashboardGatewayRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/pipeline': {
+      id: '/dashboard/pipeline'
+      path: '/pipeline'
+      fullPath: '/dashboard/pipeline'
+      preLoaderRoute: typeof DashboardPipelineRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/redaction': {
+      id: '/dashboard/redaction'
+      path: '/redaction'
+      fullPath: '/dashboard/redaction'
+      preLoaderRoute: typeof DashboardRedactionRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/rulebooks': {
+      id: '/dashboard/rulebooks'
+      path: '/rulebooks'
+      fullPath: '/dashboard/rulebooks'
+      preLoaderRoute: typeof DashboardRulebooksRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/use-cases': {
+      id: '/dashboard/use-cases'
+      path: '/use-cases'
+      fullPath: '/dashboard/use-cases'
+      preLoaderRoute: typeof DashboardUseCasesRouteImport
+      parentRoute: typeof DashboardRoute
     }
     '/.mcp/invoke-tool/$tool': {
       id: '/.mcp/invoke-tool/$tool'
@@ -381,6 +374,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/.mcp/invoke-tool/$tool'
       preLoaderRoute: typeof Char91DotmcpChar93InvokeToolToolRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/dashboard/use-cases/$key': {
+      id: '/dashboard/use-cases/$key'
+      path: '/$key'
+      fullPath: '/dashboard/use-cases/$key'
+      preLoaderRoute: typeof DashboardUseCasesKeyRouteImport
+      parentRoute: typeof DashboardUseCasesRoute
     }
   }
 }
