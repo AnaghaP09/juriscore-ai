@@ -12,11 +12,6 @@ import {
   ShieldAlert,
   Activity,
   RotateCcw,
-  Inbox,
-  Briefcase,
-  FileSignature,
-  CalendarClock,
-  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MODELS, useDemoStore, type ModelId } from "@/lib/juriscore/demo-store";
@@ -58,33 +53,18 @@ const groups: Array<{
       { to: "/dashboard", label: "Overview", icon: LayoutDashboard, exact: true },
       { to: "/dashboard/redaction", label: "Veil · Privacy", icon: EyeOff },
       { to: "/dashboard/drift", label: "Plumb · Drift", icon: GitPullRequest },
-    ],
-  },
-  {
-    label: "Work",
-    items: [
-      { to: "/dashboard/intake", label: "Intake", icon: Inbox },
-      { to: "/dashboard/matters", label: "Matters", icon: Briefcase },
-      { to: "/dashboard/contracts", label: "Contracts", icon: FileSignature },
-      { to: "/dashboard/hearings", label: "Hearings", icon: CalendarClock },
-      { to: "/dashboard/ai-review", label: "AI Review", icon: Sparkles },
-    ],
-  },
-  {
-    label: "AI Governance",
-    items: [
-      { to: "/dashboard/analytics", label: "Analytics", icon: LayoutDashboard },
-      { to: "/dashboard/use-cases", label: "Use Cases", icon: Layers },
-      { to: "/dashboard/audit", label: "Audit Log", icon: ScrollText },
       { to: "/dashboard/rulebooks", label: "Policy Library", icon: BookOpen },
-      { to: "/dashboard/ciso", label: "CISO Gateway", icon: ShieldAlert },
+      { to: "/dashboard/audit", label: "Receipts", icon: ScrollText },
     ],
   },
   {
-    label: "Live Demo",
+    label: "Demos (simulated)",
     items: [
       { to: "/dashboard/gateway", label: "LLM Gateway", icon: Zap },
       { to: "/dashboard/pipeline", label: "Pipeline", icon: Activity },
+      { to: "/dashboard/analytics", label: "Analytics", icon: Layers },
+      { to: "/dashboard/use-cases", label: "Use Cases", icon: Layers },
+      { to: "/dashboard/ciso", label: "CISO Gateway", icon: ShieldAlert },
     ],
   },
 ];
