@@ -1,6 +1,10 @@
-# JurisCore AI
+# JurisCore
 
-JurisCore is a commercial AI validation and guardrail platform for teams building AI into SaaS products. It protects data before model use, validates important claims against authoritative sources, and returns an allow, revise, or block decision with evidence.
+### → [**Product site**](https://anaghap09.github.io/juriscore-ai/index.html) · [Release notes](https://anaghap09.github.io/juriscore-ai/release-notes.html)
+
+JurisCore is a commercial AI validation and guardrail platform that deploys inside your own environment — on-premises, private cloud, or air-gapped. It protects data before model use, validates important claims against authoritative sources, and returns an allow, revise, or block decision with evidence.
+
+The primary storyline is sovereign AI operation: organizations that run their own models, or that must control what reaches external ones, use JurisCore to enforce their own policies on every AI input and output and to keep a receipt for every decision. External providers are guarded, not banned.
 
 JurisCore has two core features:
 

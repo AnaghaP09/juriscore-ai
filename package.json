@@ -18,6 +18,7 @@
     "check:receipts": "bun scripts/check-receipts.ts",
     "check:mcp": "bun scripts/check-mcp.ts",
     "check:core": "bun scripts/check-core.ts",
+    "package:release": "bun scripts/package-release.mjs",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write ."

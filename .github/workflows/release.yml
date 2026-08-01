@@ -1,0 +1,115 @@
+name: Release on-prem package
+
+# Publishes the downloadable on-prem package described in docs/SPEC_DISTRIBUTION.md:
+# a versioned archive of the production build plus a start script and RUN.md, and
+# a container image tar for the Enterprise install path.
+#
+# The deterministic checks are the release gate. `scripts/package-release.mjs`
+# runs `bun run check:core` and `bun run build` itself and refuses to package if
+# either fails, so nothing can be published ahead of the checks.
+#
+# Releases ship built artifacts only. The repository is all rights reserved, so
+# no source archive is attached; GitHub's automatic source zips are a separate
+# repository-visibility decision and are not produced here.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to package, without the leading v (e.g. 0.1.0). Produces a draft release."
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "name=juriscore-${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Runs bun run check:core and bun run build, then stages and zips the
+      # package. Every runtime dependency is traced into the build output here,
+      # so the published package needs no registry access when it is started.
+      - name: Build package (gated on check:core and build)
+        run: bun scripts/package-release.mjs "${{ steps.version.outputs.version }}"
+
+      - name: Build container image
+        run: |
+          docker build \
+            -t "juriscore:${{ steps.version.outputs.version }}" \
+            "dist/${{ steps.version.outputs.name }}"
+
+      - name: Export container image
+        run: |
+          docker save "juriscore:${{ steps.version.outputs.version }}" \
+            | gzip > "dist/${{ steps.version.outputs.name }}-docker-image.tar.gz"
+
+      - name: Verify the package starts and serves
+        run: |
+          cd "dist/${{ steps.version.outputs.name }}"
+          PORT=8080 ./start.sh &
+          for i in $(seq 1 30); do
+            if curl -fsS -o /dev/null http://localhost:8080/dashboard; then
+              echo "package served /dashboard"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "the packaged server did not answer on http://localhost:8080/dashboard"
+          exit 1
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', steps.version.outputs.version) }}
+          name: JurisCore ${{ steps.version.outputs.version }}
+          draft: ${{ github.ref_type != 'tag' }}
+          generate_release_notes: true
+          body: |
+            JurisCore ${{ steps.version.outputs.version }} — on-prem package.
+
+            **`${{ steps.version.outputs.name }}.zip`** — unzip it, install Bun, run
+            `./start.sh` (macOS, Linux) or `start.cmd` (Windows), and open the
+            printed address. `RUN.md` inside the archive has the full steps. Every
+            dependency is bundled; starting it installs nothing.
+
+            **`${{ steps.version.outputs.name }}-docker-image.tar.gz`** — load it
+            offline with `docker load -i`, then
+            `docker run --rm -p 8080:8080 juriscore:${{ steps.version.outputs.version }}`.
+
+            Built only after `bun run check:core` and `bun run build` passed.
+
+            This build has no authentication and persists nothing; bind it to a
+            network you control. JurisCore guides checks against published
+            references and does not certify compliance.
+          files: |
+            dist/${{ steps.version.outputs.name }}.zip
+            dist/${{ steps.version.outputs.name }}-docker-image.tar.gz

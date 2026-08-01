@@ -582,24 +582,27 @@
               <div class="eyebrow">Get the package</div>
               <h2>Download JurisCore</h2>
               <p class="sub">
-                Grab the source, run <code>bun run setup</code>, and you have both the CLI checks
-                and the web app running locally on macOS or Windows.
+                The latest release ships a versioned package — the built app with every dependency
+                already inside it, a start script, and a plain-language <code>RUN.md</code> — plus a
+                container image tar for offline installs. Both are built only after the
+                deterministic checks pass.
               </p>
               <div class="cta">
                 <a
                   class="btn btn-primary btn-lg"
-                  href="https://github.com/AnaghaP09/juriscore-ai/archive/refs/heads/main.zip"
+                  href="https://github.com/AnaghaP09/juriscore-ai/releases/latest"
                 >
                   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                  Download .zip
+                  Download the latest release
                 </a>
-                <a class="btn btn-outline btn-lg" href="https://github.com/AnaghaP09/juriscore-ai/releases">Releases</a>
+                <a class="btn btn-outline btn-lg" href="https://github.com/AnaghaP09/juriscore-ai/releases">All releases</a>
                 <a class="btn btn-outline btn-lg" href="https://github.com/AnaghaP09/juriscore-ai">View on GitHub</a>
               </div>
               <p class="fine">
-                Requires <a href="https://bun.sh/" style="color: var(--foreground);">Bun</a> ≥ 1.1.
-                Full setup steps are in the repository README. No API keys or database needed for
-                local use.
+                Requires <a href="https://bun.sh/" style="color: var(--foreground);">Bun</a> ≥ 1.1 —
+                nothing else. No API keys, no database, no configuration file, and no network access
+                at evaluation time. This build has no authentication and persists nothing, so run it
+                on a network you control.
               </p>
             </div>
           </div>
