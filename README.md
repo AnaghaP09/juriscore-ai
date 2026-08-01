@@ -1,4 +1,4 @@
-# JurisCore V1 Platform
+# JurisCore AI
 
 JurisCore is a commercial AI validation and guardrail platform for teams building AI into SaaS products. It protects data before model use, validates important claims against authoritative sources, and returns an allow, revise, or block decision with evidence.
 
