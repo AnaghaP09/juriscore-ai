@@ -36,7 +36,7 @@ export const Route = createFileRoute("/dashboard")({
       { title: "Dashboard — JurisCore AI" },
       {
         name: "description",
-        content: "Legal operations cockpit — matters, contracts, hearings, and AI review.",
+        content: "Policy-checked AI input and output with receipts — Veil, Plumb, and the Policy Library.",
       },
     ],
   }),

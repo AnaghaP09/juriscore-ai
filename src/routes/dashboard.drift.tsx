@@ -190,6 +190,8 @@ function DriftView() {
     killSwitch,
     activePolicyIds,
     customPolicies,
+    recordSessionCheck,
+    recordSessionReceipt,
   } = useDemoStore();
   const [doc, setDoc] = useState<DocKey>("sec");
   const [ran, setRan] = useState(false);
@@ -212,6 +214,7 @@ function DriftView() {
     const driftFinding = nextEvaluation.findings.find((finding) => finding.status === "drifted");
     setRan(true);
     setEvaluation(nextEvaluation);
+    recordSessionCheck("plumb", nextEvaluation.verdict);
     setHighlightClaim(
       driftFinding?.subject === "cross_border_fee"
         ? "fee"
@@ -234,6 +237,12 @@ function DriftView() {
       setReceipt(nextReceipt);
       setReceiptError(null);
       downloadReceipt(nextReceipt);
+      recordSessionReceipt({
+        id: nextReceipt.id,
+        module: nextReceipt.module,
+        verdict: nextReceipt.verdict,
+        createdAt: nextReceipt.createdAt,
+      });
     } catch {
       setReceipt(null);
       setReceiptError("A valid receipt could not be produced for this run.");

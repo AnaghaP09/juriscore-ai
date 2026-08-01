@@ -11,6 +11,7 @@ import {
   DEFAULT_ACTIVE_POLICY_IDS,
   type PolicyDefinition,
 } from "@/lib/juriscore/policies/catalog";
+import type { ValidationModule, ValidatorVerdict } from "@/lib/juriscore/core/contracts";
 
 export type ModelId = "gemini-1.5-pro" | "claude-3.5-sonnet" | "gpt-4o";
 export type DriftMode = "clean" | "drift";
@@ -42,6 +43,28 @@ export interface GatewayRun {
   stage?: string;
 }
 
+export interface SessionModuleChecks {
+  allow: number;
+  revise: number;
+  block: number;
+  lastAt: string | null;
+  lastVerdict: ValidatorVerdict | null;
+}
+
+export type SessionChecks = Record<ValidationModule, SessionModuleChecks>;
+
+export interface SessionReceiptEntry {
+  id: string;
+  module: string;
+  verdict: string;
+  createdAt: string;
+}
+
+const EMPTY_SESSION_CHECKS: SessionChecks = {
+  veil: { allow: 0, revise: 0, block: 0, lastAt: null, lastVerdict: null },
+  plumb: { allow: 0, revise: 0, block: 0, lastAt: null, lastVerdict: null },
+};
+
 interface DemoStore {
   activeModel: ModelId;
   setActiveModel: (m: ModelId) => void;
@@ -55,6 +78,10 @@ interface DemoStore {
   setPolicyActive: (policyId: string, active: boolean) => void;
   customPolicies: PolicyDefinition[];
   addCustomPolicy: (policy: PolicyDefinition) => void;
+  sessionChecks: SessionChecks;
+  recordSessionCheck: (module: ValidationModule, verdict: ValidatorVerdict) => void;
+  sessionReceipts: SessionReceiptEntry[];
+  recordSessionReceipt: (receipt: SessionReceiptEntry) => void;
   resetDemo: () => void;
 }
 
@@ -67,6 +94,8 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
   const [recentRuns, setRecentRuns] = useState<GatewayRun[]>([]);
   const [activePolicyIds, setActivePolicyIds] = useState<string[]>(DEFAULT_ACTIVE_POLICY_IDS);
   const [customPolicies, setCustomPolicies] = useState<PolicyDefinition[]>([]);
+  const [sessionChecks, setSessionChecks] = useState<SessionChecks>(EMPTY_SESSION_CHECKS);
+  const [sessionReceipts, setSessionReceipts] = useState<SessionReceiptEntry[]>([]);
 
   useEffect(() => {
     try {
@@ -104,12 +133,33 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     setActivePolicyIds((current) => [...new Set([...current, policy.id])]);
   }, []);
 
+  const recordSessionCheck = useCallback(
+    (module: ValidationModule, verdict: ValidatorVerdict) => {
+      setSessionChecks((current) => ({
+        ...current,
+        [module]: {
+          ...current[module],
+          [verdict]: current[module][verdict] + 1,
+          lastAt: new Date().toISOString(),
+          lastVerdict: verdict,
+        },
+      }));
+    },
+    [],
+  );
+
+  const recordSessionReceipt = useCallback((receipt: SessionReceiptEntry) => {
+    setSessionReceipts((prev) => [receipt, ...prev].slice(0, 20));
+  }, []);
+
   const resetDemo = useCallback(() => {
     setKillSwitch(false);
     setDriftMode("clean");
     setRecentRuns([]);
     setActivePolicyIds(DEFAULT_ACTIVE_POLICY_IDS);
     setCustomPolicies([]);
+    setSessionChecks(EMPTY_SESSION_CHECKS);
+    setSessionReceipts([]);
   }, []);
 
   const value = useMemo(
@@ -126,6 +176,10 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       setPolicyActive,
       customPolicies,
       addCustomPolicy,
+      sessionChecks,
+      recordSessionCheck,
+      sessionReceipts,
+      recordSessionReceipt,
       resetDemo,
     }),
     [
@@ -138,6 +192,10 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       setPolicyActive,
       customPolicies,
       addCustomPolicy,
+      sessionChecks,
+      recordSessionCheck,
+      sessionReceipts,
+      recordSessionReceipt,
       resetDemo,
     ],
   );

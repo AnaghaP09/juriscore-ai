@@ -20,13 +20,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/page-header";
@@ -39,7 +32,7 @@ import {
   policiesForFeature,
   veilScopesForPolicies,
 } from "@/lib/juriscore/policies/catalog";
-import { protectText, type VeilProfile, type VeilStrategy } from "@/lib/juriscore/veil/engine";
+import { protectText, type VeilStrategy } from "@/lib/juriscore/veil/engine";
 import {
   ACCEPTED_DOCUMENT_TYPES,
   extractDocumentText,
@@ -92,10 +85,10 @@ const formatBytes = (bytes: number) => {
 };
 
 function VeilWorkbench() {
-  const { activePolicyIds, customPolicies } = useDemoStore();
+  const { activePolicyIds, customPolicies, recordSessionCheck, recordSessionReceipt } =
+    useDemoStore();
   const [raw, setRaw] = useState(SYNTHETIC_SAMPLE);
   const [strategy, setStrategy] = useState<VeilStrategy>("redact");
-  const [profile, setProfile] = useState<VeilProfile>("saas_operations");
   const [copied, setCopied] = useState(false);
   const [uploadedDocument, setUploadedDocument] = useState<UploadedDocument | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -117,11 +110,11 @@ function VeilWorkbench() {
     () =>
       protectText(raw, {
         strategy,
-        profile,
+        profile: "all_sensitive",
         policyIds: activeVeilPolicies.map((policy) => policy.id),
         policyScopes,
       }),
-    [activeVeilPolicies, policyScopes, profile, raw, strategy],
+    [activeVeilPolicies, policyScopes, raw, strategy],
   );
 
   useEffect(
@@ -134,7 +127,7 @@ function VeilWorkbench() {
   useEffect(() => {
     setReceipt(null);
     setReceiptError(null);
-  }, [raw, strategy, profile, activeVeilPolicies, policyScopes]);
+  }, [raw, strategy, activeVeilPolicies, policyScopes]);
 
   const releasePreview = () => {
     if (previewUrlRef.current) {
@@ -200,6 +193,7 @@ function VeilWorkbench() {
 
   const copySanitized = async () => {
     await navigator.clipboard.writeText(result.sanitizedText);
+    if (raw.trim()) recordSessionCheck("veil", result.rawVerdict);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1500);
   };
@@ -216,6 +210,13 @@ function VeilWorkbench() {
       setReceipt(nextReceipt);
       setReceiptError(null);
       downloadReceipt(nextReceipt);
+      recordSessionCheck("veil", nextReceipt.verdict);
+      recordSessionReceipt({
+        id: nextReceipt.id,
+        module: nextReceipt.module,
+        verdict: nextReceipt.verdict,
+        createdAt: nextReceipt.createdAt,
+      });
     } catch {
       setReceipt(null);
       setReceiptError("A valid receipt could not be produced for this run.");
@@ -381,23 +382,14 @@ function VeilWorkbench() {
         </CardContent>
       </Card>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Select value={profile} onValueChange={(value) => setProfile(value as VeilProfile)}>
-          <SelectTrigger className="w-48" aria-label="Protection profile">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="saas_operations">SaaS operations</SelectItem>
-            <SelectItem value="healthcare">Healthcare privacy</SelectItem>
-            <SelectItem value="all_sensitive">All sensitive data</SelectItem>
-          </SelectContent>
-        </Select>
+      <div className="flex flex-wrap items-center gap-3">
         <Tabs value={strategy} onValueChange={(value) => setStrategy(value as VeilStrategy)}>
           <TabsList>
             <TabsTrigger value="redact">Redact</TabsTrigger>
             <TabsTrigger value="tokenize">Tokenize</TabsTrigger>
           </TabsList>
         </Tabs>
+        <Badge variant="outline">All sensitive data protected</Badge>
       </div>
 
       <p className="-mt-4 text-xs text-muted-foreground" aria-live="polite">
