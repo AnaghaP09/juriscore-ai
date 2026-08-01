@@ -43,16 +43,6 @@ export interface GatewayRun {
   stage?: string;
 }
 
-export interface SessionModuleChecks {
-  allow: number;
-  revise: number;
-  block: number;
-  lastAt: string | null;
-  lastVerdict: ValidatorVerdict | null;
-}
-
-export type SessionChecks = Record<ValidationModule, SessionModuleChecks>;
-
 export interface SessionReceiptEntry {
   id: string;
   module: string;
@@ -60,10 +50,110 @@ export interface SessionReceiptEntry {
   createdAt: string;
 }
 
-const EMPTY_SESSION_CHECKS: SessionChecks = {
-  veil: { allow: 0, revise: 0, block: 0, lastAt: null, lastVerdict: null },
-  plumb: { allow: 0, revise: 0, block: 0, lastAt: null, lastVerdict: null },
-};
+export interface VeilCheckRecord {
+  verdict: ValidatorVerdict;
+  occurrences: number;
+  redacted: number;
+  tokenized: number;
+  chars: number;
+}
+
+export interface PlumbCheckRecord {
+  verdict: ValidatorVerdict;
+  assertions: number;
+  matches: number;
+  drifted: number;
+  cannotDetermine: number;
+}
+
+interface LedgerDay {
+  veil: {
+    checks: number;
+    allow: number;
+    revise: number;
+    block: number;
+    occurrences: number;
+    redacted: number;
+    tokenized: number;
+    chars: number;
+  };
+  plumb: {
+    checks: number;
+    allow: number;
+    revise: number;
+    block: number;
+    assertions: number;
+    matches: number;
+    drifted: number;
+    cannotDetermine: number;
+  };
+  receipts: number;
+}
+
+export interface LocalMetricsLedger {
+  version: 1;
+  simulated: boolean;
+  days: Record<string, LedgerDay>;
+}
+
+// Fixed simulated seed (SPEC_OVERVIEW): internally consistent weekly numbers,
+// present by default, evicted by the first real check.
+export const SIMULATED_SEED = {
+  veil: { checks: 126, occurrences: 1482, redacted: 1178, tokenized: 304, chars: 3_600_000 },
+  plumb: { checks: 88, assertions: 412, matches: 354, drifted: 37, cannotDetermine: 21 },
+  overall: { checks: 214, allow: 132, revise: 51, block: 31, receipts: 47 },
+} as const;
+
+const METRICS_STORAGE_KEY = "juriscore.localMetrics.v1";
+
+const seededLedger = (): LocalMetricsLedger => ({ version: 1, simulated: true, days: {} });
+
+const emptyDay = (): LedgerDay => ({
+  veil: {
+    checks: 0,
+    allow: 0,
+    revise: 0,
+    block: 0,
+    occurrences: 0,
+    redacted: 0,
+    tokenized: 0,
+    chars: 0,
+  },
+  plumb: {
+    checks: 0,
+    allow: 0,
+    revise: 0,
+    block: 0,
+    assertions: 0,
+    matches: 0,
+    drifted: 0,
+    cannotDetermine: 0,
+  },
+  receipts: 0,
+});
+
+const utcDayKey = () => new Date().toISOString().slice(0, 10);
+
+function pruneDays(days: Record<string, LedgerDay>): Record<string, LedgerDay> {
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return Object.fromEntries(Object.entries(days).filter(([key]) => key >= cutoff));
+}
+
+export function summarizeTrailingWeek(ledger: LocalMetricsLedger) {
+  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const summary = emptyDay();
+  for (const [key, day] of Object.entries(ledger.days)) {
+    if (key < cutoff) continue;
+    for (const field of Object.keys(summary.veil) as Array<keyof LedgerDay["veil"]>) {
+      summary.veil[field] += day.veil[field];
+    }
+    for (const field of Object.keys(summary.plumb) as Array<keyof LedgerDay["plumb"]>) {
+      summary.plumb[field] += day.plumb[field];
+    }
+    summary.receipts += day.receipts;
+  }
+  return summary;
+}
 
 interface DemoStore {
   activeModel: ModelId;
@@ -78,10 +168,12 @@ interface DemoStore {
   setPolicyActive: (policyId: string, active: boolean) => void;
   customPolicies: PolicyDefinition[];
   addCustomPolicy: (policy: PolicyDefinition) => void;
-  sessionChecks: SessionChecks;
-  recordSessionCheck: (module: ValidationModule, verdict: ValidatorVerdict) => void;
+  localMetrics: LocalMetricsLedger;
+  recordVeilCheck: (record: VeilCheckRecord) => void;
+  recordPlumbCheck: (record: PlumbCheckRecord) => void;
+  recordReceipt: (receipt: SessionReceiptEntry) => void;
+  seedDemoMetrics: () => void;
   sessionReceipts: SessionReceiptEntry[];
-  recordSessionReceipt: (receipt: SessionReceiptEntry) => void;
   resetDemo: () => void;
 }
 
@@ -94,15 +186,22 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
   const [recentRuns, setRecentRuns] = useState<GatewayRun[]>([]);
   const [activePolicyIds, setActivePolicyIds] = useState<string[]>(DEFAULT_ACTIVE_POLICY_IDS);
   const [customPolicies, setCustomPolicies] = useState<PolicyDefinition[]>([]);
-  const [sessionChecks, setSessionChecks] = useState<SessionChecks>(EMPTY_SESSION_CHECKS);
+  const [localMetrics, setLocalMetrics] = useState<LocalMetricsLedger>(seededLedger);
   const [sessionReceipts, setSessionReceipts] = useState<SessionReceiptEntry[]>([]);
 
   useEffect(() => {
     try {
       const savedActive = window.localStorage.getItem("juriscore.activePolicyIds");
       const savedCustom = window.localStorage.getItem("juriscore.customPolicies");
+      const savedMetrics = window.localStorage.getItem(METRICS_STORAGE_KEY);
       if (savedActive) setActivePolicyIds(JSON.parse(savedActive) as string[]);
       if (savedCustom) setCustomPolicies(JSON.parse(savedCustom) as PolicyDefinition[]);
+      if (savedMetrics) {
+        const parsed = JSON.parse(savedMetrics) as LocalMetricsLedger;
+        if (parsed.version === 1) {
+          setLocalMetrics({ ...parsed, days: pruneDays(parsed.days) });
+        }
+      }
     } catch {
       // Keep the built-in defaults when browser storage is unavailable or malformed.
     }
@@ -115,6 +214,10 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     window.localStorage.setItem("juriscore.customPolicies", JSON.stringify(customPolicies));
   }, [customPolicies]);
+
+  useEffect(() => {
+    window.localStorage.setItem(METRICS_STORAGE_KEY, JSON.stringify(localMetrics));
+  }, [localMetrics]);
 
   const pushRun = useCallback((r: GatewayRun) => {
     setRecentRuns((prev) => [r, ...prev].slice(0, 20));
@@ -133,23 +236,57 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     setActivePolicyIds((current) => [...new Set([...current, policy.id])]);
   }, []);
 
-  const recordSessionCheck = useCallback(
-    (module: ValidationModule, verdict: ValidatorVerdict) => {
-      setSessionChecks((current) => ({
-        ...current,
-        [module]: {
-          ...current[module],
-          [verdict]: current[module][verdict] + 1,
-          lastAt: new Date().toISOString(),
-          lastVerdict: verdict,
-        },
-      }));
+  const mutateToday = useCallback((mutate: (day: LedgerDay) => void) => {
+    setLocalMetrics((current) => {
+      // The first real record evicts the simulated seed entirely.
+      const days = current.simulated ? {} : { ...current.days };
+      const key = utcDayKey();
+      const day = structuredClone(days[key] ?? emptyDay());
+      mutate(day);
+      return { version: 1, simulated: false, days: { ...days, [key]: day } };
+    });
+  }, []);
+
+  const recordVeilCheck = useCallback(
+    (record: VeilCheckRecord) => {
+      mutateToday((day) => {
+        day.veil.checks += 1;
+        day.veil[record.verdict] += 1;
+        day.veil.occurrences += record.occurrences;
+        day.veil.redacted += record.redacted;
+        day.veil.tokenized += record.tokenized;
+        day.veil.chars += record.chars;
+      });
     },
-    [],
+    [mutateToday],
   );
 
-  const recordSessionReceipt = useCallback((receipt: SessionReceiptEntry) => {
-    setSessionReceipts((prev) => [receipt, ...prev].slice(0, 20));
+  const recordPlumbCheck = useCallback(
+    (record: PlumbCheckRecord) => {
+      mutateToday((day) => {
+        day.plumb.checks += 1;
+        day.plumb[record.verdict] += 1;
+        day.plumb.assertions += record.assertions;
+        day.plumb.matches += record.matches;
+        day.plumb.drifted += record.drifted;
+        day.plumb.cannotDetermine += record.cannotDetermine;
+      });
+    },
+    [mutateToday],
+  );
+
+  const recordReceipt = useCallback(
+    (receipt: SessionReceiptEntry) => {
+      mutateToday((day) => {
+        day.receipts += 1;
+      });
+      setSessionReceipts((prev) => [receipt, ...prev].slice(0, 20));
+    },
+    [mutateToday],
+  );
+
+  const seedDemoMetrics = useCallback(() => {
+    setLocalMetrics(seededLedger());
   }, []);
 
   const resetDemo = useCallback(() => {
@@ -158,7 +295,7 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     setRecentRuns([]);
     setActivePolicyIds(DEFAULT_ACTIVE_POLICY_IDS);
     setCustomPolicies([]);
-    setSessionChecks(EMPTY_SESSION_CHECKS);
+    setLocalMetrics(seededLedger());
     setSessionReceipts([]);
   }, []);
 
@@ -176,10 +313,12 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       setPolicyActive,
       customPolicies,
       addCustomPolicy,
-      sessionChecks,
-      recordSessionCheck,
+      localMetrics,
+      recordVeilCheck,
+      recordPlumbCheck,
+      recordReceipt,
+      seedDemoMetrics,
       sessionReceipts,
-      recordSessionReceipt,
       resetDemo,
     }),
     [
@@ -192,10 +331,12 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       setPolicyActive,
       customPolicies,
       addCustomPolicy,
-      sessionChecks,
-      recordSessionCheck,
+      localMetrics,
+      recordVeilCheck,
+      recordPlumbCheck,
+      recordReceipt,
+      seedDemoMetrics,
       sessionReceipts,
-      recordSessionReceipt,
       resetDemo,
     ],
   );

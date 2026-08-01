@@ -85,8 +85,7 @@ const formatBytes = (bytes: number) => {
 };
 
 function VeilWorkbench() {
-  const { activePolicyIds, customPolicies, recordSessionCheck, recordSessionReceipt } =
-    useDemoStore();
+  const { activePolicyIds, customPolicies, recordVeilCheck, recordReceipt } = useDemoStore();
   const [raw, setRaw] = useState(SYNTHETIC_SAMPLE);
   const [strategy, setStrategy] = useState<VeilStrategy>("redact");
   const [copied, setCopied] = useState(false);
@@ -191,9 +190,20 @@ function VeilWorkbench() {
     setRaw(SYNTHETIC_SAMPLE);
   };
 
+  const recordCurrentRun = () => {
+    const occurrences = result.findings.reduce((sum, finding) => sum + finding.count, 0);
+    recordVeilCheck({
+      verdict: result.rawVerdict,
+      occurrences,
+      redacted: strategy === "redact" ? occurrences : 0,
+      tokenized: strategy === "tokenize" ? occurrences : 0,
+      chars: raw.length,
+    });
+  };
+
   const copySanitized = async () => {
     await navigator.clipboard.writeText(result.sanitizedText);
-    if (raw.trim()) recordSessionCheck("veil", result.rawVerdict);
+    if (raw.trim()) recordCurrentRun();
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1500);
   };
@@ -210,8 +220,8 @@ function VeilWorkbench() {
       setReceipt(nextReceipt);
       setReceiptError(null);
       downloadReceipt(nextReceipt);
-      recordSessionCheck("veil", nextReceipt.verdict);
-      recordSessionReceipt({
+      recordCurrentRun();
+      recordReceipt({
         id: nextReceipt.id,
         module: nextReceipt.module,
         verdict: nextReceipt.verdict,

@@ -1,20 +1,22 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/page-header";
 import {
-  ArrowRight,
   BookOpen,
   EyeOff,
   GitPullRequest,
   LayoutDashboard,
   ReceiptText,
 } from "lucide-react";
-import { useDemoStore, type SessionModuleChecks } from "@/lib/juriscore/demo-store";
+import {
+  SIMULATED_SEED,
+  summarizeTrailingWeek,
+  useDemoStore,
+} from "@/lib/juriscore/demo-store";
 import { policyById, type PolicyDefinition } from "@/lib/juriscore/policies/catalog";
-import type { ValidationModule } from "@/lib/juriscore/core/contracts";
 
 export const Route = createFileRoute("/dashboard/")({
   head: () => ({
@@ -23,7 +25,7 @@ export const Route = createFileRoute("/dashboard/")({
       {
         name: "description",
         content:
-          "Session activity for Veil and Plumb checks, active policies, and receipts.",
+          "Weekly Veil and Plumb activity on this device, active policies, and receipts.",
       },
     ],
   }),
@@ -36,20 +38,40 @@ const verdictColor = {
   block: "text-[color:var(--block)] border-[color:var(--block)]/40",
 };
 
-const DEMO_LINKS: Array<{ label: string; to: string }> = [
-  { label: "Gateway", to: "/dashboard/gateway" },
-  { label: "Pipeline", to: "/dashboard/pipeline" },
-  { label: "Analytics", to: "/dashboard/analytics" },
-  { label: "Use cases", to: "/dashboard/use-cases" },
-  { label: "CISO view", to: "/dashboard/ciso" },
-];
+const toneText = {
+  allow: "text-[color:var(--allow)]",
+  revise: "text-[color:var(--revise)]",
+  block: "text-[color:var(--block)]",
+};
+
+function formatVolume(chars: number) {
+  if (chars < 1024 * 1024) return `${Math.max(1, Math.round(chars / 1024))} KB`;
+  return `${(chars / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 function Overview() {
-  const { sessionChecks, sessionReceipts, activePolicyIds, customPolicies } = useDemoStore();
+  const { localMetrics, sessionReceipts, activePolicyIds, customPolicies, seedDemoMetrics } =
+    useDemoStore();
   const activePolicies = activePolicyIds
     .map((id) => policyById(id, customPolicies))
     .filter((policy): policy is PolicyDefinition => Boolean(policy));
   const customCount = activePolicies.filter((policy) => policy.custom).length;
+
+  const simulated = localMetrics.simulated;
+  const live = useMemo(() => summarizeTrailingWeek(localMetrics), [localMetrics]);
+
+  const overall = simulated
+    ? SIMULATED_SEED.overall
+    : {
+        checks: live.veil.checks + live.plumb.checks,
+        allow: live.veil.allow + live.plumb.allow,
+        revise: live.veil.revise + live.plumb.revise,
+        block: live.veil.block + live.plumb.block,
+        receipts: live.receipts,
+      };
+  const veil = simulated ? SIMULATED_SEED.veil : live.veil;
+  const plumb = simulated ? SIMULATED_SEED.plumb : live.plumb;
+  const isEmpty = !simulated && overall.checks === 0 && overall.receipts === 0;
 
   return (
     <div className="p-6 sm:p-8 space-y-6">
@@ -74,29 +96,83 @@ function Overview() {
         }
       />
 
-      <section aria-label="Session activity" className="space-y-3">
+      <section aria-label="Weekly metrics" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="section-title">Session activity</h2>
-          <Badge variant="outline">This session · live</Badge>
+          <h2 className="section-title">This week</h2>
+          <Badge
+            variant="outline"
+            className={simulated ? "text-[color:var(--revise)]" : undefined}
+          >
+            {simulated ? "Simulated" : "Last 7 days · this device · live"}
+          </Badge>
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <ModuleActivityCard
-            module="veil"
-            label="Veil"
-            icon={<EyeOff className="h-4 w-4 text-primary" aria-hidden />}
-            checks={sessionChecks.veil}
-            to="/dashboard/redaction"
-          />
-          <ModuleActivityCard
-            module="plumb"
-            label="Plumb"
-            icon={<GitPullRequest className="h-4 w-4 text-primary" aria-hidden />}
-            checks={sessionChecks.plumb}
-            to="/dashboard/drift"
-          />
-        </div>
+
+        {isEmpty ? (
+          <Card>
+            <CardContent className="space-y-3 py-10 text-center">
+              <p className="text-sm text-muted-foreground">
+                No checks recorded on this device yet.
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <Button asChild size="sm">
+                  <Link to="/dashboard/redaction">Run a Veil check</Link>
+                </Button>
+                <Button asChild size="sm" variant="outline">
+                  <Link to="/dashboard/drift">Run a Plumb check</Link>
+                </Button>
+                <Button size="sm" variant="ghost" onClick={seedDemoMetrics}>
+                  Populate simulated demo metrics
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4 lg:grid-cols-3">
+            <MetricTile title="Overall" simulated={simulated}>
+              <BigStat value={overall.checks} label="Checks run" />
+              <dl className="flex gap-4 text-sm">
+                <VerdictCell label="Allow" value={overall.allow} tone="allow" />
+                <VerdictCell label="Revise" value={overall.revise} tone="revise" />
+                <VerdictCell label="Block" value={overall.block} tone="block" />
+              </dl>
+              <SmallStat value={overall.receipts.toLocaleString("en-US")} label="Receipts downloaded" />
+            </MetricTile>
+
+            <MetricTile
+              title="Veil"
+              icon={<EyeOff className="h-4 w-4 text-primary" aria-hidden />}
+              simulated={simulated}
+            >
+              <BigStat value={veil.checks} label="Documents and prompts protected" />
+              <SmallStat
+                value={veil.occurrences.toLocaleString("en-US")}
+                label={`Sensitive occurrences protected (${veil.redacted.toLocaleString("en-US")} redacted · ${veil.tokenized.toLocaleString("en-US")} tokenized)`}
+              />
+              <SmallStat value={formatVolume(veil.chars)} label="Input volume processed" />
+            </MetricTile>
+
+            <MetricTile
+              title="Plumb"
+              icon={<GitPullRequest className="h-4 w-4 text-primary" aria-hidden />}
+              simulated={simulated}
+            >
+              <BigStat value={plumb.checks} label="Checks run" />
+              <SmallStat
+                value={plumb.assertions.toLocaleString("en-US")}
+                label="Assertions checked"
+              />
+              <dl className="flex gap-4 text-sm">
+                <VerdictCell label="Drifted" value={plumb.drifted} tone="block" />
+                <VerdictCell label="Cannot determine" value={plumb.cannotDetermine} tone="revise" />
+              </dl>
+            </MetricTile>
+          </div>
+        )}
+
         <p className="text-xs text-muted-foreground">
-          Counts from checks run in this browser session; cleared by Reset demo and page reload.
+          {simulated
+            ? "Simulated demonstration data — not measurements. The first real check replaces it with live counts."
+            : "Counts from checks run on this device in the last 7 days. Cleared by Reset demo."}
         </p>
       </section>
 
@@ -178,89 +254,58 @@ function Overview() {
           )}
         </CardContent>
       </Card>
-
-      <section aria-label="Simulated demonstrations" className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          Simulated demonstrations
-        </span>
-        {DEMO_LINKS.map((demo) => (
-          <Link
-            key={demo.to}
-            to={demo.to}
-            className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-card px-3 py-1.5 text-xs font-medium hover:bg-muted"
-          >
-            {demo.label} <ArrowRight className="h-3 w-3" aria-hidden />
-          </Link>
-        ))}
-      </section>
     </div>
   );
 }
 
-function ModuleActivityCard({
-  module,
-  label,
+function MetricTile({
+  title,
   icon,
-  checks,
-  to,
+  simulated,
+  children,
 }: {
-  module: ValidationModule;
-  label: string;
-  icon: ReactNode;
-  checks: SessionModuleChecks;
-  to: string;
+  title: string;
+  icon?: React.ReactNode;
+  simulated: boolean;
+  children: React.ReactNode;
 }) {
-  const total = checks.allow + checks.revise + checks.block;
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-sm">
-          {icon}
-          {label}
+        <CardTitle className="flex items-center justify-between gap-2 text-sm">
+          <span className="flex items-center gap-2">
+            {icon}
+            {title}
+          </span>
+          {simulated && (
+            <Badge variant="outline" className="text-[10px] text-[color:var(--revise)]">
+              Simulated
+            </Badge>
+          )}
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        {total === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No {label} checks yet this session.{" "}
-            <Link to={to} className="text-primary hover:underline">
-              Run one
-            </Link>
-          </p>
-        ) : (
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <div className="font-mono text-4xl font-semibold">{total}</div>
-              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                {total === 1 ? "Check" : "Checks"} this session
-              </div>
-            </div>
-            <dl className="flex gap-4 text-sm">
-              <VerdictCell label="Allow" value={checks.allow} tone="allow" />
-              <VerdictCell label="Revise" value={checks.revise} tone="revise" />
-              <VerdictCell label="Block" value={checks.block} tone="block" />
-            </dl>
-            {checks.lastVerdict && checks.lastAt && (
-              <div className="basis-full text-xs text-muted-foreground">
-                Last check:{" "}
-                <Badge variant="outline" className={verdictColor[checks.lastVerdict]}>
-                  {checks.lastVerdict.toUpperCase()}
-                </Badge>{" "}
-                at <span className="font-mono">{checks.lastAt.slice(11, 19)}</span>
-              </div>
-            )}
-          </div>
-        )}
-      </CardContent>
+      <CardContent className="space-y-4">{children}</CardContent>
     </Card>
   );
 }
 
-const toneText = {
-  allow: "text-[color:var(--allow)]",
-  revise: "text-[color:var(--revise)]",
-  block: "text-[color:var(--block)]",
-};
+function BigStat({ value, label }: { value: number; label: string }) {
+  return (
+    <div>
+      <div className="font-mono text-4xl font-semibold">{value.toLocaleString("en-US")}</div>
+      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
+    </div>
+  );
+}
+
+function SmallStat({ value, label }: { value: string; label: string }) {
+  return (
+    <div>
+      <div className="font-mono text-xl font-semibold">{value}</div>
+      <div className="text-[11px] text-muted-foreground">{label}</div>
+    </div>
+  );
+}
 
 function VerdictCell({
   label,
@@ -274,7 +319,9 @@ function VerdictCell({
   return (
     <div>
       <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</dt>
-      <dd className={`font-mono text-xl font-semibold ${toneText[tone]}`}>{value}</dd>
+      <dd className={`font-mono text-xl font-semibold ${toneText[tone]}`}>
+        {value.toLocaleString("en-US")}
+      </dd>
     </div>
   );
 }

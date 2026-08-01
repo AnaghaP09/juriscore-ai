@@ -190,8 +190,8 @@ function DriftView() {
     killSwitch,
     activePolicyIds,
     customPolicies,
-    recordSessionCheck,
-    recordSessionReceipt,
+    recordPlumbCheck,
+    recordReceipt,
   } = useDemoStore();
   const [doc, setDoc] = useState<DocKey>("sec");
   const [ran, setRan] = useState(false);
@@ -214,7 +214,13 @@ function DriftView() {
     const driftFinding = nextEvaluation.findings.find((finding) => finding.status === "drifted");
     setRan(true);
     setEvaluation(nextEvaluation);
-    recordSessionCheck("plumb", nextEvaluation.verdict);
+    recordPlumbCheck({
+      verdict: nextEvaluation.verdict,
+      assertions: nextEvaluation.findings.length,
+      matches: nextEvaluation.counts.matches,
+      drifted: nextEvaluation.counts.drifted,
+      cannotDetermine: nextEvaluation.counts.cannot_determine,
+    });
     setHighlightClaim(
       driftFinding?.subject === "cross_border_fee"
         ? "fee"
@@ -237,7 +243,7 @@ function DriftView() {
       setReceipt(nextReceipt);
       setReceiptError(null);
       downloadReceipt(nextReceipt);
-      recordSessionReceipt({
+      recordReceipt({
         id: nextReceipt.id,
         module: nextReceipt.module,
         verdict: nextReceipt.verdict,
