@@ -1,21 +1,26 @@
 import { defineTool } from "@lovable.dev/mcp-js";
 import { z } from "zod";
-import { AUDIT } from "@/lib/juriscore/mock";
+import { unavailableResult } from "@/lib/mcp/safe-output";
 
+/**
+ * Receipts are produced by each check and handed to the operator; this build has
+ * no server-side receipt store, so there is nothing to look an id up in. Returning
+ * a fabricated chain of checks would be worse than returning nothing.
+ */
 export default defineTool({
   name: "get_audit_entry",
-  title: "Get audit entry",
-  description: "Fetch the full chain-of-checks for a prior JurisCore interaction by ID.",
-  inputSchema: { id: z.string().describe("Audit entry id (e.g. jc_00042).") },
-  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
-  handler: ({ id }) => {
-    const entry = AUDIT.find((a) => a.id === id);
-    if (!entry) {
-      return { content: [{ type: "text", text: `No audit entry with id ${id}` }], isError: true };
-    }
-    return {
-      content: [{ type: "text", text: `${entry.id}: ${entry.verdict} (${entry.domain}/${entry.useCase})` }],
-      structuredContent: { ...entry } as Record<string, unknown>,
-    };
+  title: "Get validation receipt (not implemented)",
+  description:
+    "NOT IMPLEMENTED in this build. JurisCore issues a validation receipt for every check, but receipts are returned to the operator and not persisted server-side, so there is no store to look an id up in. The call fails closed rather than returning a fabricated chain of checks. Receipt persistence and search ship with the Team and Enterprise receipt store.",
+  inputSchema: {
+    id: z.string().describe("Receipt id. Not looked up — no receipt store exists in this build."),
   },
+  annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+  handler: () =>
+    unavailableResult({
+      capability: "Receipt lookup by id",
+      reason:
+        "This build persists no receipts server-side; each check returns its receipt to the caller instead.",
+      roadmapItem: "shared receipt retention and search",
+    }),
 });

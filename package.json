@@ -16,6 +16,7 @@
     "check:veil": "bun scripts/check-veil.ts",
     "check:plumb": "bun scripts/check-plumb.ts",
     "check:receipts": "bun scripts/check-receipts.ts",
+    "check:mcp": "bun scripts/check-mcp.ts",
     "check:core": "bun scripts/check-core.ts",
     "preview": "vite preview",
     "lint": "eslint .",
