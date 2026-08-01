@@ -297,7 +297,7 @@ function Landing() {
                 >{`{
   "mcpServers": {
     "juriscore": {
-      "url": "https://<your-app>.lovable.app/mcp"
+      "url": "https://<your-host>/mcp"
     }
   }
 }`}</pre>

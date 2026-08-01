@@ -81,24 +81,26 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "JurisCore AI — Unified Compliance Intelligence Layer" },
+      { title: "JurisCore — Protect the prompt. Prove the answer." },
       {
         name: "description",
         content:
-          "JurisCore AI is a governance middleware that sits between generative AI and regulated workflows in Finance and Healthcare. Enforce compliance in real time.",
+          "JurisCore is an AI validation and guardrail platform that deploys inside your own environment. Veil protects sensitive context before a model sees it; Plumb checks claims against the authoritative source. Every check returns allow, revise, or block with a receipt.",
       },
-      { property: "og:title", content: "JurisCore AI — Unified Compliance Intelligence Layer" },
+      { property: "og:title", content: "JurisCore — Protect the prompt. Prove the answer." },
       {
         property: "og:description",
         content:
-          "JurisCore AI is a governance middleware that sits between generative AI and regulated workflows in Finance and Healthcare. Enforce compliance in real time.",
+          "JurisCore is an AI validation and guardrail platform that deploys inside your own environment. Veil protects sensitive context before a model sees it; Plumb checks claims against the authoritative source. Every check returns allow, revise, or block with a receipt.",
       },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "JurisCore AI — Unified Compliance Intelligence Layer" },
-      { name: "twitter:description", content: "JurisCore AI is a governance middleware that sits between generative AI and regulated workflows in Finance and Healthcare. Enforce compliance in real time." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/0b630979-63b0-4814-a7f9-f902cf4c451b/id-preview-fb0d09ac--46239422-6cb4-4f54-9901-4ce4e359cfdc.lovable.app-1784349261373.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/0b630979-63b0-4814-a7f9-f902cf4c451b/id-preview-fb0d09ac--46239422-6cb4-4f54-9901-4ce4e359cfdc.lovable.app-1784349261373.png" },
+      { name: "twitter:card", content: "summary" },
+      { name: "twitter:title", content: "JurisCore — Protect the prompt. Prove the answer." },
+      {
+        name: "twitter:description",
+        content:
+          "JurisCore is an AI validation and guardrail platform that deploys inside your own environment. Veil protects sensitive context before a model sees it; Plumb checks claims against the authoritative source.",
+      },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
