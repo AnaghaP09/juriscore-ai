@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,12 +16,36 @@ export const Route = createFileRoute("/connect")({
 });
 
 const tools = [
-  { name: "check_prompt", desc: "Input guardrail — PII/PHI scan, prompt-injection detection." },
-  { name: "retrieve_policy", desc: "Fetch relevant clauses from a domain rulebook (SEC/FINRA/HIPAA/CMS)." },
-  { name: "enforce_citations", desc: "Verify every regulatory claim is grounded in an approved clause." },
-  { name: "evaluate_response", desc: "End-to-end: run all four pipeline stages on a prompt + draft." },
-  { name: "get_audit_entry", desc: "Fetch the full chain of checks for a prior interaction by ID." },
-  { name: "get_metrics", desc: "Governance KPI snapshot: violation rate, accuracy, latency." },
+  {
+    name: "check_prompt",
+    status: "live" as const,
+    desc: "Runs the Veil engine over text before it reaches a model. Returns allow, revise, or block with finding categories, severities, and counts.",
+  },
+  {
+    name: "retrieve_policy",
+    status: "live" as const,
+    desc: "Reads this instance's policy catalog: pack ids, versions, issuing authorities, and sources.",
+  },
+  {
+    name: "compare_claims",
+    status: "live" as const,
+    desc: "Runs the Plumb engine over structured claims. Returns matches, drifted, or cannot determine with both source references.",
+  },
+  {
+    name: "evaluate_response",
+    status: "live" as const,
+    desc: "Veil on the prompt, Veil on the draft, and the Plumb comparison when structured claims are supplied.",
+  },
+  {
+    name: "enforce_citations",
+    status: "unavailable" as const,
+    desc: "Not implemented. Citation enforcement over prose needs claim extraction and a clause-level policy index; the call fails closed rather than return a coverage figure nobody measured.",
+  },
+  {
+    name: "get_audit_entry",
+    status: "unavailable" as const,
+    desc: "Not implemented. Receipts are returned to the operator and not persisted server-side, so there is no store to look an id up in.",
+  },
 ];
 
 const upcomingProviders = [
@@ -30,36 +55,48 @@ const upcomingProviders = [
   { name: "Google Gemini", detail: "Gemini API + Vertex AI" },
 ];
 
-const clients = [
-  {
-    name: "Claude Desktop",
-    config: `{
+// The MCP endpoint is always `/mcp` on the origin serving this instance, so the
+// configuration snippets are built from that origin rather than a hosted URL.
+// Server rendering has no origin, so the placeholder stands until the page mounts.
+const ORIGIN_PLACEHOLDER = "https://<your-host>";
+
+function clientConfigs(origin: string) {
+  const endpoint = `${origin}/mcp`;
+  return [
+    {
+      name: "Claude Desktop",
+      config: `{
   "mcpServers": {
     "juriscore": {
-      "url": "https://<your-app>.lovable.app/mcp"
+      "url": "${endpoint}"
     }
   }
 }`,
-  },
-  {
-    name: "Cursor",
-    config: `// ~/.cursor/mcp.json
+    },
+    {
+      name: "Cursor",
+      config: `// ~/.cursor/mcp.json
 {
   "mcpServers": {
-    "juriscore": { "url": "https://<your-app>.lovable.app/mcp" }
+    "juriscore": { "url": "${endpoint}" }
   }
 }`,
-  },
-  {
-    name: "ChatGPT (Custom Connector)",
-    config: `Server URL:
-  https://<your-app>.lovable.app/mcp
+    },
+    {
+      name: "ChatGPT (Custom Connector)",
+      config: `Server URL:
+  ${endpoint}
 
-Authentication: None (public demo)`,
-  },
-];
+Authentication: none — this build has none to configure.`,
+    },
+  ];
+}
 
 function Connect() {
+  const [origin, setOrigin] = useState(ORIGIN_PLACEHOLDER);
+  useEffect(() => setOrigin(window.location.origin), []);
+  const clients = clientConfigs(origin);
+
   return (
     <div className="min-h-dvh p-0 md:p-4 lg:p-6" style={{ background: "var(--app-bg)" }}>
       <a href="#connect-main" className="skip-link">Skip to main content</a>
@@ -81,8 +118,10 @@ function Connect() {
             <Badge className="mb-4"><Plug className="mr-1 h-3 w-3" /> MCP Server · public</Badge>
             <h1 className="page-title text-4xl">Connect JurisCore to your assistant</h1>
             <p className="page-sub">
-              JurisCore exposes its guardrail pipeline as a Model Context Protocol server at
-              {" "}<code className="font-mono text-primary">/mcp</code>. Any MCP-aware assistant can call the tools below.
+              JurisCore exposes the Veil and Plumb engines as a Model Context Protocol server at
+              {" "}<code className="font-mono text-primary">/mcp</code> on whichever origin serves this instance.
+              Any MCP-aware assistant can call the tools below. Evaluation runs locally: no tool makes an
+              external call, and no tool returns a detected value or the text you submitted.
             </p>
           </div>
 
@@ -91,7 +130,12 @@ function Connect() {
             <div className="grid md:grid-cols-2 gap-3">
               {tools.map((t) => (
                 <div key={t.name} className="rounded-2xl border border-border bg-card p-4 card-shadow">
-                  <div className="font-mono text-sm text-primary">{t.name}</div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm text-primary">{t.name}</span>
+                    {t.status === "unavailable" && (
+                      <Badge variant="secondary" className="text-[10px]">Not implemented</Badge>
+                    )}
+                  </div>
                   <div className="text-sm text-muted-foreground mt-1">{t.desc}</div>
                 </div>
               ))}
@@ -130,9 +174,17 @@ function Connect() {
               ))}
             </div>
             <p className="mt-4 text-xs text-muted-foreground">
-              Replace <code className="font-mono">&lt;your-app&gt;</code> with the published URL of this project.
-              Since this is a public MCP server, no authentication is required — anyone with the URL can call these
-              (mock) tools.
+              The endpoint is <code className="font-mono">/mcp</code> on the origin serving this JurisCore
+              instance — <code className="font-mono">{origin}/mcp</code> here. On a self-hosted install that is
+              your own host; substitute it wherever the snippets show
+              {" "}<code className="font-mono">{ORIGIN_PLACEHOLDER}</code>.
+            </p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              <strong className="text-foreground">This server has no authentication.</strong> None is implemented
+              in this build, so anyone who can reach the URL can call every live tool. Bind it to a network you
+              control. The tools run the real Veil and Plumb engines and return verdicts, finding categories, and
+              counts — never a detected value, the sanitized text, or the text you submitted — but the calls
+              themselves are unauthenticated and unmetered.
             </p>
           </section>
         </main>
