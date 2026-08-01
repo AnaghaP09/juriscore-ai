@@ -1,0 +1,4 @@
+# Shell scripts must keep LF endings whatever the checkout platform. The release
+# package's start.sh is executed on Linux and macOS, and a CR in the shebang line
+# makes it fail to start.
+*.sh text eol=lf
