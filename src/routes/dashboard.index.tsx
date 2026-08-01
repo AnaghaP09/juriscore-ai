@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -265,9 +265,9 @@ function MetricTile({
   children,
 }: {
   title: string;
-  icon?: React.ReactNode;
+  icon?: ReactNode;
   simulated: boolean;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <Card>
