@@ -37,6 +37,16 @@ interface Detector {
   valueGroup?: number;
 }
 
+// PDF and DOCX extraction flattens a table row into a label, a column gap, and the value
+// ("Patient Name   Maya Patel"), so a labelled field reaches the engine without its colon.
+// Accept a punctuation separator or a two-space column gap; a single space stays unmatched
+// so ordinary prose does not trip a labelled detector.
+const LABEL_SEPARATOR = "(?:[ \\t]*[:-][ \\t]*|[ \\t]{2,})";
+
+function labelledPattern(source: string) {
+  return new RegExp(source.replace(/<sep>/g, LABEL_SEPARATOR), "gi");
+}
+
 const DETECTORS: Detector[] = [
   {
     id: "veil.health.patient_name",
@@ -45,8 +55,9 @@ const DETECTORS: Detector[] = [
     code: "PATIENT_NAME",
     severity: "high",
     scope: "healthcare",
-    pattern:
-      /\b(?:Patient Name|Patient|Name)[ \t]*:[ \t]*([A-Z][A-Za-z'-]+(?:[ \t]+[A-Z][A-Za-z'-]+){1,3})\b/gi,
+    pattern: labelledPattern(
+      "\\b(?:Patient Name|Patient|Name)<sep>([A-Z][A-Za-z'-]+(?:[ \\t]+[A-Z][A-Za-z'-]+){1,3})\\b",
+    ),
     valueGroup: 1,
   },
   {
@@ -56,8 +67,9 @@ const DETECTORS: Detector[] = [
     code: "DOB",
     severity: "high",
     scope: "healthcare",
-    pattern:
-      /\b(?:DOB|Date of Birth)[ \t]*[:-][ \t]*((?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{2}-\d{2}))\b/gi,
+    pattern: labelledPattern(
+      "\\b(?:DOB|Date of Birth)<sep>((?:\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}|\\d{4}-\\d{2}-\\d{2}))\\b",
+    ),
     valueGroup: 1,
   },
   {
@@ -105,7 +117,9 @@ const DETECTORS: Detector[] = [
     code: "PHONE",
     severity: "medium",
     scope: "common",
-    pattern: /\b(?:\+?1[ .-]?)?(?:\(\d{3}\)|\d{3})[ .-]\d{3}[ .-]\d{4}\b/g,
+    // Leading lookbehind rather than \b: a number that starts with "(" has no word
+    // boundary before it, which silently skipped every "(415) 555-0199".
+    pattern: /(?<![A-Za-z0-9])(?:\+?1[ .-]?)?(?:\(\d{3}\)|\d{3})[ .-]\d{3}[ .-]\d{4}\b/g,
   },
   {
     id: "veil.secret.openai_key",
