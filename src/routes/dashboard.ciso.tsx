@@ -51,7 +51,10 @@ function Ciso() {
       <div className="grid md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-5">
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">How often we're right</div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">How often we're right</div>
+              <Badge variant="outline" className="text-[10px] text-[color:var(--revise)]">Demo data · synthetic</Badge>
+            </div>
             <RadialDial value={precision} target={0.85} />
             <div className="mt-2 text-xs text-muted-foreground">Goal: at least 85% (checked by humans)</div>
           </CardContent>

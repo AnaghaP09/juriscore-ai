@@ -1,15 +1,6 @@
 import assert from "node:assert/strict";
 import { protectText } from "../src/lib/juriscore/veil/engine";
-
-const syntheticClinicalNote = `Patient: Maya Patel
-DOB: 04/12/1982
-MRN: 88742199
-Member ID: HMO-44912003
-Email: maya.patel@example.test
-Phone: 415-555-0199
-Clinical context: Type 2 diabetes follow-up with medication adherence discussed.
-Maya Patel reported no new symptoms.
-Contact maya.patel@example.test after review.`;
+import { SYNTHETIC_CLINICAL_NOTE as syntheticClinicalNote } from "./fixtures/veil-fixtures";
 
 const redacted = protectText(syntheticClinicalNote, {
   profile: "healthcare",

@@ -12,12 +12,17 @@ import {
   Lock,
   AlertOctagon,
   CheckCircle2,
+  Download,
   HelpCircle,
   BookOpen,
 } from "lucide-react";
 import { useDemoStore } from "@/lib/juriscore/demo-store";
 import { compareClaims, type PlumbClaim, type PlumbResult } from "@/lib/juriscore/plumb/engine";
 import { policiesForFeature } from "@/lib/juriscore/policies/catalog";
+import { createReceipt, downloadReceipt } from "@/lib/juriscore/core/receipts";
+import { plumbReceiptInput } from "@/lib/juriscore/plumb/receipt";
+import type { ValidationReceipt } from "@/lib/juriscore/core/contracts";
+import { ReceiptSummary } from "@/components/receipt-summary";
 
 export const Route = createFileRoute("/dashboard/drift")({
   head: () => ({
@@ -187,27 +192,24 @@ function DriftView() {
     customPolicies,
   } = useDemoStore();
   const [doc, setDoc] = useState<DocKey>("sec");
-  const [judging, setJudging] = useState(false);
   const [ran, setRan] = useState(false);
   const [highlightClaim, setHighlightClaim] = useState<string | null>(null);
   const [evaluation, setEvaluation] = useState<PlumbResult | null>(null);
+  const [receipt, setReceipt] = useState<ValidationReceipt | null>(null);
+  const [receiptError, setReceiptError] = useState<string | null>(null);
   const activePlumbPolicies = useMemo(
     () => policiesForFeature(activePolicyIds, "plumb", customPolicies),
     [activePolicyIds, customPolicies],
   );
 
-  const runJudge = async () => {
+  const runJudge = () => {
     if (killSwitch) return;
-    setRan(false);
-    setJudging(true);
-    setHighlightClaim(null);
-    setEvaluation(null);
-    await new Promise((r) => setTimeout(r, 1400));
+    setReceipt(null);
+    setReceiptError(null);
     const nextEvaluation = compareClaims(codeClaims(driftMode), DOCUMENT_CLAIMS[doc], {
       policyIds: activePlumbPolicies.map((policy) => policy.id),
     });
     const driftFinding = nextEvaluation.findings.find((finding) => finding.status === "drifted");
-    setJudging(false);
     setRan(true);
     setEvaluation(nextEvaluation);
     setHighlightClaim(
@@ -217,6 +219,25 @@ function DriftView() {
           ? "kyc"
           : null,
     );
+  };
+
+  const generateReceipt = async () => {
+    if (!evaluation) return;
+    try {
+      const nextReceipt = await createReceipt(
+        plumbReceiptInput(
+          evaluation,
+          { authorities: codeClaims(driftMode), assertions: DOCUMENT_CLAIMS[doc] },
+          activePlumbPolicies.map((policy) => ({ id: policy.id, version: policy.version })),
+        ),
+      );
+      setReceipt(nextReceipt);
+      setReceiptError(null);
+      downloadReceipt(nextReceipt);
+    } catch {
+      setReceipt(null);
+      setReceiptError("A valid receipt could not be produced for this run.");
+    }
   };
 
   const primaryDrift = evaluation?.findings.find((finding) => finding.status === "drifted");
@@ -245,21 +266,22 @@ function DriftView() {
                   setRan(false);
                   setEvaluation(null);
                   setHighlightClaim(null);
+                  setReceipt(null);
+                  setReceiptError(null);
                 }}
               />
               <label htmlFor="pr-toggle" className="text-sm">
                 Simulate a risky pull request
               </label>
             </div>
-            <Button onClick={runJudge} disabled={judging || killSwitch}>
+            <Button onClick={runJudge} disabled={killSwitch}>
               {killSwitch ? (
                 <>
                   <Lock className="h-4 w-4 mr-2" /> Blocked
                 </>
               ) : (
                 <>
-                  <Sparkles className="h-4 w-4 mr-2" />{" "}
-                  {judging ? "Checking…" : "Check for contradictions"}
+                  <Sparkles className="h-4 w-4 mr-2" /> Check for contradictions
                 </>
               )}
             </Button>
@@ -342,6 +364,8 @@ function DriftView() {
                 setRan(false);
                 setEvaluation(null);
                 setHighlightClaim(null);
+                setReceipt(null);
+                setReceiptError(null);
               }}
             >
               <TabsList className="grid grid-cols-3 w-full">
@@ -383,19 +407,20 @@ function DriftView() {
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Verdict</CardTitle>
+          <CardTitle className="flex flex-wrap items-center justify-between gap-3 text-sm">
+            <span>Verdict</span>
+            <Button size="sm" variant="outline" onClick={generateReceipt} disabled={!evaluation}>
+              <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              Download receipt
+            </Button>
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          {!ran && !judging && (
+          {!ran && (
             <p className="text-sm text-muted-foreground">
               Click <span className="text-foreground">Check for contradictions</span>. Plumb will
               compare the selected document assertions with structured facts from the code change.
               The active model remains available for a later semantic-adapter stage.
-            </p>
-          )}
-          {judging && (
-            <p className="text-sm text-muted-foreground" aria-live="polite">
-              Comparing the code change to {DOCS[doc].label}…
             </p>
           )}
           {ran && evaluation && (
@@ -468,7 +493,7 @@ function DriftView() {
                         No contradiction
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        Safe to merge — receipt saved
+                        Safe to merge — no contradiction found
                       </div>
                     </div>
                   </div>
@@ -492,6 +517,7 @@ function DriftView() {
                 Receipt scope: {evaluation.policyIds.length}{" "}
                 {evaluation.policyIds.length === 1 ? "policy" : "policies"} applied.
               </div>
+              <ReceiptSummary receipt={receipt} error={receiptError} className="basis-full" />
             </div>
           )}
         </CardContent>

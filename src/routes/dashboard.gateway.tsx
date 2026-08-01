@@ -169,7 +169,7 @@ function Gateway() {
             </li>
             <li className="rounded-lg border border-border bg-card p-3">
               <div className="flex items-center gap-2 text-foreground font-medium text-xs"><ScrollText className="h-3.5 w-3.5 text-primary" aria-hidden /> 4. Output Guardrail</div>
-              <p className="mt-1 text-xs">Final pass — attaches citations, flags uncited claims, and writes a tamper-proof audit entry so any regulator can retrace the decision.</p>
+              <p className="mt-1 text-xs">Final pass — attaches citations, flags uncited claims, and writes an audit receipt so any regulator can retrace the decision.</p>
             </li>
           </ol>
           <p className="text-xs pt-1">

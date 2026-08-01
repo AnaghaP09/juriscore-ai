@@ -4,12 +4,14 @@ import {
   AlertTriangle,
   Check,
   Copy,
+  Download,
   EyeOff,
   FileCheck2,
   FileText,
   Image as ImageIcon,
   Loader2,
   LockKeyhole,
+  ReceiptText,
   Send,
   ShieldCheck,
   Upload,
@@ -29,6 +31,10 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/page-header";
 import { useDemoStore } from "@/lib/juriscore/demo-store";
+import { createReceipt, downloadReceipt } from "@/lib/juriscore/core/receipts";
+import { veilReceiptInput } from "@/lib/juriscore/veil/receipt";
+import type { ValidationReceipt } from "@/lib/juriscore/core/contracts";
+import { ReceiptSummary } from "@/components/receipt-summary";
 import {
   policiesForFeature,
   veilScopesForPolicies,
@@ -93,6 +99,8 @@ function VeilWorkbench() {
   const [copied, setCopied] = useState(false);
   const [uploadedDocument, setUploadedDocument] = useState<UploadedDocument | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [receipt, setReceipt] = useState<ValidationReceipt | null>(null);
+  const [receiptError, setReceiptError] = useState<string | null>(null);
   const [progress, setProgress] = useState<ExtractionProgress | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -122,6 +130,11 @@ function VeilWorkbench() {
     },
     [],
   );
+
+  useEffect(() => {
+    setReceipt(null);
+    setReceiptError(null);
+  }, [raw, strategy, profile, activeVeilPolicies, policyScopes]);
 
   const releasePreview = () => {
     if (previewUrlRef.current) {
@@ -189,6 +202,24 @@ function VeilWorkbench() {
     await navigator.clipboard.writeText(result.sanitizedText);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1500);
+  };
+
+  const generateReceipt = async () => {
+    try {
+      const nextReceipt = await createReceipt(
+        veilReceiptInput(
+          result,
+          raw,
+          activeVeilPolicies.map((policy) => ({ id: policy.id, version: policy.version })),
+        ),
+      );
+      setReceipt(nextReceipt);
+      setReceiptError(null);
+      downloadReceipt(nextReceipt);
+    } catch {
+      setReceipt(null);
+      setReceiptError("A valid receipt could not be produced for this run.");
+    }
   };
 
   return (
@@ -600,6 +631,34 @@ function VeilWorkbench() {
               )}
             </tbody>
           </table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex flex-wrap items-center justify-between gap-3 text-sm">
+            <span className="flex items-center gap-2">
+              <ReceiptText className="h-4 w-4 text-primary" aria-hidden />
+              Audit receipt
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={generateReceipt}
+              disabled={!raw.trim() || Boolean(progress)}
+            >
+              <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              Download receipt
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            The receipt records the verdict, finding identifiers, and active policy versions for
+            this run. It carries a digest of the input — never the text itself — and is generated
+            in this browser.
+          </p>
+          <ReceiptSummary receipt={receipt} error={receiptError} verdictLabel="Raw input verdict" />
         </CardContent>
       </Card>
     </div>

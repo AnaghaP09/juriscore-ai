@@ -27,7 +27,7 @@ const STAGES = [
   { key: "model", label: "Ask the AI", detail: "Send the clean prompt to your chosen model" },
   { key: "judge", label: "Cross-check the answer", detail: "Does what the AI said match your policies?" },
   { key: "output", label: "Require citations", detail: "Every claim must trace to a real rule" },
-  { key: "ledger", label: "Save the receipt", detail: "Tamper-proof log for auditors" },
+  { key: "ledger", label: "Issue the receipt", detail: "A receipt for every decision" },
 ] as const;
 
 const SCENARIO_LABEL: Record<Scenario, string> = {
@@ -131,7 +131,7 @@ function Pipeline() {
         eyebrow="How it works"
         icon={<Activity className="h-6 w-6" aria-hidden />}
         title="Step by step"
-        description="Pick a scenario and watch where JurisCore steps in. Six checks, from the moment a question arrives to the receipt saved at the end."
+        description="Pick a scenario and watch where JurisCore steps in. Six checks, from the moment a question arrives to the receipt issued at the end."
       />
 
       <Card>

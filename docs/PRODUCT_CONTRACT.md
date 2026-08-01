@@ -1,10 +1,12 @@
 # JurisCore product contract
 
-Status: V1 working source of truth.
+Status: V1 working source of truth. Amended 2026-08-01: sovereign and on-premises repositioning, ratified by the founder.
 
 ## Product definition
 
-JurisCore is a commercial AI validation and guardrail platform. It is infrastructure for SaaS teams, not another chatbot.
+JurisCore is a commercial AI validation and guardrail platform. It is a guardrail and validation layer that deploys inside the customer's own environment — on-premises, private cloud, or air-gapped. A hosted Team tier is a convenience deployment of the same contract, not a separate product.
+
+The primary storyline is sovereign AI operation: organizations that run their own models, or that must control what reaches external models, use JurisCore to enforce their own policies on every AI input and output and to keep a receipt for every decision. AI-assisted SaaS support and engineering remains the first workload profile. External model providers are guarded, not banned: approved providers are reached only through the gateway, behind Veil, under the provider-adapter principle.
 
 The platform does two jobs:
 
@@ -66,11 +68,13 @@ Built-in packs store source title, publisher, URL, version, and retrieval date. 
 
 ## Commercial model
 
-JurisCore uses a free-entry, paid-expansion model:
+JurisCore uses a free-entry, paid-expansion model anchored on the self-hosted Enterprise deployment:
 
-- Free gives developers a local playground, built-in policy references, and limited Veil and Plumb checks.
-- Team adds metered API usage, custom policies, shared receipts, CI checks, and collaboration.
-- Enterprise adds SSO, RBAC, private policy packs, dedicated data controls, contractual assurances, and support.
+- Free gives individuals a local playground, every built-in policy reference, limited Veil and Plumb checks, and a small number of browser-local custom policies. Built-in policy packs are always free.
+- Team adds the hosted gateway API and authenticated MCP tools with metered usage, unlimited organization-shared versioned custom policies, shared receipt retention and search, CI checks, and collaboration.
+- Enterprise is the self-hosted deployment: an annual per-instance license rather than metered usage; SSO, RBAC, and tenant isolation; private signed policy packs with offline updates and a policy approval workflow; append-only local receipts with export; air-gapped installation; contractual assurances and priority support.
+
+The metering unit is the check. One Veil check is one protection evaluation of one document or prompt; one Plumb check is one comparison run. Metering records counts, digests, verdicts, and policy versions only; raw content is never stored or transmitted for billing. No tier is sold as compliance; policy packs guide checks and do not certify.
 
 ## V1 boundary
 
@@ -80,9 +84,10 @@ V1 will:
 - apply active built-in or custom policies to Veil and Plumb receipts;
 - demonstrate Plumb on structured code-versus-document fixtures;
 - preserve existing prototype routes;
+- run without external network calls at evaluation time;
 - expose deterministic checks and clearly label simulated evidence.
 
-V1 will not claim complete de-identification, automatic compliance, production-grade secret detection, benchmark results not reproduced, autonomous merge authority, or production tenant isolation.
+V1 will not claim complete de-identification, automatic compliance, production-grade secret detection, benchmark results not reproduced, autonomous merge authority, or production tenant isolation. V1 will also not claim network-egress enforcement, certified air-gap operation, or authenticated multi-user operation until the gateway API, authentication, and receipt persistence exist.
 
 ## Product principles
 

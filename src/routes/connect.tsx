@@ -23,6 +23,13 @@ const tools = [
   { name: "get_metrics", desc: "Governance KPI snapshot: violation rate, accuracy, latency." },
 ];
 
+const upcomingProviders = [
+  { name: "Anthropic Claude", detail: "API + Claude Desktop" },
+  { name: "OpenAI", detail: "GPT API + ChatGPT" },
+  { name: "Azure OpenAI", detail: "Azure-hosted deployments" },
+  { name: "Google Gemini", detail: "Gemini API + Vertex AI" },
+];
+
 const clients = [
   {
     name: "Claude Desktop",
@@ -88,6 +95,25 @@ function Connect() {
                   <div className="text-sm text-muted-foreground mt-1">{t.desc}</div>
                 </div>
               ))}
+            </div>
+          </section>
+
+          <section>
+            <div className="eyebrow mb-3">Model connections — roadmap</div>
+            <div className="rounded-2xl border border-border bg-card p-4 card-shadow">
+              <p className="text-sm text-muted-foreground">
+                The JurisCore gateway will route checked context to approved proprietary providers through Veil,
+                with server-side credentials and a receipt for every exchange. No connection is simulated: these
+                remain disabled until a real gateway connection exists.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {upcomingProviders.map((p) => (
+                  <Button key={p.name} variant="outline" size="sm" disabled title={`${p.detail} — coming soon`}>
+                    {p.name}
+                    <Badge variant="secondary" className="ml-2 text-[10px]">Coming soon</Badge>
+                  </Button>
+                ))}
+              </div>
             </div>
           </section>
 
