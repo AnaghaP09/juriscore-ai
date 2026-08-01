@@ -44,10 +44,20 @@ function AuditLog() {
   return (
     <div className="p-6 sm:p-8 space-y-6">
       <PageHeader
-        eyebrow="Receipts"
-        title="Audit log"
-        description="Every AI decision, searchable. Click any row to see the full trail — question, checks, answer, verdict. Give this to your auditor."
+        eyebrow="JurisCore"
+        title="Receipts"
+        description="Every AI decision, searchable. Click any row to see the full trail — question, checks, answer, verdict. Receipts you download from a Veil or Plumb check are listed on the Overview."
+        actions={
+          <Badge variant="outline" className="text-[color:var(--revise)]">
+            Demo data · synthetic
+          </Badge>
+        }
       />
+
+      <p className="text-xs text-muted-foreground">
+        The entries below are synthetic demonstration records, not measurements. Real receipts are
+        produced by Veil and Plumb checks and downloaded from those workbenches.
+      </p>
 
       <div className="flex flex-wrap gap-3" role="search" aria-label="Filter audit entries">
         <div className="flex-1 min-w-[12rem] max-w-xs">

@@ -45,6 +45,7 @@ const groups: Array<{
     label: string;
     icon: React.ComponentType<{ className?: string }>;
     exact?: boolean;
+    badge?: string;
   }>;
 }> = [
   {
@@ -55,16 +56,7 @@ const groups: Array<{
       { to: "/dashboard/drift", label: "Plumb · Drift", icon: GitPullRequest },
       { to: "/dashboard/rulebooks", label: "Policy Library", icon: BookOpen },
       { to: "/dashboard/audit", label: "Receipts", icon: ScrollText },
-    ],
-  },
-  {
-    label: "Demos (simulated)",
-    items: [
-      { to: "/dashboard/gateway", label: "LLM Gateway", icon: Zap },
-      { to: "/dashboard/pipeline", label: "Pipeline", icon: Activity },
-      { to: "/dashboard/analytics", label: "Analytics", icon: Layers },
-      { to: "/dashboard/use-cases", label: "Use Cases", icon: Layers },
-      { to: "/dashboard/ciso", label: "CISO Gateway", icon: ShieldAlert },
+      { to: "/dashboard/gateway", label: "LLM Gateway", icon: Zap, badge: "Beta" },
     ],
   },
 ];
@@ -123,6 +115,11 @@ function DashboardLayout() {
                     >
                       <n.icon aria-hidden="true" className="h-4 w-4" />
                       {n.label}
+                      {n.badge && (
+                        <span className="ml-auto rounded-full border border-border/70 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                          {n.badge}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}

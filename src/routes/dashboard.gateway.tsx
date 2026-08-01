@@ -115,8 +115,18 @@ function Gateway() {
 
   return (
     <div className="p-6 sm:p-8 space-y-6">
+      <div
+        role="note"
+        className="rounded-lg border border-[color:var(--revise)]/30 bg-[color:var(--revise)]/[0.06] px-4 py-3 text-sm"
+      >
+        <span className="font-medium text-[color:var(--revise)]">Simulated demonstration.</span>{" "}
+        No model is connected and no request leaves this browser. Verdicts, latencies, and token
+        counts on this page are generated for illustration. The gateway API that will route checked
+        context to a configured model is on the roadmap.
+      </div>
+
       <PageHeader
-        eyebrow="Try it live"
+        eyebrow="Beta · simulated"
         icon={<Zap className="h-6 w-6" aria-hidden />}
         title="Send a question through JurisCore"
         description="Type anything, pick an AI, and watch each check happen. Same setup works with any model — no code change on your side."
