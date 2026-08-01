@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Release notes — JurisCore</title>
+    <meta
+      name="description"
+      content="What shipped in JurisCore V1: sovereign on-premises positioning, validation receipts, Veil detection fixes, MCP tools on the real engines, and the claims we corrected about our own product."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23312e2b'/></svg>"
+    />
+    <style>
+      :root {
+        --radius: 1.25rem;
+        --app-bg: oklch(0.86 0.02 90);
+        --background: oklch(0.975 0.025 90);
+        --foreground: oklch(0.18 0.01 80);
+        --card: oklch(0.995 0.012 90);
+        --primary: oklch(0.2 0.01 80);
+        --primary-foreground: oklch(0.98 0.02 90);
+        --secondary: oklch(0.955 0.03 90);
+        --muted-foreground: oklch(0.5 0.015 80);
+        --border: oklch(0.9 0.02 88);
+        --revise: oklch(0.62 0.13 75);
+        --shadow: 0 20px 60px -20px oklch(0.2 0.05 285 / 0.35);
+        --shadow-sm: 0 1px 2px oklch(0.2 0.05 285 / 0.08),
+          0 8px 24px -12px oklch(0.2 0.05 285 / 0.18);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--app-bg);
+        color: var(--foreground);
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+      code,
+      pre,
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          "Liberation Mono", monospace;
+      }
+      a {
+        color: inherit;
+      }
+      code {
+        font-size: 0.9em;
+        background: color-mix(in oklab, var(--secondary) 70%, transparent);
+        border-radius: 5px;
+        padding: 1px 5px;
+      }
+
+      .shell {
+        max-width: 1120px;
+        margin: 0 auto;
+        background: var(--card);
+        border-radius: 20px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+      @media (max-width: 820px) {
+        .shell {
+          border-radius: 0;
+        }
+      }
+      .wrap {
+        max-width: 1040px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+      .narrow {
+        max-width: 74ch;
+      }
+
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 40;
+        background: color-mix(in oklab, var(--card) 90%, transparent);
+        backdrop-filter: blur(8px);
+        border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+      }
+      .nav {
+        height: 64px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        text-decoration: none;
+      }
+      .brand .mark {
+        height: 24px;
+        width: 24px;
+        border-radius: 6px;
+        background: var(--primary);
+        display: inline-block;
+      }
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 22px;
+        font-size: 14px;
+        color: var(--muted-foreground);
+      }
+      .nav-links a.link {
+        text-decoration: none;
+        transition: color 0.15s;
+      }
+      .nav-links a.link:hover {
+        color: var(--foreground);
+      }
+      @media (max-width: 640px) {
+        .nav-links a.link {
+          display: none;
+        }
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        padding: 10px 16px;
+        border-radius: 10px;
+        text-decoration: none;
+        border: 1px solid transparent;
+        transition: background 0.15s, color 0.15s;
+      }
+      .btn-primary {
+        background: var(--primary);
+        color: var(--primary-foreground);
+      }
+      .btn-outline {
+        border-color: var(--border);
+        background: var(--card);
+      }
+      .btn-outline:hover {
+        background: var(--secondary);
+      }
+
+      /* Page head */
+      .page-head {
+        padding: 64px 0 40px;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--primary);
+        border: 1px solid color-mix(in oklab, var(--primary) 40%, transparent);
+        border-radius: 999px;
+        padding: 5px 12px;
+        margin-bottom: 24px;
+      }
+      .dot {
+        height: 7px;
+        width: 7px;
+        border-radius: 999px;
+        background: currentColor;
+      }
+      h1 {
+        font-size: clamp(2.2rem, 5vw, 3.4rem);
+        line-height: 1.06;
+        letter-spacing: -0.02em;
+        font-weight: 600;
+        margin: 0;
+        max-width: 18ch;
+      }
+      .lead {
+        margin: 20px 0 0;
+        font-size: clamp(1rem, 2.2vw, 1.12rem);
+        color: var(--muted-foreground);
+        max-width: 66ch;
+      }
+
+      .eyebrow {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--muted-foreground);
+        margin-bottom: 10px;
+      }
+      h2 {
+        font-size: clamp(1.5rem, 3vw, 2rem);
+        letter-spacing: -0.02em;
+        font-weight: 600;
+        margin: 0;
+        max-width: 26ch;
+      }
+      h3 {
+        font-size: 1.05rem;
+        font-weight: 600;
+        margin: 28px 0 0;
+      }
+      section.band {
+        border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+        padding: 56px 0;
+      }
+      section.tint {
+        background: color-mix(in oklab, var(--secondary) 55%, transparent);
+      }
+      p {
+        color: var(--muted-foreground);
+        max-width: 74ch;
+      }
+      .band p {
+        margin: 14px 0 0;
+      }
+      strong {
+        color: var(--foreground);
+        font-weight: 600;
+      }
+      ul {
+        margin: 16px 0 0;
+        padding-left: 20px;
+        color: var(--muted-foreground);
+        max-width: 74ch;
+      }
+      li {
+        margin-top: 10px;
+      }
+      ol {
+        margin: 20px 0 0;
+        padding-left: 20px;
+        color: var(--muted-foreground);
+        max-width: 74ch;
+      }
+      ol li {
+        margin-top: 14px;
+      }
+
+      /* Status block — the honesty anchor */
+      .status {
+        margin-top: 32px;
+        border: 1px solid color-mix(in oklab, var(--revise) 35%, transparent);
+        background: color-mix(in oklab, var(--revise) 7%, transparent);
+        border-left: 4px solid var(--revise);
+        border-radius: 14px;
+        padding: 22px 24px;
+      }
+      .status .label {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--revise);
+        font-weight: 600;
+      }
+      .status p {
+        margin: 10px 0 0;
+        color: var(--foreground);
+        max-width: 78ch;
+        font-size: 15px;
+      }
+
+      .release-meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 12px;
+        margin-bottom: 6px;
+      }
+      .version {
+        font-size: 1.6rem;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+      .version-tag {
+        font-size: 12px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 3px 10px;
+        color: var(--muted-foreground);
+      }
+
+      .card {
+        border: 1px solid var(--border);
+        background: var(--card);
+        border-radius: 16px;
+        padding: 22px 24px;
+        box-shadow: var(--shadow-sm);
+        margin-top: 16px;
+      }
+      .card p {
+        margin: 8px 0 0;
+        font-size: 14.5px;
+      }
+      .card .k {
+        font-weight: 600;
+        color: var(--foreground);
+      }
+
+      .fine {
+        margin-top: 18px;
+        font-size: 12.5px;
+        color: var(--muted-foreground);
+        max-width: 74ch;
+      }
+
+      footer {
+        border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+        padding: 28px 0;
+        font-size: 13px;
+        color: var(--muted-foreground);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: space-between;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <header>
+        <div class="wrap nav">
+          <a class="brand" href="./index.html">
+            <span class="mark" aria-hidden="true"></span>
+            <span>JurisCore</span>
+          </a>
+          <nav class="nav-links" aria-label="Primary">
+            <a class="link" href="./index.html#features">Features</a>
+            <a class="link" href="./index.html#cli">Quickstart</a>
+            <a class="link" href="./index.html#download">Download</a>
+            <a class="btn btn-primary" href="https://github.com/AnaghaP09/juriscore-ai">View on GitHub</a>
+          </nav>
+        </div>
+      </header>
+
+      <main>
+        <section class="wrap page-head">
+          <span class="badge"><span class="dot" aria-hidden="true"></span> Release notes</span>
+          <h1>What shipped, and what we corrected.</h1>
+          <p class="lead">
+            JurisCore V1 turns the prototype into a coherent product: it commits to sovereign,
+            on-premises deployment, gives every check a downloadable receipt, and removes the
+            surfaces and claims that did not survive an honest audit.
+          </p>
+
+          <div class="status">
+            <div class="label">Status</div>
+            <p>
+              <strong>V1 prototype.</strong> Every demonstrated outcome is at <strong>Synthetic</strong>
+              maturity — measured on generated fixtures, not on benchmarks, pilots, or production
+              traffic. JurisCore runs locally and makes no external network calls at evaluation time.
+              There is no connected model, no server-side persistence, no authentication, and no
+              compliance claim of any kind. Policy packs guide checks; they do not certify anything.
+            </p>
+          </div>
+        </section>
+
+        <section class="band">
+          <div class="wrap">
+            <div class="release-meta">
+              <span class="version mono">2026.08.01</span>
+              <span class="version-tag">V1 platform</span>
+            </div>
+
+            <h3>Sovereign and on-premises positioning</h3>
+            <p>
+              JurisCore is now defined as a guardrail and validation layer that deploys inside your
+              own environment — on-premises, private cloud, or air-gapped. A hosted tier is a
+              convenience deployment of the same contract, not a different product.
+            </p>
+            <p>
+              The change is written into the product contract rather than only into marketing copy:
+              the primary storyline is now organizations that run their own models, or that must
+              control what reaches external ones. External providers are guarded, not banned —
+              approved providers will be reachable through the gateway, behind Veil, with credentials
+              held server-side.
+            </p>
+            <p>
+              Two commitments were added to the V1 boundary at the same time. JurisCore <strong>will</strong>
+              run without external network calls at evaluation time. It <strong>will not</strong> claim
+              network-egress enforcement, certified air-gap operation, or authenticated multi-user
+              operation until the gateway, authentication, and receipt persistence exist.
+            </p>
+
+            <h3>Validation receipts</h3>
+            <p>
+              Every Veil and Plumb check now produces a receipt you can download as JSON. Each receipt
+              carries the module, the verdict, the identifiers and versions of every policy pack in
+              force, a SHA-256 digest of the input, the finding identifiers, evidence locators, and a
+              maturity label.
+            </p>
+            <p>Three properties are enforced in code rather than promised:</p>
+            <ul>
+              <li>
+                <strong>No sensitive values.</strong> Raw input exists only long enough to be digested;
+                it is never written to the receipt. Evidence references are copied field by field, so
+                free-text excerpts are stripped by construction. A deterministic check scans every
+                serialized receipt for known fixture values and fails if one appears.
+              </li>
+              <li>
+                <strong>No invalid receipts.</strong> A receipt is schema-validated before it is
+                returned, so a malformed one cannot be downloaded.
+              </li>
+              <li>
+                <strong>What you see is what you get.</strong> The receipt shown on screen is
+                byte-identical to the file you download.
+              </li>
+            </ul>
+            <p>
+              Receipts are handed to you, not stored by us — this build persists nothing server-side.
+            </p>
+
+            <h3>Veil: detection fixes</h3>
+            <p>
+              <strong>Labelled identifiers in PDF and DOCX tables were being missed.</strong> Document
+              extraction flattens a table row into a label, a column gap, and a value —
+              <code>Patient Name   Maya Patel</code> — so the colon that labelled detectors required
+              was never in the text. Patient names and dates of birth uploaded as PDF forms passed
+              through unredacted, while the same content typed into the workbench was caught. Labelled
+              detectors now accept either punctuation or a two-space column gap; a single space still
+              does not match, so ordinary prose does not trip them.
+            </p>
+            <p>
+              <strong>The phone detector could never match a parenthesised number.</strong> Its pattern
+              began with a word boundary, so <code>(415) 555-0199</code> was missed in every input, not
+              only in documents.
+            </p>
+            <p>
+              Known limit, stated plainly: unlabelled personal names in prose remain undetected. The
+              engine has no person-name detector, and adding one is a product decision, not a bug fix.
+            </p>
+            <p>
+              <strong>One protection posture.</strong> The profile selector is gone; every run protects
+              all sensitive categories. The default is now that everything sensitive is protected unless
+              an active policy says otherwise. Healthcare protection ships as engine capability plus the
+              HIPAA policy pack rather than as a dropdown.
+            </p>
+
+            <h3>Overview and navigation</h3>
+            <p>
+              The dashboard was a legal-operations cockpit inherited from the original prototype: matter
+              triage, hearings, contract queues, and buttons that did nothing. It is gone. The intake,
+              matters, contracts, hearings, and AI-review routes were deleted outright; pipeline,
+              analytics, use-cases, and the executive view left the navigation with their code preserved.
+            </p>
+            <p>
+              Primary navigation is now six surfaces: <strong>Overview, Veil, Plumb, Policy Library,
+              Receipts, and LLM Gateway (Beta)</strong>, plus MCP Connect.
+            </p>
+            <p>
+              The Overview shows weekly activity across three tiles — overall, Veil, and Plumb —
+              including checks run, verdict splits, sensitive occurrences protected with the redacted
+              and tokenized split, input volume processed, assertions checked, drift found, and
+              cannot-determine counted as its own number rather than folded into failures. Counts come
+              from a local ledger of real checks run on your device over the trailing seven days; the
+              ledger stores numeric aggregates only, never text, findings, or digests.
+            </p>
+            <p>
+              The page ships populated with a <strong>simulated seed</strong> so a fresh install is not
+              an empty screen. Those numbers are demonstration data, not measurements; each tile says so
+              on its own badge, and the first real check you run deletes the seed permanently.
+            </p>
+
+            <h3>MCP tools now run the real engines</h3>
+            <p>
+              The MCP server previously described itself as governance middleware for finance and
+              healthcare and answered from mock data. It now runs the shipped engines and tells the
+              truth about what it cannot do.
+            </p>
+            <ul>
+              <li>
+                <code>check_prompt</code> runs the real Veil engine with your active policy packs. It
+                returns finding identifiers, categories, severities, counts, and verdicts only — the
+                detected values, the replacement tokens, the sanitized text, and the submitted text
+                never cross the tool boundary, because a tool result is copied into a model context and
+                a client transcript.
+              </li>
+              <li>
+                <code>retrieve_policy</code> reads the real policy catalog and returns pack versions,
+                authorities, and sources.
+              </li>
+              <li><code>compare_claims</code> is new, and runs the Plumb comparator.</li>
+              <li>
+                <code>evaluate_response</code> chains Veil over the prompt, Veil over the draft, and the
+                Plumb comparison when structured claims are supplied. Without them, the source-of-truth
+                stage reports that it did not run, and the verdict can be no better than <em>revise</em>.
+              </li>
+            </ul>
+            <p>
+              <strong>Two tools now fail closed instead of fabricating.</strong>
+              <code>enforce_citations</code> needs claim extraction from prose and a clause-level policy
+              index; <code>get_audit_entry</code> needs a server-side receipt store. Neither exists in
+              this build, so both return a labelled <em>not implemented</em> response rather than
+              invented citation-coverage figures or an invented chain of checks. <code>get_metrics</code>
+              is retired entirely: the server holds no measurable state, so every number it could return
+              would have been simulated.
+            </p>
+            <p>
+              Runtime usage telemetry is switched off, so no invocation record leaves your environment.
+              The Connect page was rebuilt to match: configuration snippets are generated from the origin
+              serving your instance rather than a hosted URL. <strong>There is no authentication in this
+              build</strong> — anyone who can reach the URL can call every live tool. The page says so
+              plainly.
+            </p>
+          </div>
+        </section>
+
+        <section class="band tint">
+          <div class="wrap">
+            <div class="eyebrow">Transparency</div>
+            <h2>Corrections we made to our own claims</h2>
+            <p>
+              This section exists because a buyer evaluating a guardrail product deserves to know what
+              we found when we audited ourselves.
+            </p>
+
+            <div class="card">
+              <p><span class="k">“Safe to merge — receipt saved.”</span> The Plumb workbench said a receipt had been saved. Nothing was saved. The copy is now honest, and receipts genuinely exist.</p>
+            </div>
+            <div class="card">
+              <p><span class="k">“Tamper-proof log for auditors.”</span> Removed. Nothing in this build is tamper-evident.</p>
+            </div>
+            <div class="card">
+              <p><span class="k">An unlabelled accuracy dial.</span> The executive view rendered a hard-coded 89.2% as “how often we’re right”, with no indication it was invented. It now carries a demo-data label, and the view has left the primary navigation.</p>
+            </div>
+            <div class="card">
+              <p><span class="k">Unlabelled weekly totals.</span> The old Overview showed hard-coded protection counts as if they were measurements. Deleted, and replaced by the labelled ledger described above.</p>
+            </div>
+            <div class="card">
+              <p><span class="k">Mock MCP tools presented as working.</span> Addressed by the rewiring above.</p>
+            </div>
+            <div class="card">
+              <p><span class="k">“Available as a CLI and a web app.”</span> The site’s description claimed a CLI product. None exists; the description now says what actually ships — terminal checks and a local web app.</p>
+            </div>
+            <div class="card">
+              <p><span class="k">Synthetic receipts and audit entries</span> now carry visible demo-data labels, and the receipts page no longer suggests handing a synthetic log to an auditor.</p>
+            </div>
+
+            <p class="fine">
+              Every number that remains anywhere in the product carries a maturity label. An unlabelled
+              metric is treated as a defect, not a polish item.
+            </p>
+          </div>
+        </section>
+
+        <section class="band">
+          <div class="wrap">
+            <div class="eyebrow">Also in this release</div>
+            <ul>
+              <li>A cross-platform, self-healing install path (<code>bun run setup</code>) that recovers from antivirus file-locks on Windows.</li>
+              <li>A deterministic check suite — shared contracts, Veil, Plumb, receipts, and MCP — run by <code>bun run check:core</code> and required to pass before a build ships.</li>
+              <li>A static product site, and specifications for a downloadable on-premises package.</li>
+              <li>Greyed-out placeholders on the Connect page for future proprietary-provider connections. They perform no connection and are labelled as roadmap.</li>
+              <li>Earlier prototype history from the original repository was absorbed into <code>main</code> for continuity; the V1 platform tree supersedes its content.</li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="band tint">
+          <div class="wrap">
+            <div class="eyebrow">Roadmap, not shipped</div>
+            <h2>What&rsquo;s next</h2>
+            <p>These are planned, in this order. Nothing here is available today.</p>
+            <ol>
+              <li>
+                <strong>Gateway API</strong> — a versioned endpoint so applications can call Veil and
+                Plumb without the UI, with JurisCore in the request path rather than beside it.
+              </li>
+              <li>
+                <strong>Approved-provider connections behind the gateway</strong> — routing to
+                proprietary models (Anthropic, OpenAI, Azure OpenAI, Google, and others) through Veil,
+                with credentials held server-side and every provider a replaceable adapter.
+              </li>
+              <li>
+                <strong>Receipt persistence</strong> — a receipt store with retention, search, and
+                export, which also unlocks receipt-backed metrics that survive beyond one device.
+              </li>
+              <li>
+                <strong>Authentication, RBAC, and tenant isolation</strong> — the prerequisites for
+                multi-user operation, and for any claim about isolation.
+              </li>
+            </ol>
+            <p class="fine">
+              Independent privacy, security, and detection benchmarking remains ahead of us. Until it is
+              done and reproducible, our numbers stay labelled Synthetic.
+            </p>
+          </div>
+        </section>
+
+        <section class="band">
+          <div class="wrap">
+            <p>
+              Source, issues, and the full commit history:
+              <a href="https://github.com/AnaghaP09/juriscore-ai">github.com/AnaghaP09/juriscore-ai</a>.
+              The repository is a private product prototype; all rights reserved.
+            </p>
+            <p style="margin-top: 24px">
+              <a class="btn btn-outline" href="./index.html">&larr; Back to JurisCore</a>
+            </p>
+          </div>
+        </section>
+      </main>
+
+      <footer class="wrap">
+        <span>JurisCore · Commercial platform prototype · Synthetic and mock data</span>
+        <span class="mono">2026.08.01</span>
+      </footer>
+    </div>
+  </body>
+</html>

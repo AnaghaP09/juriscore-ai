@@ -79,6 +79,13 @@ Addendum, same date — Live Demo group removed; LLM Gateway promoted with a Bet
 - with no Demos group remaining, pipeline, analytics, and the CISO view are removed from navigation with code preserved, joining the archived surfaces; the Overview's planned Demos strip is dropped;
 - open item: the emergency-stop control lives on the CISO view; when the gateway API lands, the control moves to the gateway surface (its natural home); until then it remains reachable at its route (owner: product, decide with the gateway slice).
 
+Addendum, same date — release versioning convention established:
+
+- releases are date-based: `YYYY.MM.DD`, one heading per release, newest first, in `docs/RELEASE_NOTES.md`; the first entry is `2026.08.01 — V1 platform`;
+- date-based versioning is chosen because no release has been cut, the product has no public API surface to promise compatibility against, and a semantic version would imply stability guarantees this prototype cannot make; a semantic scheme replaces it when the gateway API ships a versioned contract;
+- release notes are buyer-facing public copy published as a subpage of the product site; they carry the same rules as the product: every number carries a maturity label, corrections to prior overclaims are stated plainly rather than omitted, and no capability is described that does not exist;
+- release notes are sourced only from this repository's own history and files.
+
 ## Existing features to preserve
 
 ### Public and connection surfaces

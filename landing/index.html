@@ -416,8 +416,9 @@
           </a>
           <nav class="nav-links" aria-label="Primary">
             <a class="link" href="#features">Features</a>
-            <a class="link" href="#cli">CLI</a>
+            <a class="link" href="#cli">Quickstart</a>
             <a class="link" href="#download">Download</a>
+            <a class="link" href="./release-notes.html">Release notes</a>
             <a
               class="btn btn-primary"
               href="https://github.com/AnaghaP09/juriscore-ai"
@@ -433,10 +434,12 @@
           <span class="badge"><span class="dot"></span> AI validation platform · Free to start</span>
           <h1>Protect the prompt. Prove the answer.</h1>
           <p class="lead">
-            JurisCore is the control plane around your AI workflows. <strong>Veil</strong>
-            protects sensitive inputs before a model sees them. <strong>Plumb</strong> validates
-            important assertions against the implemented source of truth. Every check returns an
-            allow, revise, or block decision with evidence — from the command line or the web app.
+            JurisCore is the control plane around your AI workflows, and it runs inside your own
+            environment — on your machine, your private cloud, or an isolated network.
+            <strong>Veil</strong> protects sensitive inputs before a model sees them.
+            <strong>Plumb</strong> validates important assertions against the implemented source of
+            truth. Every check returns an allow, revise, or block decision with evidence. Evaluation
+            is local: nothing is sent anywhere.
           </p>
           <div class="cta">
             <a class="btn btn-primary btn-lg" href="#download">
@@ -492,39 +495,42 @@
           </div>
         </section>
 
-        <!-- CLI quickstart -->
+        <!-- Quickstart -->
         <section class="band tint" id="cli">
           <div class="wrap">
-            <div class="eyebrow">Command line &amp; CI</div>
-            <h2>Run JurisCore from your terminal.</h2>
+            <div class="eyebrow">Quickstart</div>
+            <h2>Three commands to a running instance.</h2>
             <p class="sub">
-              The Veil and Plumb engines are deterministic and run headless, so they drop straight
-              into scripts and CI pipelines. Install with a single toolchain — Bun — on macOS or
-              Windows.
+              Download the release package, install one toolchain — Bun — and start it. Every
+              dependency is already inside the package, so starting it installs nothing and reaches
+              no registry. Works on macOS, Linux, and Windows.
             </p>
-            <div class="terminal" role="img" aria-label="Terminal showing JurisCore install and check commands">
+            <div class="terminal" role="img" aria-label="Terminal showing how to install Bun and start the JurisCore package">
               <div class="bar" aria-hidden="true"><i></i><i></i><i></i></div>
-              <pre><span class="p"># 1 · install Bun (macOS)</span>
+              <pre><span class="p"># 1 · install Bun (macOS + Linux; Windows uses the PowerShell line in RUN.md)</span>
 <span class="c">curl</span> -fsSL https://bun.sh/install | bash
 
-<span class="p"># 2 · get the code and install (macOS + Windows)</span>
-<span class="c">git</span> clone https://github.com/AnaghaP09/juriscore-ai.git
-<span class="c">cd</span> juriscore-ai
-<span class="c">bun</span> run setup
+<span class="p"># 2 · unzip the release package</span>
+<span class="c">unzip</span> juriscore-0.1.0.zip
+<span class="c">cd</span> juriscore-0.1.0
 
-<span class="p"># 3 · run the deterministic validation suite</span>
+<span class="p"># 3 · start it (Windows: start.cmd)</span>
+<span class="c">./start.sh</span>
+<span class="o">  ➜ Listening on: http://localhost:8080/</span>
+
+<span class="p"># the deterministic checks, from a source checkout</span>
 <span class="c">bun</span> run check:core
-<span class="o">  ✔ Veil    input protection checks passed</span>
-<span class="o">  ✔ Plumb   source-of-truth checks passed</span>
-<span class="o">  ✔ Contracts verdict + evidence checks passed</span>
-
-<span class="p"># or launch the web app</span>
-<span class="c">bun</span> run dev  <span class="o">→ http://localhost:8080</span></pre>
+<span class="o">  ✔ Contracts  verdict + evidence checks passed</span>
+<span class="o">  ✔ Veil       input protection checks passed</span>
+<span class="o">  ✔ Plumb      source-of-truth checks passed</span>
+<span class="o">  ✔ MCP        tool boundary checks passed</span>
+<span class="o">  ✔ Receipts   receipt checks passed</span></pre>
             </div>
             <p class="fine">
-              On Windows, <code>bun run setup</code> self-heals antivirus file-locks automatically.
-              A dedicated <code>juriscore</code> command is on the roadmap; today the same checks
-              run through <code>bun run check:*</code>.
+              The checks are deterministic and run headless, so they drop into CI. They are the gate
+              every release package is built behind. There is no <code>juriscore</code> command-line
+              program: the checks run through <code>bun run check:*</code> in a source checkout, and
+              the package ships the app.
             </p>
           </div>
         </section>
@@ -557,10 +563,15 @@
               enterprise controls as usage grows.
             </p>
             <div class="grid-3">
-              <article class="card"><h3>Free</h3><p>Local playground, built-in policy references, and limited Veil and Plumb checks.</p></article>
+              <article class="card"><h3>Free</h3><p>Local playground, every built-in policy pack, and limited Veil and Plumb checks. Built-in policy packs are always free, on every tier.</p></article>
               <article class="card"><h3>Team</h3><p>Usage-based API, custom policies, shared receipts, CI checks, and collaboration.</p></article>
-              <article class="card"><h3>Enterprise</h3><p>SSO, RBAC, private policy packs, dedicated data controls, and priority support.</p></article>
+              <article class="card"><h3>Enterprise</h3><p>The self-hosted deployment: SSO, RBAC, private signed policy packs, offline updates, local receipts, and priority support.</p></article>
             </div>
+            <p class="fine">
+              No tier is sold as compliance. Policy packs guide checks against published references;
+              they do not determine legal applicability, replace qualified review, or certify
+              anything.
+            </p>
           </div>
         </section>
 
