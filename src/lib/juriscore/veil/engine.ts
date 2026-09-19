@@ -39,9 +39,9 @@ interface Detector {
 
 // PDF and DOCX extraction flattens a table row into a label, a column gap, and the value
 // ("Patient Name   Maya Patel"), so a labelled field reaches the engine without its colon.
-// Accept a punctuation separator or a two-space column gap; a single space stays unmatched
-// so ordinary prose does not trip a labelled detector.
-const LABEL_SEPARATOR = "(?:[ \\t]*[:-][ \\t]*|[ \\t]{2,})";
+// Accept a punctuation separator, a two-space column gap, or the single tab that DOCX cell
+// boundaries produce; a single space stays unmatched so prose does not trip a detector.
+const LABEL_SEPARATOR = "(?:[ \\t]*[:-][ \\t]*|[ \\t]{2,}|\\t)";
 
 function labelledPattern(source: string) {
   return new RegExp(source.replace(/<sep>/g, LABEL_SEPARATOR), "gi");
@@ -100,6 +100,110 @@ const DETECTORS: Detector[] = [
     severity: "high",
     scope: "common",
     pattern: /\b\d{3}-\d{2}-\d{4}\b/g,
+  },
+  // Remittance blocks on invoices and statements. These run before the generic
+  // email/phone detectors so a labelled value is consumed with its label intact.
+  {
+    id: "veil.finance.routing_number",
+    category: "routing_number",
+    label: "Bank routing number",
+    code: "ROUTING",
+    severity: "high",
+    scope: "common",
+    pattern: /\b(?:ABA|RTN|Routing(?:[ \t]*(?:Number|No\.?|#))?)\b[ \t]*[:#-]?[ \t]*(\d{9})\b/gi,
+    valueGroup: 1,
+  },
+  {
+    id: "veil.finance.bank_account",
+    category: "bank_account",
+    label: "Bank account number",
+    code: "BANK_ACCOUNT",
+    severity: "high",
+    scope: "common",
+    pattern: labelledPattern(
+      "\\b(?:Bank[ \\t]+Account|Account(?:[ \\t]+(?:Number|No\\.?|#))?|Acct\\.?(?:[ \\t]+(?:Number|No\\.?|#))?)<sep>([A-Z0-9][A-Za-z0-9-]{3,})\\b",
+    ),
+    valueGroup: 1,
+  },
+  {
+    id: "veil.finance.lockbox",
+    category: "bank_account",
+    label: "Lockbox number",
+    code: "LOCKBOX",
+    severity: "high",
+    scope: "common",
+    pattern: /\bLockbox\b[ \t]*[:#-]?[ \t]*([A-Z0-9][A-Za-z0-9-]{2,})\b/gi,
+    valueGroup: 1,
+  },
+  {
+    id: "veil.finance.iban",
+    category: "iban",
+    label: "IBAN",
+    code: "IBAN",
+    severity: "high",
+    scope: "common",
+    pattern: /\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{4}){2,7}(?:[ ]?[A-Z0-9]{1,4})?\b/g,
+  },
+  {
+    id: "veil.finance.swift_bic",
+    category: "swift_bic",
+    label: "SWIFT / BIC code",
+    code: "SWIFT",
+    severity: "high",
+    scope: "common",
+    // Label matched case-sensitively: invoices write it uppercase, and a loose match
+    // would swallow the next ordinary word after a sentence containing "swift".
+    pattern:
+      /\b(?:SWIFT|BIC)(?:[ \t]*\/[ \t]*BIC)?(?:[ \t]+Code)?\b[ \t]*[:#-]?[ \t]*([A-Z]{4}[A-Z0-9]{2,7})\b/g,
+    valueGroup: 1,
+  },
+  {
+    id: "veil.identity.tax_id",
+    category: "tax_id",
+    label: "Tax identification number",
+    code: "TAX_ID",
+    severity: "high",
+    scope: "common",
+    pattern: labelledPattern(
+      "\\b(?:Tax[ \\t]*(?:ID|Identification(?:[ \\t]+Number)?)|EIN|VAT(?:[ \\t]+(?:ID|Number|No\\.?))?|GSTIN|TIN)<sep>([A-Z0-9][A-Za-z0-9-]{3,})\\b",
+    ),
+    valueGroup: 1,
+  },
+  {
+    id: "veil.identity.postal_address",
+    category: "postal_address",
+    label: "Street address",
+    code: "ADDRESS",
+    severity: "medium",
+    scope: "common",
+    // Case-sensitive: a street name is capitalised, which keeps "36 consultant hours"
+    // and similar quantity-plus-noun phrases out of the match.
+    pattern:
+      /\b\d{1,6}[ \t]+(?:[A-Z][A-Za-z.'-]*[ \t]+){0,4}(?:Street|St|Avenue|Ave|Boulevard|Blvd|Road|Rd|Lane|Ln|Drive|Dr|Court|Ct|Plaza|Plz|Crescent|Cres|Way|Terrace|Ter|Place|Pl|Parkway|Pkwy|Circle|Cir|Square|Sq|Highway|Hwy)\.?(?:[ \t]*,?[ \t]*(?:Suite|Ste|Apt|Unit|Floor|Fl|Rm|Room|#)\.?[ \t]*[A-Za-z0-9-]+)?/g,
+  },
+  {
+    id: "veil.identity.postal_locality",
+    category: "postal_locality",
+    label: "City, state, and ZIP",
+    code: "LOCALITY",
+    severity: "medium",
+    scope: "common",
+    // Redacting the street line alone still leaves a locality precise enough to
+    // re-identify, which HIPAA Safe Harbor treats as an identifier in its own right.
+    pattern:
+      /\b[A-Z][A-Za-z.'-]+(?:[ \t]+[A-Z][A-Za-z.'-]+){0,3},[ \t]*(?:A[KLRZ]|C[AOT]|D[CE]|FL|GA|HI|I[ADLN]|K[SY]|LA|M[ADEINOST]|N[CDEHJMVY]|O[HKR]|P[AR]|RI|S[CD]|T[NX]|UT|V[AT]|W[AIVY])[ \t]+\d{5}(?:-\d{4})?\b/g,
+  },
+  {
+    id: "veil.identity.contact_name",
+    category: "contact_name",
+    label: "Named contact",
+    code: "CONTACT_NAME",
+    severity: "medium",
+    scope: "common",
+    pattern: labelledPattern(
+      "\\b(?:Attn|Attention|Contact(?:[ \\t]+Name)?|Account[ \\t]+Manager|Customer[ \\t]+Success[ \\t]+Lead|Sales[ \\t]+Rep(?:resentative)?|Prepared[ \\t]+By|Authori[sz]ed[ \\t]+By|Signed[ \\t]+By|Billing[ \\t]+Contact|Project[ \\t]+Manager)<sep>([A-Z][A-Za-z'-]+(?:[ \\t]+[A-Z][A-Za-z'-]+){1,3})\\b",
+    ),
+    valueGroup: 1,
   },
   {
     id: "veil.common.email",
@@ -266,8 +370,12 @@ export function protectText(
       const replacement =
         strategy === "tokenize" ? `[${detector.code}_${index + 1}]` : `[REDACTED_${detector.code}]`;
       const flags = detector.pattern.flags.includes("i") ? "gi" : "g";
+      // Guard both ends: a detected value is replaced everywhere it stands on its own,
+      // but never where it happens to sit inside a longer token. Without this, a short
+      // value such as a lockbox "00027" also overwrites the middle of an unrelated tax
+      // ID ("SAMPLE-94-0002718"), mangling the output and double-counting the receipt.
       sanitizedText = sanitizedText.replace(
-        new RegExp(escapeRegularExpression(value), flags),
+        new RegExp(`(?<![A-Za-z0-9])${escapeRegularExpression(value)}(?![A-Za-z0-9])`, flags),
         () => {
           count += 1;
           replacements.push(replacement);
