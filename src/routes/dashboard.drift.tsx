@@ -108,6 +108,12 @@ const DOCS: Record<"sec" | "deck" | "policy", Doc> = {
 
 type DocKey = keyof typeof DOCS;
 
+// Subjects the diff and document panes can highlight, keyed by the claim tag on each line.
+const CLAIM_KEY_BY_SUBJECT: Record<string, string> = {
+  cross_border_fee: "fee",
+  kyc_threshold: "kyc",
+};
+
 const sourceReference = (sourceId: string, locator: string) => ({
   sourceId,
   sourceVersion: "synthetic-pr-2431",
@@ -195,7 +201,7 @@ function DriftView() {
   } = useDemoStore();
   const [doc, setDoc] = useState<DocKey>("sec");
   const [ran, setRan] = useState(false);
-  const [highlightClaim, setHighlightClaim] = useState<string | null>(null);
+  const [highlightClaims, setHighlightClaims] = useState<string[]>([]);
   const [evaluation, setEvaluation] = useState<PlumbResult | null>(null);
   const [receipt, setReceipt] = useState<ValidationReceipt | null>(null);
   const [receiptError, setReceiptError] = useState<string | null>(null);
@@ -211,7 +217,6 @@ function DriftView() {
     const nextEvaluation = compareClaims(codeClaims(driftMode), DOCUMENT_CLAIMS[doc], {
       policyIds: activePlumbPolicies.map((policy) => policy.id),
     });
-    const driftFinding = nextEvaluation.findings.find((finding) => finding.status === "drifted");
     setRan(true);
     setEvaluation(nextEvaluation);
     recordPlumbCheck({
@@ -221,12 +226,13 @@ function DriftView() {
       drifted: nextEvaluation.counts.drifted,
       cannotDetermine: nextEvaluation.counts.cannot_determine,
     });
-    setHighlightClaim(
-      driftFinding?.subject === "cross_border_fee"
-        ? "fee"
-        : driftFinding?.subject === "kyc_threshold"
-          ? "kyc"
-          : null,
+    // Every contradiction is flagged, not just the first: a merge gate that reveals one
+    // of two mismatches sends the author back for a second round after they fix it.
+    setHighlightClaims(
+      nextEvaluation.findings
+        .filter((finding) => finding.status === "drifted")
+        .map((finding) => CLAIM_KEY_BY_SUBJECT[finding.subject])
+        .filter((claim): claim is string => Boolean(claim)),
     );
   };
 
@@ -255,7 +261,13 @@ function DriftView() {
     }
   };
 
-  const primaryDrift = evaluation?.findings.find((finding) => finding.status === "drifted");
+  const driftFindings =
+    evaluation?.findings.filter((finding) => finding.status === "drifted") ?? [];
+  // Each contradicting sentence cites the authority it actually conflicts with, rather
+  // than borrowing the locator of whichever drift happened to be found first.
+  const driftByAssertionLocator = new Map(
+    driftFindings.map((finding) => [finding.assertion.reference.locator, finding]),
+  );
   const displayedDiffLines = DIFF_LINES.map((line) => {
     if (driftMode === "drift") return line;
     if (line.n === 42) return { ...line, text: "  kycThreshold: 10_000, // normalized" };
@@ -280,7 +292,7 @@ function DriftView() {
                   setDriftMode(checked ? "drift" : "clean");
                   setRan(false);
                   setEvaluation(null);
-                  setHighlightClaim(null);
+                  setHighlightClaims([]);
                   setReceipt(null);
                   setReceiptError(null);
                 }}
@@ -343,7 +355,7 @@ function DriftView() {
           <CardContent className="p-0">
             <pre className="text-xs font-mono overflow-x-auto" aria-label="Git diff of payments.ts">
               {displayedDiffLines.map((l) => {
-                const hit = ran && highlightClaim && l.claim === highlightClaim;
+                const hit = ran && Boolean(l.claim) && highlightClaims.includes(l.claim!);
                 const bg = l.kind === "add" ? "diff-add" : l.kind === "del" ? "diff-del" : "";
                 const flag = hit ? "outline outline-2 outline-[color:var(--block)]" : "";
                 return (
@@ -378,7 +390,7 @@ function DriftView() {
                 setDoc(value as DocKey);
                 setRan(false);
                 setEvaluation(null);
-                setHighlightClaim(null);
+                setHighlightClaims([]);
                 setReceipt(null);
                 setReceiptError(null);
               }}
@@ -394,7 +406,8 @@ function DriftView() {
                 <TabsContent key={k} value={k} className="mt-3 space-y-2">
                   <div className="text-xs text-muted-foreground font-mono">{DOCS[k].label}</div>
                   {DOCS[k].sentences.map((s) => {
-                    const hit = ran && highlightClaim && s.claim === highlightClaim;
+                    const drift = driftByAssertionLocator.get(s.id);
+                    const hit = ran && Boolean(s.claim) && highlightClaims.includes(s.claim!);
                     return (
                       <p
                         key={s.id}
@@ -406,7 +419,7 @@ function DriftView() {
                       >
                         {hit && (
                           <span className="inline-block mr-2 text-[10px] font-mono text-[color:var(--block)] uppercase">
-                            Contradicts +{primaryDrift?.authority?.reference.locator ?? "source"}
+                            Contradicts +{drift?.authority?.reference.locator ?? "source"}
                           </span>
                         )}
                         {s.text}
@@ -446,7 +459,9 @@ function DriftView() {
                     <AlertOctagon className="h-6 w-6 text-[color:var(--block)]" aria-hidden />
                     <div>
                       <div className="font-semibold text-[color:var(--block)]">
-                        Contradiction found
+                        {evaluation.counts.drifted === 1
+                          ? "Contradiction found"
+                          : `${evaluation.counts.drifted} contradictions found`}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         Merge blocked — author needs to explain or update the docs
@@ -468,9 +483,13 @@ function DriftView() {
                     </div>
                     <div>
                       <dt className="text-xs text-muted-foreground">Where</dt>
-                      <dd className="font-mono">
-                        {primaryDrift?.authority?.reference.locator} ↔{" "}
-                        {primaryDrift?.assertion.reference.locator}
+                      <dd className="font-mono space-y-0.5">
+                        {driftFindings.map((finding) => (
+                          <div key={finding.id}>
+                            {finding.authority?.reference.locator} ↔{" "}
+                            {finding.assertion.reference.locator}
+                          </div>
+                        ))}
                       </dd>
                     </div>
                   </dl>
@@ -481,21 +500,35 @@ function DriftView() {
                     <HelpCircle className="h-6 w-6 text-[color:var(--revise)]" aria-hidden />
                     <div>
                       <div className="font-semibold text-[color:var(--revise)]">
-                        Cannot determine
+                        {evaluation.counts.cannot_determine > 0
+                          ? "Cannot determine"
+                          : "Review required"}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        A compatible authoritative source was not supplied for this assertion
+                        {evaluation.counts.cannot_determine > 0
+                          ? "A compatible authoritative source was not supplied for this assertion"
+                          : "No evaluation policy is active, so this run is not covered by a policy pack"}
                       </div>
                     </div>
                   </div>
                   <dl className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <dt className="text-xs text-muted-foreground">Unresolved</dt>
-                      <dd className="font-mono">{evaluation.counts.cannot_determine}</dd>
+                      <dt className="text-xs text-muted-foreground">
+                        {evaluation.counts.cannot_determine > 0 ? "Unresolved" : "Policies"}
+                      </dt>
+                      <dd className="font-mono">
+                        {evaluation.counts.cannot_determine > 0
+                          ? evaluation.counts.cannot_determine
+                          : evaluation.policyIds.length}
+                      </dd>
                     </div>
                     <div>
                       <dt className="text-xs text-muted-foreground">Action</dt>
-                      <dd className="font-mono">Add source or review</dd>
+                      <dd className="font-mono">
+                        {evaluation.counts.cannot_determine > 0
+                          ? "Add source or review"
+                          : "Activate a policy pack"}
+                      </dd>
                     </div>
                   </dl>
                 </>
