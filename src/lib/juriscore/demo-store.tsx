@@ -105,6 +105,8 @@ export const SIMULATED_SEED = {
 } as const;
 
 const METRICS_STORAGE_KEY = "juriscore.localMetrics.v1";
+const REPOSITORY_STORAGE_KEY = "juriscore.plumbRepository.v1";
+const DOCUMENTS_STORAGE_KEY = "juriscore.plumbDocuments.v1";
 
 const seededLedger = (): LocalMetricsLedger => ({ version: 1, simulated: true, days: {} });
 
@@ -155,6 +157,31 @@ export function summarizeTrailingWeek(ledger: LocalMetricsLedger) {
   return summary;
 }
 
+/** A repository the user connected so Plumb can read a real pull request from it. */
+export interface ConnectedRepository {
+  owner: string;
+  repo: string;
+  pullNumber: number | null;
+  /** The unified diff, however it arrived: pasted by hand or fetched from GitHub. */
+  diff: string;
+  origin: "pasted" | "fetched";
+  loadedAt: string;
+}
+
+/**
+ * A document uploaded on the Plumb side. Only the extracted text is kept — the file
+ * itself never leaves the browser and is not stored.
+ */
+export interface SourceDocument {
+  id: string;
+  name: string;
+  kind: string;
+  text: string;
+  /** Policy pack this document is reviewed under. */
+  policyId: string;
+  uploadedAt: string;
+}
+
 interface DemoStore {
   activeModel: ModelId;
   setActiveModel: (m: ModelId) => void;
@@ -174,6 +201,12 @@ interface DemoStore {
   recordReceipt: (receipt: SessionReceiptEntry) => void;
   seedDemoMetrics: () => void;
   sessionReceipts: SessionReceiptEntry[];
+  connectedRepository: ConnectedRepository | null;
+  setConnectedRepository: (repository: ConnectedRepository | null) => void;
+  sourceDocuments: SourceDocument[];
+  addSourceDocument: (document: SourceDocument) => void;
+  removeSourceDocument: (id: string) => void;
+  setSourceDocumentPolicy: (id: string, policyId: string) => void;
   resetDemo: () => void;
 }
 
@@ -188,14 +221,22 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
   const [customPolicies, setCustomPolicies] = useState<PolicyDefinition[]>([]);
   const [localMetrics, setLocalMetrics] = useState<LocalMetricsLedger>(seededLedger);
   const [sessionReceipts, setSessionReceipts] = useState<SessionReceiptEntry[]>([]);
+  const [connectedRepository, setConnectedRepository] = useState<ConnectedRepository | null>(null);
+  const [sourceDocuments, setSourceDocuments] = useState<SourceDocument[]>([]);
 
   useEffect(() => {
     try {
       const savedActive = window.localStorage.getItem("juriscore.activePolicyIds");
       const savedCustom = window.localStorage.getItem("juriscore.customPolicies");
       const savedMetrics = window.localStorage.getItem(METRICS_STORAGE_KEY);
+      const savedRepository = window.localStorage.getItem(REPOSITORY_STORAGE_KEY);
+      const savedDocuments = window.localStorage.getItem(DOCUMENTS_STORAGE_KEY);
       if (savedActive) setActivePolicyIds(JSON.parse(savedActive) as string[]);
       if (savedCustom) setCustomPolicies(JSON.parse(savedCustom) as PolicyDefinition[]);
+      if (savedRepository) {
+        setConnectedRepository(JSON.parse(savedRepository) as ConnectedRepository);
+      }
+      if (savedDocuments) setSourceDocuments(JSON.parse(savedDocuments) as SourceDocument[]);
       if (savedMetrics) {
         const parsed = JSON.parse(savedMetrics) as LocalMetricsLedger;
         if (parsed.version === 1) {
@@ -218,6 +259,43 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     window.localStorage.setItem(METRICS_STORAGE_KEY, JSON.stringify(localMetrics));
   }, [localMetrics]);
+
+  // A diff and the extracted text of several documents can outgrow the storage quota.
+  // Failing to persist them is not worth losing the session over: the sources stay in
+  // memory and simply do not survive a reload.
+  useEffect(() => {
+    try {
+      if (connectedRepository) {
+        window.localStorage.setItem(REPOSITORY_STORAGE_KEY, JSON.stringify(connectedRepository));
+      } else {
+        window.localStorage.removeItem(REPOSITORY_STORAGE_KEY);
+      }
+    } catch {
+      // Quota exceeded or storage unavailable.
+    }
+  }, [connectedRepository]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(DOCUMENTS_STORAGE_KEY, JSON.stringify(sourceDocuments));
+    } catch {
+      // Quota exceeded or storage unavailable.
+    }
+  }, [sourceDocuments]);
+
+  const addSourceDocument = useCallback((document: SourceDocument) => {
+    setSourceDocuments((prev) => [...prev.filter((item) => item.id !== document.id), document]);
+  }, []);
+
+  const removeSourceDocument = useCallback((id: string) => {
+    setSourceDocuments((prev) => prev.filter((item) => item.id !== id));
+  }, []);
+
+  const setSourceDocumentPolicy = useCallback((id: string, policyId: string) => {
+    setSourceDocuments((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, policyId } : item)),
+    );
+  }, []);
 
   const pushRun = useCallback((r: GatewayRun) => {
     setRecentRuns((prev) => [r, ...prev].slice(0, 20));
@@ -297,6 +375,8 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     setCustomPolicies([]);
     setLocalMetrics(seededLedger());
     setSessionReceipts([]);
+    setConnectedRepository(null);
+    setSourceDocuments([]);
   }, []);
 
   const value = useMemo(
@@ -319,6 +399,12 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       recordReceipt,
       seedDemoMetrics,
       sessionReceipts,
+      connectedRepository,
+      setConnectedRepository,
+      sourceDocuments,
+      addSourceDocument,
+      removeSourceDocument,
+      setSourceDocumentPolicy,
       resetDemo,
     }),
     [
@@ -337,6 +423,11 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       recordReceipt,
       seedDemoMetrics,
       sessionReceipts,
+      connectedRepository,
+      sourceDocuments,
+      addSourceDocument,
+      removeSourceDocument,
+      setSourceDocumentPolicy,
       resetDemo,
     ],
   );

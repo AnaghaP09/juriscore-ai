@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ import {
   Download,
   HelpCircle,
   BookOpen,
+  Upload,
 } from "lucide-react";
 import { useDemoStore } from "@/lib/juriscore/demo-store";
 import { compareClaims, type PlumbClaim, type PlumbResult } from "@/lib/juriscore/plumb/engine";
@@ -23,6 +24,15 @@ import { createReceipt, downloadReceipt } from "@/lib/juriscore/core/receipts";
 import { plumbReceiptInput } from "@/lib/juriscore/plumb/receipt";
 import type { ValidationReceipt } from "@/lib/juriscore/core/contracts";
 import { ReceiptSummary } from "@/components/receipt-summary";
+import { PlumbSources } from "@/components/plumb-sources";
+import {
+  BUILT_IN_SUBJECTS,
+  claimsFromDiff,
+  claimsFromDocument,
+  documentSentences,
+  parseUnifiedDiff,
+  type DiffLine,
+} from "@/lib/juriscore/plumb/sources";
 
 export const Route = createFileRoute("/dashboard/drift")({
   head: () => ({
@@ -37,136 +47,65 @@ export const Route = createFileRoute("/dashboard/drift")({
   component: DriftView,
 });
 
-const DIFF_LINES: Array<{ n: number; kind: "add" | "del" | "ctx"; text: string; claim?: string }> =
-  [
-    { n: 40, kind: "ctx", text: "export const payments = {" },
-    { n: 41, kind: "del", text: "  kycThreshold: 10_000," },
-    { n: 42, kind: "add", text: "  kycThreshold: 25_000,", claim: "kyc" },
-    { n: 43, kind: "ctx", text: '  currency: "USD",' },
-    { n: 44, kind: "del", text: "  crossBorderFeeBps: 100, // 1.0%" },
-    { n: 45, kind: "add", text: "  crossBorderFeeBps: 250, // 2.5%", claim: "fee" },
-    { n: 46, kind: "ctx", text: "};" },
-  ];
+// The risky pull request raises both audited values, contradicting the documents.
+const DRIFT_DIFF_LINES: DiffLine[] = [
+  { n: 40, kind: "ctx", text: "export const payments = {" },
+  { n: 41, kind: "del", text: "  kycThreshold: 10_000," },
+  { n: 42, kind: "add", text: "  kycThreshold: 25_000," },
+  { n: 43, kind: "ctx", text: '  currency: "USD",' },
+  { n: 44, kind: "del", text: "  crossBorderFeeBps: 100, // 1.0%" },
+  { n: 45, kind: "add", text: "  crossBorderFeeBps: 250, // 2.5%" },
+  { n: 46, kind: "ctx", text: "};" },
+];
 
-interface Sentence {
-  id: string;
-  text: string;
-  claim?: string;
-}
-interface Doc {
-  label: string;
-  sentences: Sentence[];
-}
+// The safe pull request leaves the audited values untouched and changes something else.
+// Plumb reports drift; it never edits code, so showing a "corrected" line here would
+// claim a capability the product does not have.
+const CLEAN_DIFF_LINES: DiffLine[] = [
+  { n: 40, kind: "ctx", text: "export const payments = {" },
+  { n: 41, kind: "ctx", text: "  // thresholds owned by compliance-config" },
+  { n: 42, kind: "ctx", text: "  kycThreshold: 10_000," },
+  { n: 43, kind: "del", text: "  retryLimit: 3," },
+  { n: 44, kind: "add", text: "  retryLimit: 5," },
+  { n: 45, kind: "ctx", text: "  crossBorderFeeBps: 100, // 1.0%" },
+  { n: 46, kind: "ctx", text: "};" },
+];
 
-const DOCS: Record<"sec" | "deck" | "policy", Doc> = {
-  sec: {
-    label: "SEC 10-K excerpt",
-    sentences: [
-      {
-        id: "s1",
-        text: "Our Know-Your-Customer program applies enhanced due diligence to any single transaction exceeding $10,000, consistent with BSA/AML expectations.",
-        claim: "kyc",
-      },
-      {
-        id: "s2",
-        text: "Cross-border remittance fees disclosed to retail customers remain capped at 1.0% of principal for the reporting period.",
-        claim: "fee",
-      },
-      {
-        id: "s3",
-        text: "The Company maintains independent oversight of all pricing changes through the Fee Review Committee.",
-      },
-    ],
+/**
+ * Sample documents the workbench can load on demand so it demonstrates itself with
+ * nothing connected. They become ordinary uploaded documents once loaded — there is one
+ * document model, so a sample and a real filing behave identically.
+ */
+const SAMPLE_DOCUMENTS: Array<{ name: string; text: string }> = [
+  {
+    name: "sec-10k-excerpt.txt",
+    text: [
+      "Our Know-Your-Customer program applies enhanced due diligence to any single transaction exceeding $10,000, consistent with BSA/AML expectations.",
+      "Cross-border remittance fees disclosed to retail customers remain capped at 1.0% of principal for the reporting period.",
+      "The Company maintains independent oversight of all pricing changes through the Fee Review Committee.",
+    ].join("\n"),
   },
-  deck: {
-    label: "Customer sales deck · slide 12",
-    sentences: [
-      {
-        id: "d1",
-        text: "Send money across 40 markets with a flat 1% cross-border fee — the lowest transparent rate in the segment.",
-        claim: "fee",
-      },
-      {
-        id: "d2",
-        text: "KYC verification runs automatically for any transaction over $10K.",
-        claim: "kyc",
-      },
-    ],
+  {
+    name: "sales-deck-slide-12.txt",
+    text: [
+      "Send money across 40 markets with a flat 1% cross-border fee — the lowest transparent rate in the segment.",
+      "KYC verification runs automatically for any transaction over $10K.",
+    ].join("\n"),
   },
-  policy: {
-    label: "Internal policy · pricing-v3.pdf",
-    sentences: [
-      { id: "p1", text: "Fee schedule changes require CFO sign-off and a 30-day customer notice." },
-      {
-        id: "p2",
-        text: "KYC monetary thresholds are governed centrally and cannot be adjusted at the product layer.",
-        claim: "kyc",
-      },
-    ],
+  {
+    name: "internal-pricing-policy.txt",
+    text: [
+      "Fee schedule changes require CFO sign-off and a 30-day customer notice.",
+      "KYC monetary thresholds are governed centrally and cannot be adjusted at the product layer.",
+    ].join("\n"),
   },
-};
-
-type DocKey = keyof typeof DOCS;
-
-// Subjects the diff and document panes can highlight, keyed by the claim tag on each line.
-const CLAIM_KEY_BY_SUBJECT: Record<string, string> = {
-  cross_border_fee: "fee",
-  kyc_threshold: "kyc",
-};
+];
 
 const sourceReference = (sourceId: string, locator: string) => ({
   sourceId,
   sourceVersion: "synthetic-pr-2431",
   locator,
 });
-
-const DOCUMENT_CLAIMS: Record<DocKey, PlumbClaim[]> = {
-  sec: [
-    {
-      id: "sec-kyc",
-      subject: "kyc_threshold",
-      value: 10_000,
-      unit: "USD",
-      statement: DOCS.sec.sentences[0].text,
-      reference: sourceReference("sec-10k-excerpt", "s1"),
-    },
-    {
-      id: "sec-fee",
-      subject: "cross_border_fee",
-      value: 1,
-      unit: "percent",
-      statement: DOCS.sec.sentences[1].text,
-      reference: sourceReference("sec-10k-excerpt", "s2"),
-    },
-  ],
-  deck: [
-    {
-      id: "deck-fee",
-      subject: "cross_border_fee",
-      value: 1,
-      unit: "percent",
-      statement: DOCS.deck.sentences[0].text,
-      reference: sourceReference("sales-deck-v12", "d1"),
-    },
-    {
-      id: "deck-kyc",
-      subject: "kyc_threshold",
-      value: 10_000,
-      unit: "USD",
-      statement: DOCS.deck.sentences[1].text,
-      reference: sourceReference("sales-deck-v12", "d2"),
-    },
-  ],
-  policy: [
-    {
-      id: "policy-governance",
-      subject: "kyc_governance",
-      value: "central_only",
-      statement: DOCS.policy.sentences[1].text,
-      reference: sourceReference("pricing-v3.pdf", "p2"),
-    },
-  ],
-};
 
 function codeClaims(driftMode: "clean" | "drift"): PlumbClaim[] {
   return [
@@ -189,6 +128,27 @@ function codeClaims(driftMode: "clean" | "drift"): PlumbClaim[] {
   ];
 }
 
+/** One citable line of a document. `locator` is set only when it contradicts the code. */
+function DocumentSentenceLine({ text, locator }: { text: string; locator?: string }) {
+  const hit = Boolean(locator);
+  return (
+    <p
+      className={`text-sm leading-relaxed p-2 rounded-md border transition-colors ${
+        hit
+          ? "border-[color:var(--block)]/60 bg-[color:var(--block)]/10 text-foreground"
+          : "border-transparent text-muted-foreground"
+      }`}
+    >
+      {hit && (
+        <span className="inline-block mr-2 text-[10px] font-mono text-[color:var(--block)] uppercase">
+          Contradicts +{locator}
+        </span>
+      )}
+      {text}
+    </p>
+  );
+}
+
 function DriftView() {
   const {
     driftMode,
@@ -198,10 +158,15 @@ function DriftView() {
     customPolicies,
     recordPlumbCheck,
     recordReceipt,
+    connectedRepository,
+    setConnectedRepository,
+    sourceDocuments,
+    addSourceDocument,
+    removeSourceDocument,
+    setSourceDocumentPolicy,
   } = useDemoStore();
-  const [doc, setDoc] = useState<DocKey>("sec");
+  const [doc, setDoc] = useState<string>("sec");
   const [ran, setRan] = useState(false);
-  const [highlightClaims, setHighlightClaims] = useState<string[]>([]);
   const [evaluation, setEvaluation] = useState<PlumbResult | null>(null);
   const [receipt, setReceipt] = useState<ValidationReceipt | null>(null);
   const [receiptError, setReceiptError] = useState<string | null>(null);
@@ -210,11 +175,63 @@ function DriftView() {
     [activePolicyIds, customPolicies],
   );
 
+  // A connected pull request replaces the built-in sample on the code side; the sample
+  // stays available so the workbench still demonstrates itself with nothing connected.
+  const parsedDiff = useMemo(() => {
+    if (!connectedRepository) return null;
+    return parseUnifiedDiff(connectedRepository.diff)[0] ?? null;
+  }, [connectedRepository]);
+
+  // The document side is entirely what the user supplied. With nothing uploaded there
+  // are no tabs to show rather than stale samples standing in for real documents.
+  const selectedDoc =
+    sourceDocuments.find((document) => document.id === doc) ?? sourceDocuments[0] ?? null;
+
+  const authorities = useMemo(() => {
+    if (!parsedDiff || !connectedRepository) return codeClaims(driftMode);
+    return claimsFromDiff(
+      parsedDiff,
+      BUILT_IN_SUBJECTS,
+      connectedRepository.pullNumber
+        ? `pr-${connectedRepository.pullNumber}`
+        : connectedRepository.loadedAt,
+    );
+  }, [parsedDiff, connectedRepository, driftMode]);
+
+  const selectedSentences = useMemo(
+    () => (selectedDoc ? documentSentences(selectedDoc.text) : []),
+    [selectedDoc],
+  );
+
+  const assertions = useMemo(() => {
+    if (!selectedDoc) return [];
+    return claimsFromDocument(selectedSentences, BUILT_IN_SUBJECTS, {
+      sourceId: selectedDoc.name,
+      sourceVersion: selectedDoc.uploadedAt,
+    });
+  }, [selectedDoc, selectedSentences]);
+
+  const loadSampleDocuments = () => {
+    const now = new Date().toISOString();
+    for (const sample of SAMPLE_DOCUMENTS) {
+      addSourceDocument({
+        id: `sample-${sample.name}`,
+        name: sample.name,
+        kind: "sample",
+        text: sample.text,
+        policyId: activePlumbPolicies[0]?.id ?? "",
+        uploadedAt: now,
+      });
+    }
+    setDoc(`sample-${SAMPLE_DOCUMENTS[0].name}`);
+    resetRun();
+  };
+
   const runJudge = () => {
     if (killSwitch) return;
     setReceipt(null);
     setReceiptError(null);
-    const nextEvaluation = compareClaims(codeClaims(driftMode), DOCUMENT_CLAIMS[doc], {
+    const nextEvaluation = compareClaims(authorities, assertions, {
       policyIds: activePlumbPolicies.map((policy) => policy.id),
     });
     setRan(true);
@@ -226,14 +243,18 @@ function DriftView() {
       drifted: nextEvaluation.counts.drifted,
       cannotDetermine: nextEvaluation.counts.cannot_determine,
     });
-    // Every contradiction is flagged, not just the first: a merge gate that reveals one
-    // of two mismatches sends the author back for a second round after they fix it.
-    setHighlightClaims(
-      nextEvaluation.findings
-        .filter((finding) => finding.status === "drifted")
-        .map((finding) => CLAIM_KEY_BY_SUBJECT[finding.subject])
-        .filter((claim): claim is string => Boolean(claim)),
-    );
+  };
+
+  const openDocumentPicker = useRef<(() => void) | null>(null);
+  const registerUploadTrigger = useCallback((open: () => void) => {
+    openDocumentPicker.current = open;
+  }, []);
+
+  const resetRun = () => {
+    setRan(false);
+    setEvaluation(null);
+    setReceipt(null);
+    setReceiptError(null);
   };
 
   const generateReceipt = async () => {
@@ -242,7 +263,7 @@ function DriftView() {
       const nextReceipt = await createReceipt(
         plumbReceiptInput(
           evaluation,
-          { authorities: codeClaims(driftMode), assertions: DOCUMENT_CLAIMS[doc] },
+          { authorities, assertions },
           activePlumbPolicies.map((policy) => ({ id: policy.id, version: policy.version })),
         ),
       );
@@ -268,12 +289,22 @@ function DriftView() {
   const driftByAssertionLocator = new Map(
     driftFindings.map((finding) => [finding.assertion.reference.locator, finding]),
   );
-  const displayedDiffLines = DIFF_LINES.map((line) => {
-    if (driftMode === "drift") return line;
-    if (line.n === 42) return { ...line, text: "  kycThreshold: 10_000, // normalized" };
-    if (line.n === 45) return { ...line, text: "  crossBorderFeeBps: 100, // 1.0%" };
-    return line;
-  });
+  // Highlighting keys off the source locator a finding already carries, so it works the
+  // same for a connected pull request as for the built-in sample.
+  const driftedCodeLocators = new Set(
+    driftFindings.map((finding) => finding.authority?.reference.locator),
+  );
+
+  const displayedDiffLines: DiffLine[] =
+    parsedDiff?.lines ?? (driftMode === "drift" ? DRIFT_DIFF_LINES : CLEAN_DIFF_LINES);
+  const additions = displayedDiffLines.filter((line) => line.kind === "add").length;
+  const deletions = displayedDiffLines.filter((line) => line.kind === "del").length;
+  const diffPath = parsedDiff?.path ?? "payments.ts";
+  const diffLabel = connectedRepository
+    ? `${connectedRepository.owner}/${connectedRepository.repo}${
+        connectedRepository.pullNumber ? ` · PR #${connectedRepository.pullNumber}` : ""
+      }`
+    : "PR #2431";
 
   return (
     <div className="p-6 sm:p-8 space-y-6">
@@ -284,24 +315,22 @@ function DriftView() {
         description="When your code changes but the docs, marketing decks, or filings don't, Plumb flags the mismatch — with the exact line — before the pull request is merged."
         actions={
           <>
-            <div className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2">
-              <Switch
-                id="pr-toggle"
-                checked={driftMode === "drift"}
-                onCheckedChange={(checked) => {
-                  setDriftMode(checked ? "drift" : "clean");
-                  setRan(false);
-                  setEvaluation(null);
-                  setHighlightClaims([]);
-                  setReceipt(null);
-                  setReceiptError(null);
-                }}
-              />
-              <label htmlFor="pr-toggle" className="text-sm">
-                Simulate a risky pull request
-              </label>
-            </div>
-            <Button onClick={runJudge} disabled={killSwitch}>
+            {!connectedRepository && (
+              <div className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2">
+                <Switch
+                  id="pr-toggle"
+                  checked={driftMode === "drift"}
+                  onCheckedChange={(checked) => {
+                    setDriftMode(checked ? "drift" : "clean");
+                    resetRun();
+                  }}
+                />
+                <label htmlFor="pr-toggle" className="text-sm">
+                  Simulate a risky pull request
+                </label>
+              </div>
+            )}
+            <Button onClick={runJudge} disabled={killSwitch || !selectedDoc}>
               {killSwitch ? (
                 <>
                   <Lock className="h-4 w-4 mr-2" /> Blocked
@@ -342,24 +371,55 @@ function DriftView() {
         </CardContent>
       </Card>
 
+      <PlumbSources
+        repository={connectedRepository}
+        onRepositoryChange={(next) => {
+          setConnectedRepository(next);
+          resetRun();
+        }}
+        documents={sourceDocuments}
+        onDocumentAdd={(document) => {
+          addSourceDocument(document);
+          setDoc(document.id);
+          resetRun();
+        }}
+        onDocumentRemove={(id) => {
+          removeSourceDocument(id);
+          if (doc === id) setDoc("sec");
+          resetRun();
+        }}
+        onDocumentPolicyChange={setSourceDocumentPolicy}
+        policies={activePlumbPolicies}
+        parsedDiff={parsedDiff}
+        registerUploadTrigger={registerUploadTrigger}
+      />
+
       <div className="grid lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center justify-between">
               <span className="font-mono">
-                payments.ts <span className="text-muted-foreground">· PR #2431</span>
+                {diffPath} <span className="text-muted-foreground">· {diffLabel}</span>
               </span>
-              <Badge variant="outline">+2 −2</Badge>
+              <Badge variant="outline">
+                +{additions} −{deletions}
+              </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <pre className="text-xs font-mono overflow-x-auto" aria-label="Git diff of payments.ts">
-              {displayedDiffLines.map((l) => {
-                const hit = ran && Boolean(l.claim) && highlightClaims.includes(l.claim!);
+            <pre
+              className="text-xs font-mono overflow-x-auto"
+              aria-label={`Git diff of ${diffPath}`}
+            >
+              {displayedDiffLines.map((l, index) => {
+                const hit = ran && l.kind === "add" && driftedCodeLocators.has(`line ${l.n}`);
                 const bg = l.kind === "add" ? "diff-add" : l.kind === "del" ? "diff-del" : "";
                 const flag = hit ? "outline outline-2 outline-[color:var(--block)]" : "";
                 return (
-                  <div key={l.n} className={`flex items-start ${bg} ${flag}`}>
+                  <div
+                    key={`${l.kind}-${l.n}-${index}`}
+                    className={`flex items-start ${bg} ${flag}`}
+                  >
                     <span className="w-10 text-right pr-2 text-muted-foreground/60 select-none border-r border-border/40 py-0.5">
                       {l.n}
                     </span>
@@ -384,51 +444,74 @@ function DriftView() {
             <CardTitle className="text-sm">What the docs still say</CardTitle>
           </CardHeader>
           <CardContent>
-            <Tabs
-              value={doc}
-              onValueChange={(value) => {
-                setDoc(value as DocKey);
-                setRan(false);
-                setEvaluation(null);
-                setHighlightClaims([]);
-                setReceipt(null);
-                setReceiptError(null);
-              }}
-            >
-              <TabsList className="grid grid-cols-3 w-full">
-                {(Object.keys(DOCS) as DocKey[]).map((k) => (
-                  <TabsTrigger key={k} value={k}>
-                    {DOCS[k].label.split("·")[0].trim()}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-              {(Object.keys(DOCS) as DocKey[]).map((k) => (
-                <TabsContent key={k} value={k} className="mt-3 space-y-2">
-                  <div className="text-xs text-muted-foreground font-mono">{DOCS[k].label}</div>
-                  {DOCS[k].sentences.map((s) => {
-                    const drift = driftByAssertionLocator.get(s.id);
-                    const hit = ran && Boolean(s.claim) && highlightClaims.includes(s.claim!);
-                    return (
-                      <p
-                        key={s.id}
-                        className={`text-sm leading-relaxed p-2 rounded-md border transition-colors ${
-                          hit
-                            ? "border-[color:var(--block)]/60 bg-[color:var(--block)]/10 text-foreground"
-                            : "border-transparent text-muted-foreground"
-                        }`}
-                      >
-                        {hit && (
-                          <span className="inline-block mr-2 text-[10px] font-mono text-[color:var(--block)] uppercase">
-                            Contradicts +{drift?.authority?.reference.locator ?? "source"}
-                          </span>
-                        )}
-                        {s.text}
+            {sourceDocuments.length === 0 ? (
+              <div className="space-y-3 py-6 text-center">
+                <p className="text-sm text-muted-foreground">
+                  No documents yet. Upload the filings, decks, and policies that make claims about
+                  this code, and each one becomes a tab here.
+                </p>
+                <div className="flex flex-col items-center gap-2">
+                  <Button size="sm" onClick={() => openDocumentPicker.current?.()}>
+                    <Upload className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                    Upload documents
+                  </Button>
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline underline-offset-2"
+                    onClick={loadSampleDocuments}
+                  >
+                    or try it with sample documents
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <Tabs
+                value={selectedDoc?.id ?? ""}
+                onValueChange={(value) => {
+                  setDoc(value);
+                  resetRun();
+                }}
+              >
+                <TabsList className="flex w-full flex-wrap">
+                  {sourceDocuments.map((document) => (
+                    <TabsTrigger
+                      key={document.id}
+                      value={document.id}
+                      className="flex-1 truncate"
+                      title={document.name}
+                    >
+                      {document.name}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+
+                {sourceDocuments.map((document) => (
+                  <TabsContent key={document.id} value={document.id} className="mt-3 space-y-2">
+                    <div className="text-xs text-muted-foreground font-mono">
+                      {document.name} · reviewed under{" "}
+                      {activePlumbPolicies.find((policy) => policy.id === document.policyId)
+                        ?.shortName ?? "no linked policy"}
+                    </div>
+                    {selectedSentences.length === 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        No readable text was extracted from this document.
                       </p>
-                    );
-                  })}
-                </TabsContent>
-              ))}
-            </Tabs>
+                    )}
+                    {selectedSentences.slice(0, 40).map((sentence) => (
+                      <DocumentSentenceLine
+                        key={sentence.id}
+                        text={sentence.text}
+                        locator={
+                          ran
+                            ? driftByAssertionLocator.get(sentence.id)?.authority?.reference.locator
+                            : undefined
+                        }
+                      />
+                    ))}
+                  </TabsContent>
+                ))}
+              </Tabs>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -436,7 +519,7 @@ function DriftView() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex flex-wrap items-center justify-between gap-3 text-sm">
-            <span>Verdict</span>
+            <span>Audit report</span>
             <Button size="sm" variant="outline" onClick={generateReceipt} disabled={!evaluation}>
               <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden />
               Download receipt
