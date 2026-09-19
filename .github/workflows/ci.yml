@@ -1,0 +1,52 @@
+name: CI
+
+# The gate for merging into main. Runs the same deterministic checks the release
+# workflow runs before it packages anything, so a pull request cannot introduce a
+# change that would later fail the release.
+#
+# `bun run lint` is deliberately not run here. The working tree is checked out with
+# CRLF endings on Windows clones, which makes eslint-plugin-prettier report thousands
+# of line-ending errors that say nothing about the change. Formatting is enforced on
+# the files a change touches, not repository-wide, until line endings are normalised.
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Veil, Plumb, receipts, MCP, and the core contracts.
+      - name: Deterministic checks
+        run: bun run check:core
+
+      - name: Types
+        run: bunx tsc --noEmit
+
+      - name: Production build
+        run: bun run build
