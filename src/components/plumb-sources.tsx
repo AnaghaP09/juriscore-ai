@@ -5,13 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { AlertTriangle, FileText, Github, Lock, Trash2, Upload } from "lucide-react";
 import type { ConnectedRepository, SourceDocument } from "@/lib/juriscore/demo-store";
 import type { PolicyDefinition } from "@/lib/juriscore/policies/catalog";
@@ -44,7 +37,6 @@ interface PlumbSourcesProps {
   documents: SourceDocument[];
   onDocumentAdd: (document: SourceDocument) => void;
   onDocumentRemove: (id: string) => void;
-  onDocumentPolicyChange: (id: string, policyId: string) => void;
   policies: PolicyDefinition[];
   parsedDiff: DiffFile | null;
   /**
@@ -60,7 +52,6 @@ export function PlumbSources({
   documents,
   onDocumentAdd,
   onDocumentRemove,
-  onDocumentPolicyChange,
   policies,
   parsedDiff,
   registerUploadTrigger,
@@ -179,7 +170,6 @@ export function PlumbSources({
           name: file.name,
           kind,
           text: extracted.text,
-          policyId: policies[0]?.id ?? "",
           uploadedAt: new Date().toISOString(),
         });
       } catch (error) {
@@ -325,8 +315,10 @@ export function PlumbSources({
           </div>
           <p className="text-xs text-muted-foreground">
             Upload the filings, sales decks, and internal policies that make claims about this code.
-            Each document is reviewed under the policy pack you link it to. Text is extracted in
-            this browser; the file itself is never uploaded or stored.
+            Every document is scanned under all {policies.length} active policy{" "}
+            {policies.length === 1 ? "pack" : "packs"} — there is no per-document pairing to
+            maintain. Text is extracted in this browser; the file itself is never uploaded or
+            stored.
           </p>
 
           <input
@@ -378,22 +370,6 @@ export function PlumbSources({
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Select
-                      value={document.policyId}
-                      onValueChange={(value) => onDocumentPolicyChange(document.id, value)}
-                    >
-                      <SelectTrigger className="h-8 w-56 text-xs" aria-label="Linked policy">
-                        <SelectValue placeholder="Link a policy" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {policies.map((policy) => (
-                          <SelectItem key={policy.id} value={policy.id}>
-                            {policy.shortName}
-                            {policy.custom ? " · custom" : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                     <Button
                       size="sm"
                       variant="ghost"

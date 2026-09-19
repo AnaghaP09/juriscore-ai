@@ -129,6 +129,30 @@ function codeClaims(driftMode: "clean" | "drift"): PlumbClaim[] {
   ];
 }
 
+const SUBJECT_LABEL = new Map(BUILT_IN_SUBJECTS.map((subject) => [subject.id, subject.label]));
+
+const STATUS_COPY: Record<string, { label: string; tone: string }> = {
+  drifted: { label: "Contradiction", tone: "text-[color:var(--block)]" },
+  cannot_determine: { label: "Cannot determine", tone: "text-[color:var(--revise)]" },
+  matches: { label: "Agrees", tone: "text-[color:var(--allow)]" },
+};
+
+/** A claim's value and where it was read from, as one cell. */
+function ClaimCell({
+  claim,
+}: {
+  claim: { value: unknown; unit?: string; reference: { locator: string } } | null;
+}) {
+  if (!claim) return <span className="text-muted-foreground">—</span>;
+  return (
+    <span className="font-mono text-xs">
+      {String(claim.value)}
+      {claim.unit ? ` ${claim.unit}` : ""}
+      <span className="text-muted-foreground"> · {claim.reference.locator}</span>
+    </span>
+  );
+}
+
 /** One citable line of a document. `locator` is set only when it contradicts the code. */
 function DocumentSentenceLine({ text, locator }: { text: string; locator?: string }) {
   const hit = Boolean(locator);
@@ -164,7 +188,6 @@ function DriftView() {
     sourceDocuments,
     addSourceDocument,
     removeSourceDocument,
-    setSourceDocumentPolicy,
   } = useDemoStore();
   const [doc, setDoc] = useState<string>("sec");
   const [ran, setRan] = useState(false);
@@ -225,7 +248,6 @@ function DriftView() {
         name: sample.name,
         kind: "sample",
         text: sample.text,
-        policyId: activePlumbPolicies[0]?.id ?? "",
         uploadedAt: now,
       });
     }
@@ -396,7 +418,6 @@ function DriftView() {
           if (doc === id) setDoc("sec");
           resetRun();
         }}
-        onDocumentPolicyChange={setSourceDocumentPolicy}
         policies={activePlumbPolicies}
         parsedDiff={parsedDiff}
         registerUploadTrigger={registerUploadTrigger}
@@ -496,9 +517,8 @@ function DriftView() {
                 {sourceDocuments.map((document) => (
                   <TabsContent key={document.id} value={document.id} className="mt-3 space-y-2">
                     <div className="text-xs text-muted-foreground font-mono">
-                      {document.name} · reviewed under{" "}
-                      {activePlumbPolicies.find((policy) => policy.id === document.policyId)
-                        ?.shortName ?? "no linked policy"}
+                      {document.name} · scanned under all {activePlumbPolicies.length} active{" "}
+                      {activePlumbPolicies.length === 1 ? "policy" : "policies"}
                     </div>
                     {selectedSentences.length === 0 && (
                       <p className="text-sm text-muted-foreground">
@@ -652,6 +672,55 @@ function DriftView() {
                   </dl>
                 </>
               )}
+              <div className="basis-full overflow-x-auto rounded-md border border-border">
+                <table className="w-full text-sm" aria-label="Plumb comparison summary">
+                  <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
+                    <tr>
+                      <th scope="col" className="px-4 py-2 text-left font-medium">
+                        Claim checked
+                      </th>
+                      <th scope="col" className="px-4 py-2 text-left font-medium">
+                        Result
+                      </th>
+                      <th scope="col" className="px-4 py-2 text-left font-medium">
+                        Document says
+                      </th>
+                      <th scope="col" className="px-4 py-2 text-left font-medium">
+                        Code says
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {evaluation.findings.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-6 text-center text-muted-foreground">
+                          No claim in this document matched a subject Plumb knows how to compare.
+                        </td>
+                      </tr>
+                    ) : (
+                      evaluation.findings.map((finding) => {
+                        const status = STATUS_COPY[finding.status];
+                        return (
+                          <tr key={finding.id} className="border-t border-border/60">
+                            <td className="px-4 py-2">
+                              {SUBJECT_LABEL.get(finding.subject) ?? finding.subject}
+                            </td>
+                            <td className={`px-4 py-2 font-medium ${status.tone}`}>
+                              {status.label}
+                            </td>
+                            <td className="px-4 py-2">
+                              <ClaimCell claim={finding.assertion} />
+                            </td>
+                            <td className="px-4 py-2">
+                              <ClaimCell claim={finding.authority} />
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
               <div className="basis-full text-xs text-muted-foreground">
                 Receipt scope: {evaluation.policyIds.length}{" "}
                 {evaluation.policyIds.length === 1 ? "policy" : "policies"} applied.

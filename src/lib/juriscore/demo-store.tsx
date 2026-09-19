@@ -198,8 +198,11 @@ export interface SourceDocument {
   name: string;
   kind: string;
   text: string;
-  /** Policy pack this document is reviewed under. */
-  policyId: string;
+  /**
+   * Retained only so documents stored before policies applied uniformly still parse.
+   * Every document is now scanned under every active pack.
+   */
+  policyId?: string;
   uploadedAt: string;
 }
 
@@ -227,7 +230,6 @@ interface DemoStore {
   sourceDocuments: SourceDocument[];
   addSourceDocument: (document: SourceDocument) => void;
   removeSourceDocument: (id: string) => void;
-  setSourceDocumentPolicy: (id: string, policyId: string) => void;
   resetDemo: () => void;
 }
 
@@ -310,12 +312,6 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
 
   const removeSourceDocument = useCallback((id: string) => {
     setSourceDocuments((prev) => prev.filter((item) => item.id !== id));
-  }, []);
-
-  const setSourceDocumentPolicy = useCallback((id: string, policyId: string) => {
-    setSourceDocuments((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, policyId } : item)),
-    );
   }, []);
 
   const pushRun = useCallback((r: GatewayRun) => {
@@ -423,7 +419,6 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       sourceDocuments,
       addSourceDocument,
       removeSourceDocument,
-      setSourceDocumentPolicy,
       resetDemo,
     }),
     [
@@ -446,7 +441,6 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       sourceDocuments,
       addSourceDocument,
       removeSourceDocument,
-      setSourceDocumentPolicy,
       resetDemo,
     ],
   );
