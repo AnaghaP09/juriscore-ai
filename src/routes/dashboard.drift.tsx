@@ -30,6 +30,7 @@ import {
   claimsFromDiff,
   claimsFromDocument,
   documentSentences,
+  parseSourceSnapshot,
   parseUnifiedDiff,
   type DiffLine,
 } from "@/lib/juriscore/plumb/sources";
@@ -179,7 +180,12 @@ function DriftView() {
   // stays available so the workbench still demonstrates itself with nothing connected.
   const parsedDiff = useMemo(() => {
     if (!connectedRepository) return null;
-    return parseUnifiedDiff(connectedRepository.diff)[0] ?? null;
+    // Anything that is not a diff is read as the current state of a source file, so
+    // pasting or pointing at the file that holds the values works as well as a change.
+    return (
+      parseUnifiedDiff(connectedRepository.diff)[0] ??
+      parseSourceSnapshot(connectedRepository.diff, connectedRepository.sourcePath ?? "source")
+    );
   }, [connectedRepository]);
 
   // The document side is entirely what the user supplied. With nothing uploaded there
@@ -300,11 +306,13 @@ function DriftView() {
   const additions = displayedDiffLines.filter((line) => line.kind === "add").length;
   const deletions = displayedDiffLines.filter((line) => line.kind === "del").length;
   const diffPath = parsedDiff?.path ?? "payments.ts";
-  const diffLabel = connectedRepository
-    ? `${connectedRepository.owner}/${connectedRepository.repo}${
-        connectedRepository.pullNumber ? ` · PR #${connectedRepository.pullNumber}` : ""
-      }`
-    : "PR #2431";
+  const diffLabel = !connectedRepository
+    ? "PR #2431"
+    : connectedRepository.owner && connectedRepository.repo
+      ? `${connectedRepository.owner}/${connectedRepository.repo}${
+          connectedRepository.pullNumber ? ` · PR #${connectedRepository.pullNumber}` : ""
+        }`
+      : "pasted diff";
 
   return (
     <div className="p-6 sm:p-8 space-y-6">

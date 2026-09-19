@@ -85,16 +85,19 @@ export function PlumbSources({
 
   const connectPastedDiff = () => {
     setRepoError(null);
-    if (!reference) {
-      setRepoError("Enter a repository as owner/name or a github.com URL.");
+    if (repoInput.trim() && !reference) {
+      setRepoError(
+        "That repository is not owner/name or a github.com URL. Leave it blank to skip.",
+      );
       return;
     }
-    if (parseUnifiedDiff(pastedDiff).length === 0) {
-      setRepoError("That does not look like a unified diff. Paste the output of git diff.");
+    if (!pastedDiff.trim()) {
+      setRepoError("Paste a diff, a hunk, or the source file that holds the values.");
       return;
     }
     onRepositoryChange({
-      ...reference,
+      owner: reference?.owner ?? null,
+      repo: reference?.repo ?? null,
       pullNumber: pullNumber ? Number(pullNumber) : null,
       diff: pastedDiff,
       origin: "pasted",
@@ -208,7 +211,9 @@ export function PlumbSources({
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-muted/40 px-3 py-2">
               <div className="text-sm">
                 <span className="font-mono">
-                  {repository.owner}/{repository.repo}
+                  {repository.owner && repository.repo
+                    ? `${repository.owner}/${repository.repo}`
+                    : (parsedDiff?.path ?? "Pasted diff")}
                 </span>
                 {repository.pullNumber ? (
                   <span className="text-muted-foreground"> · PR #{repository.pullNumber}</span>
@@ -229,7 +234,7 @@ export function PlumbSources({
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="plumb-repo" className="text-xs">
-                    Repository
+                    Repository {mode === "paste" ? "(optional)" : ""}
                   </Label>
                   <Input
                     id="plumb-repo"
@@ -270,7 +275,7 @@ export function PlumbSources({
               {mode === "paste" ? (
                 <div className="space-y-2">
                   <Textarea
-                    aria-label="Unified diff"
+                    aria-label="Diff or source file"
                     className="font-mono text-xs min-h-32"
                     placeholder={
                       "@@ -40,7 +40,7 @@\n-  kycThreshold: 10_000,\n+  kycThreshold: 25_000,"

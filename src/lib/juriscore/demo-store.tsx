@@ -7,10 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import {
-  DEFAULT_ACTIVE_POLICY_IDS,
-  type PolicyDefinition,
-} from "@/lib/juriscore/policies/catalog";
+import { DEFAULT_ACTIVE_POLICY_IDS, type PolicyDefinition } from "@/lib/juriscore/policies/catalog";
 import type { ValidationModule, ValidatorVerdict } from "@/lib/juriscore/core/contracts";
 
 export type ModelId = "gemini-1.5-pro" | "claude-3.5-sonnet" | "gpt-4o";
@@ -26,9 +23,30 @@ export interface ModelMeta {
 }
 
 export const MODELS: ModelMeta[] = [
-  { id: "gemini-1.5-pro", label: "Gemini 1.5 Pro", vendor: "Google", ctx: "2M ctx", costPer1K: "$0.0035", accent: "var(--chart-4)" },
-  { id: "claude-3.5-sonnet", label: "Claude 3.5 Sonnet", vendor: "Anthropic", ctx: "200K ctx", costPer1K: "$0.0030", accent: "var(--revise)" },
-  { id: "gpt-4o", label: "GPT-4o", vendor: "OpenAI", ctx: "128K ctx", costPer1K: "$0.0050", accent: "var(--allow)" },
+  {
+    id: "gemini-1.5-pro",
+    label: "Gemini 1.5 Pro",
+    vendor: "Google",
+    ctx: "2M ctx",
+    costPer1K: "$0.0035",
+    accent: "var(--chart-4)",
+  },
+  {
+    id: "claude-3.5-sonnet",
+    label: "Claude 3.5 Sonnet",
+    vendor: "Anthropic",
+    ctx: "200K ctx",
+    costPer1K: "$0.0030",
+    accent: "var(--revise)",
+  },
+  {
+    id: "gpt-4o",
+    label: "GPT-4o",
+    vendor: "OpenAI",
+    ctx: "128K ctx",
+    costPer1K: "$0.0050",
+    accent: "var(--allow)",
+  },
 ];
 
 export interface GatewayRun {
@@ -159,11 +177,14 @@ export function summarizeTrailingWeek(ledger: LocalMetricsLedger) {
 
 /** A repository the user connected so Plumb can read a real pull request from it. */
 export interface ConnectedRepository {
-  owner: string;
-  repo: string;
+  /** Null when a diff was pasted without naming a repository, which is allowed. */
+  owner: string | null;
+  repo: string | null;
   pullNumber: number | null;
   /** The unified diff, however it arrived: pasted by hand or fetched from GitHub. */
   diff: string;
+  /** Name to show when the content is a whole file rather than a diff. */
+  sourcePath?: string;
   origin: "pasted" | "fetched";
   loadedAt: string;
 }
@@ -303,9 +324,7 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
 
   const setPolicyActive = useCallback((policyId: string, active: boolean) => {
     setActivePolicyIds((current) =>
-      active
-        ? [...new Set([...current, policyId])]
-        : current.filter((id) => id !== policyId),
+      active ? [...new Set([...current, policyId])] : current.filter((id) => id !== policyId),
     );
   }, []);
 
