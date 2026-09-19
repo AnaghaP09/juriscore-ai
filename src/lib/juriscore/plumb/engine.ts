@@ -29,7 +29,28 @@ export interface PlumbResult {
 }
 
 function normalizeValue(value: PlumbValue) {
-  return typeof value === "string" ? value.trim().toLocaleLowerCase() : value;
+  if (typeof value !== "string") return value;
+
+  const trimmed = value.trim();
+  // A value that arrived as text but is numerically or logically identical is not a
+  // contradiction. Claim extraction routinely yields "25000" from prose where code
+  // yields 25000, and reporting that as drift blocks a merge over sources that agree.
+  if (trimmed !== "" && Number.isFinite(Number(trimmed))) return Number(trimmed);
+  if (/^(?:true|false)$/i.test(trimmed)) return trimmed.toLocaleLowerCase() === "true";
+
+  return trimmed.toLocaleLowerCase();
+}
+
+// Units are compared the way values are: case and surrounding space are formatting,
+// not meaning, so "USD" and "usd" are one unit. An empty unit means no unit at all.
+function normalizeUnit(unit: string | undefined) {
+  const trimmed = unit?.trim().toLocaleLowerCase();
+  return trimmed ? trimmed : null;
+}
+
+function valueKey(claim: PlumbClaim) {
+  const value = normalizeValue(claim.value);
+  return `${typeof value}:${String(value)}|${normalizeUnit(claim.unit) ?? ""}`;
 }
 
 export function compareClaims(
@@ -39,7 +60,10 @@ export function compareClaims(
 ): PlumbResult {
   const findings = assertions.map<PlumbFinding>((assertion) => {
     const candidates = authorities.filter((authority) => authority.subject === assertion.subject);
-    if (candidates.length !== 1) {
+    // Several sources stating the same value corroborate each other; only sources that
+    // disagree leave the comparison genuinely ambiguous.
+    const conflicting = new Set(candidates.map(valueKey)).size > 1;
+    if (candidates.length === 0 || conflicting) {
       return {
         id: `plumb.${assertion.id}`,
         status: "cannot_determine",
@@ -54,7 +78,7 @@ export function compareClaims(
     }
 
     const authority = candidates[0];
-    if ((authority.unit ?? null) !== (assertion.unit ?? null)) {
+    if (normalizeUnit(authority.unit) !== normalizeUnit(assertion.unit)) {
       return {
         id: `plumb.${assertion.id}`,
         status: "cannot_determine",
@@ -84,11 +108,15 @@ export function compareClaims(
     cannot_determine: findings.filter((finding) => finding.status === "cannot_determine").length,
   };
 
+  // A run that compared nothing has verified nothing, so it must not report "allow".
+  const nothingCompared = findings.length === 0;
+
   return {
     verdict:
       counts.drifted > 0
         ? "block"
-        : counts.cannot_determine > 0 ||
+        : nothingCompared ||
+            counts.cannot_determine > 0 ||
             (options.policyIds !== undefined && options.policyIds.length === 0)
           ? "revise"
           : "allow",
