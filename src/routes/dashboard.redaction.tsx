@@ -35,6 +35,7 @@ import {
 import { protectText, type VeilStrategy } from "@/lib/juriscore/veil/engine";
 import {
   ACCEPTED_DOCUMENT_TYPES,
+  ACCEPTED_DOCUMENT_LABEL,
   extractDocumentText,
   validateDocument,
   type ExtractionProgress,
@@ -275,7 +276,7 @@ function VeilWorkbench() {
             type="file"
             accept={ACCEPTED_DOCUMENT_TYPES}
             className="sr-only"
-            aria-label="Upload a PDF, DOCX, or PNG document"
+            aria-label={`Upload a ${ACCEPTED_DOCUMENT_LABEL} document`}
             onChange={(event) => {
               const file = event.target.files?.[0];
               if (file) void processDocument(file);
@@ -311,7 +312,7 @@ function VeilWorkbench() {
             <Upload className="mx-auto h-7 w-7 text-muted-foreground" aria-hidden />
             <span className="mt-3 block font-medium">Drop a document here or choose a file</span>
             <span className="mt-1 block text-xs text-muted-foreground">
-              PDF, DOCX, or PNG · one document · maximum 25 MB
+              {ACCEPTED_DOCUMENT_LABEL} · one document · maximum 25 MB
             </span>
           </button>
 

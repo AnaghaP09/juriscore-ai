@@ -1,7 +1,9 @@
-export const ACCEPTED_DOCUMENT_TYPES = ".pdf,.docx,.png";
+export const ACCEPTED_DOCUMENT_TYPES = ".pdf,.docx,.pptx,.md,.txt,.png";
 export const MAX_DOCUMENT_BYTES = 25 * 1024 * 1024;
+/** Human-readable list for UI copy, so the formats are named in exactly one place. */
+export const ACCEPTED_DOCUMENT_LABEL = "PDF, DOCX, PPTX, Markdown, TXT, or PNG";
 
-export type SupportedDocumentKind = "pdf" | "docx" | "png";
+export type SupportedDocumentKind = "pdf" | "docx" | "pptx" | "text" | "png";
 
 export type ExtractionProgress = {
   label: string;
@@ -29,7 +31,16 @@ export function documentKindFor(file: File): SupportedDocumentKind | null {
   ) {
     return "docx";
   }
+  if (
+    file.type === "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
+    extension === "pptx"
+  ) {
+    return "pptx";
+  }
+  if (extension === "md" || extension === "markdown" || extension === "txt") return "text";
   if (file.type === "image/png" || extension === "png") return "png";
+  // A plain-text file dragged in without a recognised extension is still readable text.
+  if (file.type.startsWith("text/")) return "text";
 
   return null;
 }
@@ -38,7 +49,7 @@ export function validateDocument(file: File): SupportedDocumentKind {
   const kind = documentKindFor(file);
 
   if (!kind) {
-    throw new Error("Unsupported file. Upload a PDF, DOCX, or PNG document.");
+    throw new Error(`Unsupported file. Upload a ${ACCEPTED_DOCUMENT_LABEL} document.`);
   }
 
   if (file.size === 0) {
@@ -152,6 +163,82 @@ async function extractDocx(file: File, report: ProgressReporter): Promise<Extrac
   };
 }
 
+const XML_ENTITIES: Record<string, string> = {
+  "&amp;": "&",
+  "&lt;": "<",
+  "&gt;": ">",
+  "&quot;": '"',
+  "&apos;": "'",
+};
+
+function decodeXmlText(value: string) {
+  return value
+    .replace(/&amp;|&lt;|&gt;|&quot;|&apos;/g, (entity) => XML_ENTITIES[entity] ?? entity)
+    .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)));
+}
+
+/**
+ * A slide is a list of paragraphs, each built from text runs. Keeping the paragraph
+ * boundary as a newline matters: a run-together slide would hide labelled fields from
+ * the Veil detectors and merge separate claims for Plumb.
+ */
+function slideText(xml: string) {
+  return xml
+    .split(/<\/a:p>/)
+    .map((paragraph) =>
+      [...paragraph.matchAll(/<a:t[^>]*>([\s\S]*?)<\/a:t>/g)]
+        .map((match) => decodeXmlText(match[1]))
+        .join("")
+        .trim(),
+    )
+    .filter((paragraph) => paragraph.length > 0)
+    .join("\n");
+}
+
+async function extractPptx(file: File, report: ProgressReporter): Promise<ExtractedDocument> {
+  report({ label: "Reading presentation", percent: 10 });
+  const { default: JSZip } = await import("jszip");
+  const archive = await JSZip.loadAsync(await file.arrayBuffer());
+
+  const slideNames = Object.keys(archive.files)
+    .filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name))
+    .sort(
+      (a, b) =>
+        Number(/slide(\d+)\.xml$/.exec(a)?.[1] ?? 0) - Number(/slide(\d+)\.xml$/.exec(b)?.[1] ?? 0),
+    );
+
+  const slides: string[] = [];
+  for (const [index, name] of slideNames.entries()) {
+    report({
+      label: `Reading slide ${index + 1} of ${slideNames.length}`,
+      percent: Math.round(10 + ((index + 1) / slideNames.length) * 85),
+    });
+    const text = slideText(await archive.files[name].async("string"));
+    slides.push(`--- Slide ${index + 1} ---\n${text}`);
+  }
+
+  const text = slides.join("\n\n").trim();
+  if (!text.replace(/--- Slide \d+ ---/g, "").trim()) {
+    throw new Error(
+      "No readable text was found in this presentation. Its slides may be images; upload them as PNG files for OCR.",
+    );
+  }
+
+  return { kind: "pptx", text, pageCount: slides.length, warnings: [] };
+}
+
+async function extractPlainText(file: File, report: ProgressReporter): Promise<ExtractedDocument> {
+  report({ label: "Reading text file", percent: 20 });
+  const text = (await file.text()).trim();
+
+  if (!text) {
+    throw new Error("This file contains no readable text.");
+  }
+
+  report({ label: "Text file read", percent: 100 });
+  return { kind: "text", text, warnings: [] };
+}
+
 async function extractPng(file: File, report: ProgressReporter): Promise<ExtractedDocument> {
   report({ label: "Starting on-device OCR", percent: 5 });
   const { createWorker } = await import("tesseract.js");
@@ -187,5 +274,7 @@ export async function extractDocumentText(
 
   if (kind === "pdf") return extractPdf(file, report);
   if (kind === "docx") return extractDocx(file, report);
+  if (kind === "pptx") return extractPptx(file, report);
+  if (kind === "text") return extractPlainText(file, report);
   return extractPng(file, report);
 }

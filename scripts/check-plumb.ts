@@ -1,5 +1,13 @@
 import assert from "node:assert/strict";
 import { compareClaims, type PlumbClaim } from "../src/lib/juriscore/plumb/engine";
+import {
+  BUILT_IN_SUBJECTS,
+  claimsFromDiff,
+  claimsFromDocument,
+  documentSentences,
+  parseRepositoryInput,
+  parseUnifiedDiff,
+} from "../src/lib/juriscore/plumb/sources";
 
 const reference = (sourceId: string, locator: string) => ({
   sourceId,
@@ -145,5 +153,117 @@ assert.equal(
 
 // A run that compared nothing has verified nothing and must not read as a pass.
 assert.equal(compareClaims(authorities, []).verdict, "revise");
+
+// ---------------------------------------------------------------------------
+// Sources: a real repository and real documents
+// ---------------------------------------------------------------------------
+
+assert.deepEqual(parseRepositoryInput("https://github.com/AnaghaP09/juriscore-ai"), {
+  owner: "AnaghaP09",
+  repo: "juriscore-ai",
+});
+assert.deepEqual(parseRepositoryInput("git@github.com:AnaghaP09/juriscore-ai.git"), {
+  owner: "AnaghaP09",
+  repo: "juriscore-ai",
+});
+assert.deepEqual(parseRepositoryInput("AnaghaP09/juriscore-ai"), {
+  owner: "AnaghaP09",
+  repo: "juriscore-ai",
+});
+assert.equal(parseRepositoryInput("not a repository"), null);
+assert.equal(parseRepositoryInput(""), null);
+
+const samplePatch = `diff --git a/src/payments.ts b/src/payments.ts
+index 337d924..e6dca5a 100644
+--- a/src/payments.ts
++++ b/src/payments.ts
+@@ -40,7 +40,7 @@
+ export const payments = {
+-  kycThreshold: 10_000,
++  kycThreshold: 25_000,
+   currency: "USD",
+-  crossBorderFeeBps: 100, // 1.0%
++  crossBorderFeeBps: 250, // 2.5%
+ };`;
+
+const [patched] = parseUnifiedDiff(samplePatch);
+assert.equal(patched.path, "src/payments.ts");
+assert.equal(patched.additions, 2);
+assert.equal(patched.deletions, 2);
+// Added lines are numbered against the new file, removed lines against the old one.
+assert.equal(patched.lines.find((line) => line.text.includes("25_000"))?.n, 41);
+
+// Header patterns are only headers before the first hunk. A line the change adds that
+// happens to start with "+++" or "index " is content, and dropping it would quietly
+// remove a claim from the comparison.
+const contentThatLooksLikeHeaders = `diff --git a/notes.md b/notes.md
+--- a/notes.md
++++ b/notes.md
+@@ -1,2 +1,5 @@
+ intro
++++ divider
++index of terms
++  retentionDays: 30,
+-index stale
+`;
+const [notes] = parseUnifiedDiff(contentThatLooksLikeHeaders);
+assert.equal(notes.path, "notes.md");
+assert.equal(notes.additions, 3);
+assert.equal(notes.deletions, 1);
+
+const codeClaimsFromPatch = claimsFromDiff(patched, BUILT_IN_SUBJECTS, "pr-2431");
+assert.equal(codeClaimsFromPatch.length, 2);
+const kyc = codeClaimsFromPatch.find((c) => c.subject === "kyc_threshold");
+assert.equal(kyc?.value, 25_000);
+assert.equal(kyc?.unit, "USD");
+assert.equal(kyc?.reference.sourceId, "src/payments.ts");
+// Basis points are converted to the percent the documents are written in; comparing
+// 250 against 2.5 would otherwise report drift where the two sources agree.
+const fee = codeClaimsFromPatch.find((c) => c.subject === "cross_border_fee");
+assert.equal(fee?.value, 2.5);
+assert.equal(fee?.unit, "percent");
+
+const filing = `Our Know-Your-Customer program applies enhanced due diligence to any single transaction exceeding $10,000.
+Cross-border remittance fees disclosed to retail customers remain capped at 1.0% of principal.
+The Company maintains independent oversight of all pricing changes.`;
+const filingClaims = claimsFromDocument(documentSentences(filing), BUILT_IN_SUBJECTS, {
+  sourceId: "10-k.pdf",
+  sourceVersion: "sha256:synthetic",
+});
+assert.equal(filingClaims.length, 2);
+assert.equal(filingClaims.find((c) => c.subject === "kyc_threshold")?.value, 10_000);
+assert.equal(filingClaims.find((c) => c.subject === "cross_border_fee")?.value, 1);
+
+// A figure carrying a currency marker wins over a bare number earlier in the sentence.
+const noisy = claimsFromDocument(
+  documentSentences("KYC review covers 2 account types for amounts exceeding $10,000."),
+  BUILT_IN_SUBJECTS,
+  { sourceId: "d", sourceVersion: "v" },
+);
+assert.equal(noisy[0]?.value, 10_000);
+
+// "$10K" in a sales deck means the same threshold the filing states.
+const deckClaims = claimsFromDocument(
+  documentSentences("KYC verification runs automatically for any transaction over $10K."),
+  BUILT_IN_SUBJECTS,
+  { sourceId: "deck", sourceVersion: "v" },
+);
+assert.equal(deckClaims[0]?.value, 10_000);
+
+// A sentence about a known subject that carries no number yields no claim, rather than
+// a guessed one.
+assert.equal(
+  claimsFromDocument(
+    documentSentences("KYC thresholds are governed centrally."),
+    BUILT_IN_SUBJECTS,
+    { sourceId: "p", sourceVersion: "v" },
+  ).length,
+  0,
+);
+
+// End to end: a real patch against a real filing is the drift the workbench shows.
+const endToEnd = compareClaims(codeClaimsFromPatch, filingClaims, { policyIds: ["pii-baseline"] });
+assert.equal(endToEnd.verdict, "block");
+assert.equal(endToEnd.counts.drifted, 2);
 
 console.log("JurisCore Plumb checks passed.");
