@@ -28,3 +28,38 @@ export const SENSITIVE_FIXTURE_VALUES = [
   "maya.patel@example.test",
   "415-555-0199",
 ];
+
+// Shape of what DOCX extraction hands the engine for an invoice: cell boundaries arrive
+// as a single tab, and a remittance block carries bank, tax, address, and contact values
+// that no healthcare or secrets detector covers. All values below are synthetic.
+export const SYNTHETIC_INVOICE_EXTRACTION = `INVOICE
+Northstar Meridian Systems Ltd.
+7800 Meridian Plaza, Suite 420
+Port Arbor, CA 90000
+Tax ID: SAMPLE-94-0002718
+billing@northstarmeridian.example.invalid
+Bill to
+Blue Oak Dynamics Corporation
+245 Innovation Crescent
+Account: SYN-ACCT-2049
+Customer success lead: Jordan Vale
+Enterprise platform subscription — 500 licensed users
+TOTAL DUE	$36,973.00
+Payment method	Sample remittance details
+ACH / wire	Fictional Unity Commercial Bank • Routing: 000000000 • Account: SAMPLE-0091842 • SWIFT: SAMPLEXXX
+Check	Northstar Meridian Systems Ltd., Lockbox 00027, Port Arbor, CA 90000
+Questions	billing@northstarmeridian.example.invalid • 415-555-0142`;
+
+export const SENSITIVE_INVOICE_VALUES = [
+  "000000000",
+  "SAMPLE-0091842",
+  "SAMPLEXXX",
+  "SAMPLE-94-0002718",
+  "SYN-ACCT-2049",
+  "Jordan Vale",
+  "7800 Meridian Plaza",
+  "245 Innovation Crescent",
+  "Port Arbor, CA 90000",
+  "billing@northstarmeridian.example.invalid",
+  "415-555-0142",
+];

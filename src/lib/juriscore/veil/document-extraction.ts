@@ -102,11 +102,43 @@ async function extractPdf(file: File, report: ProgressReporter): Promise<Extract
   return { kind: "pdf", text, pageCount: pages.length, warnings: [] };
 }
 
+// Boundaries that separate one visual line or block from the next.
+const BLOCK_BOUNDARY = /<\/(?:p|div|h[1-6]|li|tr)>|<br\s*\/?>/gi;
+// Table cells become a column gap so a labelled field keeps its label/value shape.
+const CELL_BOUNDARY = /<\/(?:td|th)>/gi;
+
+const HTML_ENTITIES: Record<string, string> = {
+  "&nbsp;": " ",
+  "&amp;": "&",
+  "&lt;": "<",
+  "&gt;": ">",
+  "&quot;": '"',
+  "&#39;": "'",
+};
+
+function htmlToPlainText(html: string) {
+  return html
+    .replace(CELL_BOUNDARY, "\t")
+    .replace(BLOCK_BOUNDARY, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(
+      /&nbsp;|&amp;|&lt;|&gt;|&quot;|&#39;/gi,
+      (entity) => HTML_ENTITIES[entity.toLowerCase()] ?? entity,
+    )
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 async function extractDocx(file: File, report: ProgressReporter): Promise<ExtractedDocument> {
   report({ label: "Reading Word document", percent: 15 });
   const mammoth = await import("mammoth");
-  const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
-  const text = result.value.trim();
+  // extractRawText runs table cells and line breaks together with no separator
+  // ("Tax ID: 94-0002718billing@example.invalid"), which hides every labelled field from
+  // the detectors and lets the email pattern swallow the value sitting in front of it.
+  // Convert to HTML instead, so row, cell, and <br> boundaries survive as real whitespace.
+  const result = await mammoth.convertToHtml({ arrayBuffer: await file.arrayBuffer() });
+  const text = htmlToPlainText(result.value);
 
   if (!text) {
     throw new Error("No readable text was found in this DOCX file.");

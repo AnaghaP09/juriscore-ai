@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { protectText } from "../src/lib/juriscore/veil/engine";
 import {
   SENSITIVE_FIXTURE_VALUES as sensitiveFixtureValues,
+  SENSITIVE_INVOICE_VALUES as sensitiveInvoiceValues,
   SYNTHETIC_CLINICAL_NOTE as syntheticClinicalNote,
+  SYNTHETIC_INVOICE_EXTRACTION as syntheticInvoiceExtraction,
   SYNTHETIC_PDF_TABLE_EXTRACTION as syntheticPdfTableExtraction,
 } from "./fixtures/veil-fixtures";
 
@@ -75,6 +77,51 @@ assert.equal(
   }).findings.some((finding) => finding.category === "patient_name"),
   false,
 );
+
+// Invoice upload path: remittance, tax, address, and contact values must not survive.
+const fromInvoice = protectText(syntheticInvoiceExtraction, {
+  profile: "all_sensitive",
+  strategy: "redact",
+});
+
+assert.equal(fromInvoice.rawVerdict, "block");
+for (const value of sensitiveInvoiceValues) {
+  assert.doesNotMatch(
+    fromInvoice.sanitizedText,
+    new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    `sensitive invoice value survived redaction: ${value}`,
+  );
+  assert.equal(
+    JSON.stringify(fromInvoice.findings).includes(value),
+    false,
+    `raw value leaked into findings: ${value.slice(0, 3)}...`,
+  );
+}
+for (const category of [
+  "routing_number",
+  "bank_account",
+  "swift_bic",
+  "tax_id",
+  "postal_address",
+  "postal_locality",
+  "contact_name",
+]) {
+  assert.equal(
+    fromInvoice.findings.some((finding) => finding.category === category),
+    true,
+    `no finding for category: ${category}`,
+  );
+}
+// Business content the check is meant to leave readable.
+assert.match(fromInvoice.sanitizedText, /Enterprise platform subscription/);
+assert.match(fromInvoice.sanitizedText, /\$36,973\.00/);
+// One lockbox in the document is one finding: a short value must not also overwrite the
+// middle of a longer unrelated token, which previously split the tax ID and counted twice.
+assert.equal(
+  fromInvoice.findings.find((finding) => finding.detectorId === "veil.finance.lockbox")?.count,
+  1,
+);
+assert.match(fromInvoice.sanitizedText, /Tax ID: \[REDACTED_TAX_ID\]$/m);
 
 assert.equal(protectText("Clinical context only.").rawVerdict, "allow");
 assert.equal(
