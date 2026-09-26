@@ -13,15 +13,9 @@ import {
   Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { MODELS, useDemoStore, type ModelId } from "@/lib/juriscore/demo-store";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { useDemoStore } from "@/lib/juriscore/demo-store";
 import { Badge } from "@/components/ui/badge";
+import { ActiveModelControl } from "@/components/active-model-control";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -62,7 +56,7 @@ const groups: Array<{
 
 function DashboardLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { activeModel, setActiveModel, killSwitch } = useDemoStore();
+  const { killSwitch } = useDemoStore();
 
   return (
     <div className="min-h-dvh p-0 md:p-4 lg:p-6" style={{ background: "var(--app-bg)" }}>
@@ -144,37 +138,7 @@ function DashboardLayout() {
         </aside>
         <div className="flex-1 min-w-0 flex flex-col">
           <div className="h-14 border-b border-border/60 bg-card/40 backdrop-blur-sm flex items-center gap-3 px-4 sm:px-6">
-            <div className="flex items-center gap-2">
-              <span className="text-xs uppercase tracking-wider text-muted-foreground">
-                Active model
-              </span>
-              <Select value={activeModel} onValueChange={(v) => setActiveModel(v as ModelId)}>
-                <SelectTrigger className="h-8 w-56">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {MODELS.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      <span className="inline-flex items-center gap-2">
-                        <span
-                          className="h-2 w-2 rounded-full"
-                          style={{ background: m.accent }}
-                          aria-hidden
-                        />
-                        {m.label}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Badge
-                variant="outline"
-                className="hidden border-border text-muted-foreground sm:inline-flex"
-                title="This model selector drives the prototype simulation. No provider is connected yet."
-              >
-                Not connected
-              </Badge>
-            </div>
+            <ActiveModelControl />
             <div className="ml-auto flex items-center gap-3">
               {killSwitch && (
                 <Badge

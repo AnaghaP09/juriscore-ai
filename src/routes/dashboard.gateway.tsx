@@ -1,313 +1,536 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import {
+  BookOpen,
+  Cpu,
+  Download,
+  Lock,
+  ScrollText,
+  Send,
+  ShieldAlert,
+  ShieldCheck,
+  Timer,
+  Zap,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader } from "@/components/page-header";
-import { MODELS, modelById, useDemoStore, type ModelId } from "@/lib/juriscore/demo-store";
-import { scanPrompt, retrievePolicies } from "@/lib/juriscore/mock";
-import { Send, Cpu, Timer, ShieldCheck, Lock, Zap, Info, ShieldAlert, BookOpen, ScrollText } from "lucide-react";
+import { useDemoStore } from "@/lib/juriscore/demo-store";
+import type { ValidationReceipt, ValidatorVerdict } from "@/lib/juriscore/core/contracts";
+import { downloadReceipt } from "@/lib/juriscore/core/receipts";
+import {
+  BUILT_IN_POLICIES,
+  policiesForFeature,
+  veilScopesForPolicies,
+  type PolicyDefinition,
+} from "@/lib/juriscore/policies/catalog";
+import { sanitizeForProvider } from "@/lib/juriscore/veil/engine";
+import { gatewayModelLabel } from "@/lib/juriscore/gateway/models";
+import {
+  GatewayHttpError,
+  createRunSequencer,
+  gatewayClient,
+  needsUnlock,
+} from "@/lib/juriscore/gateway/client";
+import type {
+  GatewayCheckSummary,
+  GatewayPolicyConfig,
+  GatewayRunRecord,
+} from "@/lib/juriscore/gateway/protocol";
 
 export const Route = createFileRoute("/dashboard/gateway")({
   head: () => ({
     meta: [
       { title: "LLM Gateway — JurisCore AI" },
-      { name: "description", content: "Send a live prompt through the JurisCore compliance layer." },
+      {
+        name: "description",
+        content:
+          "Send a prompt to your connected model through Veil, with a receipt for every run.",
+      },
     ],
   }),
   component: Gateway,
 });
 
-type Stage = "input" | "model" | "judge" | "output";
-const STAGE_LABELS: Record<Stage, string> = {
-  input: "Input Scrub",
-  model: "Model Call",
-  judge: "Semantic Judge",
-  output: "Output Guardrail",
+const PROFILE = "all_sensitive" as const;
+const STRATEGY = "redact" as const;
+
+const verdictClass: Record<ValidatorVerdict, string> = {
+  allow: "border-[color:var(--allow)]/40 text-[color:var(--allow)]",
+  revise: "border-[color:var(--revise)]/40 text-[color:var(--revise)]",
+  block: "border-[color:var(--block)]/40 text-[color:var(--block)]",
 };
 
-interface RunResult {
-  verdict: "allow" | "block" | "revise";
-  ruleId?: string;
-  blockedAt?: Stage;
-  reason?: string;
-  tokens: { prompt: number; completion: number };
-  latencyBreakdown: Record<Stage, number>;
-  totalLatency: number;
-  citations: string[];
+// Only the fields the server's schema accepts: a custom policy is request-scoped there.
+function policyForRequest(policy: PolicyDefinition): PolicyDefinition {
+  return {
+    id: policy.id,
+    name: policy.name,
+    shortName: policy.shortName,
+    version: policy.version,
+    authority: policy.authority,
+    description: policy.description,
+    features: policy.features,
+    veilScopes: policy.veilScopes,
+    defaultActive: policy.defaultActive,
+    ...(policy.custom === undefined ? {} : { custom: policy.custom }),
+    source: {
+      title: policy.source.title,
+      publisher: policy.source.publisher,
+      url: policy.source.url,
+      retrievedAt: policy.source.retrievedAt,
+    },
+  };
+}
+
+function FindingList({ summary }: { summary: GatewayCheckSummary }) {
+  if (summary.findings.length === 0) {
+    return <p className="text-xs text-muted-foreground">No sensitive data detected.</p>;
+  }
+  return (
+    <ul className="space-y-1 text-xs">
+      {summary.findings.map((finding) => (
+        <li key={`${finding.category}-${finding.label}`} className="flex justify-between gap-2">
+          <span>{finding.label}</span>
+          <span className="font-mono text-muted-foreground">
+            {finding.count} · {finding.severity}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+interface GatewayResult {
+  run: GatewayRunRecord;
+  output: string | null;
+  receipt: ValidationReceipt;
 }
 
 function Gateway() {
-  const { activeModel, setActiveModel, killSwitch, pushRun, recentRuns } = useDemoStore();
-  const [prompt, setPrompt] = useState("Draft a client email highlighting our fund's 3-year outperformance vs benchmark.");
-  const [domain, setDomain] = useState<"finance" | "healthcare">("finance");
-  const [running, setRunning] = useState<Stage | null>(null);
-  const [progress, setProgress] = useState(0);
-  const [result, setResult] = useState<RunResult | null>(null);
+  const {
+    activeModel,
+    gateway,
+    killSwitch,
+    activePolicyIds,
+    customPolicies,
+    pushRun,
+    recentRuns,
+    recordReceipt,
+    markGatewayLocked,
+  } = useDemoStore();
+  const [prompt, setPrompt] = useState(
+    "Summarize the main risks of sending customer support tickets to an AI model.",
+  );
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<GatewayResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const sequencer = useRef(createRunSequencer());
 
-  const run = async () => {
-    if (killSwitch || !prompt.trim()) return;
-    setResult(null);
-    setProgress(0);
-    const stages: Stage[] = ["input", "model", "judge", "output"];
-    const scan = scanPrompt(prompt, domain);
-    const policies = retrievePolicies(prompt, domain, 2);
-    const modelLatency = activeModel === "gemini-1.5-pro" ? 320 : activeModel === "claude-3.5-sonnet" ? 410 : 380;
-    const breakdown: Record<Stage, number> = { input: 45 + Math.random() * 30, model: modelLatency + Math.random() * 120, judge: 80 + Math.random() * 40, output: 60 + Math.random() * 30 };
+  const activeVeilPolicies = useMemo(
+    () => policiesForFeature(activePolicyIds, "veil", customPolicies),
+    [activePolicyIds, customPolicies],
+  );
+  const policyScopes = useMemo(
+    () => veilScopesForPolicies(activePolicyIds, customPolicies),
+    [activePolicyIds, customPolicies],
+  );
+  // Stage 1 preview, in this browser: the same engine and gate the server runs again.
+  const preview = useMemo(
+    () =>
+      sanitizeForProvider(prompt, {
+        strategy: STRATEGY,
+        profile: PROFILE,
+        policyIds: activeVeilPolicies.map((policy) => policy.id),
+        policyScopes,
+      }),
+    [activeVeilPolicies, policyScopes, prompt],
+  );
 
-    let blockedAt: Stage | undefined;
-    let verdict: RunResult["verdict"] = "allow";
-    let ruleId: string | undefined;
-    let reason: string | undefined;
+  const status = gateway.phase === "ready" ? gateway.status : null;
+  const connection = status?.connections[activeModel];
+  const connected = Boolean(status?.configured && connection?.state === "connected");
 
-    if (scan.verdict === "block") {
-      blockedAt = "input";
-      verdict = "block";
-      reason = scan.findings.map((f) => f.type).join(", ");
-      ruleId = domain === "finance" ? "SEC-T42" : "HIPAA-164.502";
-    } else if (Math.random() < 0.15) {
-      blockedAt = "judge";
-      verdict = "revise";
-      reason = "Semantic mismatch: draft claim not backed by retrieved policy.";
-      ruleId = policies[0]?.id;
-    }
+  let sendBlockedReason: string | null = null;
+  if (killSwitch) sendBlockedReason = "Emergency stop is on.";
+  else if (gateway.phase === "locked") sendBlockedReason = "Unlock the gateway in the header.";
+  else if (!status || !status.configured) sendBlockedReason = "The gateway is not configured.";
+  else if (!connected) sendBlockedReason = "Test the connection to the active model first.";
+  else if (!prompt.trim()) sendBlockedReason = "Enter a prompt.";
 
-    for (let i = 0; i < stages.length; i++) {
-      const s = stages[i];
-      setRunning(s);
-      await new Promise((r) => setTimeout(r, Math.min(breakdown[s], 900)));
-      setProgress(((i + 1) / stages.length) * 100);
-      if (blockedAt === s) break;
-    }
-    setRunning(null);
-
-    const promptTokens = Math.ceil(prompt.length / 4);
-    const completionTokens = verdict === "block" ? 0 : 180 + Math.floor(Math.random() * 240);
-    const totalLatency = Math.round(Object.values(breakdown).reduce((a, b) => a + b, 0));
-
-    const res: RunResult = {
-      verdict,
-      ruleId,
-      blockedAt,
-      reason,
-      tokens: { prompt: promptTokens, completion: completionTokens },
-      latencyBreakdown: breakdown,
-      totalLatency,
-      citations: policies.map((p) => p.id),
+  const send = async () => {
+    if (sendBlockedReason || sending) return;
+    const policy: GatewayPolicyConfig = {
+      builtInIds: activePolicyIds.filter((id) =>
+        BUILT_IN_POLICIES.some((builtIn) => builtIn.id === id),
+      ),
+      custom: customPolicies
+        .filter((item) => activePolicyIds.includes(item.id))
+        .map(policyForRequest),
+      profile: PROFILE,
+      strategy: STRATEGY,
     };
-    setResult(res);
-    pushRun({
-      id: `rt_${Date.now().toString(36)}`,
-      ts: new Date().toISOString(),
-      model: activeModel,
-      prompt,
-      verdict,
-      tokens: res.tokens,
-      latencyMs: totalLatency,
-      ruleId,
-      stage: blockedAt,
-    });
+    const clientRequestId = sequencer.current.next();
+    setSending(true);
+    setError(null);
+    setResult(null);
+    try {
+      const response = await gatewayClient.runPrompt({
+        purpose: "prompt",
+        modelId: activeModel,
+        policy,
+        prompt,
+        clientRequestId,
+      });
+      // A late answer to an earlier request is discarded, never shown over a newer one.
+      if (!sequencer.current.isCurrent(response.run.clientRequestId)) return;
+      setResult({ run: response.run, output: response.display.output, receipt: response.receipt });
+      recordReceipt({
+        id: response.receipt.id,
+        module: response.receipt.module,
+        verdict: response.receipt.verdict,
+        createdAt: response.receipt.createdAt,
+      });
+      pushRun({
+        receiptId: response.receipt.id,
+        ts: response.receipt.createdAt,
+        model: response.run.modelId,
+        status: response.run.status,
+        verdict: response.receipt.verdict,
+        latencyMs: response.run.latencyMs,
+      });
+    } catch (caught) {
+      if (!sequencer.current.isCurrent(clientRequestId)) return;
+      if (needsUnlock(caught)) {
+        markGatewayLocked((caught as GatewayHttpError).code === "session-expired");
+        setError("The gateway session ended. Unlock it again from the header.");
+      } else if (caught instanceof GatewayHttpError) {
+        setError(caught.message);
+      } else {
+        setError("The request did not reach the gateway.");
+      }
+    } finally {
+      if (sequencer.current.isCurrent(clientRequestId)) setSending(false);
+    }
   };
 
-  const active = modelById(activeModel);
+  // Citation presence only: which active policies the reply names. Not a judgement of
+  // whether the reply agrees with them (that is the roadmap semantic judge).
+  const output = result?.output ?? null;
+  const cited = output
+    ? activeVeilPolicies.filter(
+        (policy) => output.includes(policy.shortName) || output.includes(policy.id),
+      )
+    : [];
+  const citedNames = cited.map((policy) => policy.shortName).join(", ");
 
   return (
     <div className="p-6 sm:p-8 space-y-6">
-      <div
-        role="note"
-        className="rounded-lg border border-[color:var(--revise)]/30 bg-[color:var(--revise)]/[0.06] px-4 py-3 text-sm"
-      >
-        <span className="font-medium text-[color:var(--revise)]">Simulated demonstration.</span>{" "}
-        No model is connected and no request leaves this browser. Verdicts, latencies, and token
-        counts on this page are generated for illustration. The gateway API that will route checked
-        context to a configured model is on the roadmap.
-      </div>
+      {!connected && (
+        <div
+          role="note"
+          className="rounded-lg border border-[color:var(--revise)]/30 bg-[color:var(--revise)]/[0.06] px-4 py-3 text-sm"
+        >
+          <span className="font-medium text-[color:var(--revise)]">No model connected.</span>{" "}
+          Nothing on this page leaves your browser until a model passes a live connection check. The
+          input scrub below runs locally; no verdict, latency, or token count is shown until a real
+          run returns one.
+        </div>
+      )}
 
       <PageHeader
-        eyebrow="Beta · simulated"
+        eyebrow="Beta"
         icon={<Zap className="h-6 w-6" aria-hidden />}
-        title="Send a question through JurisCore"
-        description="Type anything, pick an AI, and watch each check happen. Same setup works with any model — no code change on your side."
-        actions={
-          <>
-            <label htmlFor="gw-model" className="sr-only">Which AI to use</label>
-            <Select value={activeModel} onValueChange={(v) => setActiveModel(v as ModelId)}>
-              <SelectTrigger id="gw-model" className="w-56">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MODELS.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    <span className="inline-flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full" style={{ background: m.accent }} aria-hidden />
-                      {m.label} <span className="text-xs text-muted-foreground">· {m.vendor}</span>
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </>
-        }
+        title="Send a prompt through JurisCore"
+        description="Veil checks the prompt before it leaves, the connected model answers, and Veil checks the reply on the way back. Every run writes a receipt."
       />
 
-      <Card className="border-primary/30 bg-primary/[0.03]">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <Info className="h-4 w-4 text-primary" aria-hidden /> What this demo shows
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground space-y-3">
-          <p>
-            This is a live walk-through of how JurisCore sits between your app and any AI model.
-            Type a question, pick a model, and hit <span className="font-medium text-foreground">Send through JurisCore</span>.
-            The same request is checked four times — you'll see each check light up in order.
-          </p>
-          <ol className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-2">
-            <li className="rounded-lg border border-border bg-card p-3">
-              <div className="flex items-center gap-2 text-foreground font-medium text-xs"><ShieldAlert className="h-3.5 w-3.5 text-primary" aria-hidden /> 1. Input Scrub</div>
-              <p className="mt-1 text-xs">Scans your question for private data (names, SSNs, medical IDs, API keys) and prompt-injection tricks. Blocks or masks before anything is sent to the AI.</p>
-            </li>
-            <li className="rounded-lg border border-border bg-card p-3">
-              <div className="flex items-center gap-2 text-foreground font-medium text-xs"><Cpu className="h-3.5 w-3.5 text-primary" aria-hidden /> 2. Model Call</div>
-              <p className="mt-1 text-xs">Sends the clean question to the model you picked — Gemini, Claude, or GPT-4o. You'd swap models with one dropdown, not a rewrite.</p>
-            </li>
-            <li className="rounded-lg border border-border bg-card p-3">
-              <div className="flex items-center gap-2 text-foreground font-medium text-xs"><BookOpen className="h-3.5 w-3.5 text-primary" aria-hidden /> 3. Semantic Judge</div>
-              <p className="mt-1 text-xs">Pulls the matching clause from your rulebook (SEC, FINRA, HIPAA, CMS) and checks whether the reply actually agrees with it. If not, it's marked for revision.</p>
-            </li>
-            <li className="rounded-lg border border-border bg-card p-3">
-              <div className="flex items-center gap-2 text-foreground font-medium text-xs"><ScrollText className="h-3.5 w-3.5 text-primary" aria-hidden /> 4. Output Guardrail</div>
-              <p className="mt-1 text-xs">Final pass — attaches citations, flags uncited claims, and writes an audit receipt so any regulator can retrace the decision.</p>
-            </li>
-          </ol>
-          <p className="text-xs pt-1">
-            The result cards below show the <span className="font-medium text-foreground">verdict</span> (allow / revise / block),
-            which <span className="font-medium text-foreground">rule</span> was triggered, token usage and per-stage latency.
-            Try a clean marketing question versus one with an SSN or a medical record ID — you'll see the verdict change.
-          </p>
-        </CardContent>
-      </Card>
-
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-4">
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
           <div>
-            <CardTitle>Your test question</CardTitle>
+            <CardTitle>Your prompt</CardTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              Sending to <span className="font-mono text-foreground">{active.label}</span> · {active.ctx} · {active.costPer1K}/1K tokens
+              {activeModel ? (
+                <>
+                  Sending to{" "}
+                  <span className="font-mono text-foreground">
+                    {gatewayModelLabel(activeModel)}
+                  </span>{" "}
+                  · {connected ? "connected" : "not connected"}
+                </>
+              ) : (
+                "No model selected. Choose one under Active model in the header."
+              )}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <label htmlFor="gw-domain" className="sr-only">Regulated domain</label>
-            <Select value={domain} onValueChange={(v) => setDomain(v as typeof domain)}>
-              <SelectTrigger id="gw-domain" className="w-36"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="finance">Finance</SelectItem>
-                <SelectItem value="healthcare">Healthcare</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="flex flex-wrap justify-end gap-1 max-w-sm">
+            {activeVeilPolicies.map((policy) => (
+              <Badge key={policy.id} variant="secondary" className="text-[10px]">
+                {policy.shortName}
+              </Badge>
+            ))}
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <label htmlFor="gw-prompt" className="sr-only">Prompt</label>
-          <Textarea id="gw-prompt" rows={4} value={prompt} onChange={(e) => setPrompt(e.target.value)} className="font-mono text-sm" />
+          <label htmlFor="gw-prompt" className="sr-only">
+            Prompt
+          </label>
+          <Textarea
+            id="gw-prompt"
+            rows={4}
+            value={prompt}
+            onChange={(event) => setPrompt(event.target.value)}
+            className="font-mono text-sm"
+          />
           <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={run} disabled={!!running || killSwitch}>
-              {killSwitch ? (<><Lock className="h-4 w-4 mr-2" /> Emergency stop is on</>) : (<><Send className="h-4 w-4 mr-2" /> Send through JurisCore</>)}
+            <Button onClick={send} disabled={Boolean(sendBlockedReason) || sending}>
+              {killSwitch ? (
+                <>
+                  <Lock className="h-4 w-4 mr-2" /> Emergency stop is on
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />{" "}
+                  {sending ? "Sending…" : "Send through JurisCore"}
+                </>
+              )}
             </Button>
-            <div className="flex-1 min-w-[16rem]">
-              <div className="h-2 rounded-full bg-muted overflow-hidden">
-                <div className="h-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
-              </div>
-              <div className="mt-2 flex justify-between text-[10px] uppercase tracking-wider text-muted-foreground font-mono">
-                {(["input", "model", "judge", "output"] as Stage[]).map((s) => (
-                  <span key={s} className={running === s ? "text-primary" : ""}>{STAGE_LABELS[s]}</span>
-                ))}
-              </div>
-            </div>
+            {sendBlockedReason && (
+              <span className="text-xs text-muted-foreground">{sendBlockedReason}</span>
+            )}
           </div>
+          {error && (
+            <p role="alert" className="text-sm text-[color:var(--block)]">
+              {error}
+            </p>
+          )}
         </CardContent>
       </Card>
 
-      {result && (
-        <div className="grid lg:grid-cols-3 gap-4" aria-live="polite">
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-sm flex items-center gap-2"><Cpu className="h-4 w-4 text-primary" /> Tokens</CardTitle></CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-2 font-mono text-sm">
-                <div><div className="text-xs text-muted-foreground">Prompt</div><div className="text-lg">{result.tokens.prompt}</div></div>
-                <div><div className="text-xs text-muted-foreground">Completion</div><div className="text-lg">{result.tokens.completion}</div></div>
-                <div><div className="text-xs text-muted-foreground">Total</div><div className="text-lg text-primary">{result.tokens.prompt + result.tokens.completion}</div></div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-sm flex items-center gap-2"><Timer className="h-4 w-4 text-primary" /> Latency · {result.totalLatency}ms</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
-              {(["input", "model", "judge", "output"] as Stage[]).map((s) => {
-                const pct = (result.latencyBreakdown[s] / result.totalLatency) * 100;
-                return (
-                  <div key={s}>
-                    <div className="flex justify-between text-xs text-muted-foreground font-mono">
-                      <span>{STAGE_LABELS[s]}</span>
-                      <span>{Math.round(result.latencyBreakdown[s])}ms</span>
-                    </div>
-                    <div className="h-1.5 mt-1 bg-muted rounded-full overflow-hidden">
-                      <div className="h-full bg-primary/70" style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-sm flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-primary" /> Verdict</CardTitle></CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className={
-                  result.verdict === "allow" ? "border-[color:var(--allow)]/40 text-[color:var(--allow)]" :
-                  result.verdict === "block" ? "border-[color:var(--block)]/40 text-[color:var(--block)]" :
-                  "border-[color:var(--revise)]/40 text-[color:var(--revise)]"
-                }>{result.verdict.toUpperCase()}</Badge>
-                {result.ruleId && <span className="font-mono text-xs text-muted-foreground">{result.ruleId}</span>}
-              </div>
-              {result.reason && <p className="text-xs text-muted-foreground">{result.reason}</p>}
-              {result.citations.length > 0 && (
-                <div>
-                  <div className="text-xs text-muted-foreground mb-1">Citations attached:</div>
-                  <div className="flex flex-wrap gap-1">
-                    {result.citations.map((c) => <Badge key={c} variant="secondary" className="font-mono text-[10px]">{c}</Badge>)}
-                  </div>
-                </div>
+      <div className="grid lg:grid-cols-2 gap-4" aria-live="polite">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4 text-primary" aria-hidden /> 1. Input scrub · Veil
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className={verdictClass[preview.result.rawVerdict]}>
+                Raw input {preview.result.rawVerdict.toUpperCase()}
+              </Badge>
+              {preview.blocked ? (
+                <Badge variant="outline" className={verdictClass.block}>
+                  Will not be sent
+                </Badge>
+              ) : (
+                <Badge variant="outline" className={verdictClass.allow}>
+                  Safe to send after protection
+                </Badge>
               )}
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+            {preview.blocked && <p className="text-xs">{preview.reason}</p>}
+            <FindingList
+              summary={{
+                rawVerdict: preview.result.rawVerdict,
+                sanitizedVerdict: preview.result.sanitizedVerdict,
+                findings: preview.result.findings.map((finding) => ({
+                  category: finding.category,
+                  label: finding.label,
+                  severity: finding.severity,
+                  count: finding.count,
+                })),
+              }}
+            />
+            {!preview.blocked && (
+              <pre className="max-h-40 overflow-auto rounded-md border border-border bg-muted/20 p-2 text-xs whitespace-pre-wrap">
+                {preview.text}
+              </pre>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Cpu className="h-4 w-4 text-primary" aria-hidden /> 2. Model call
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {result ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">{result.run.status}</Badge>
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {result.run.modelId}
+                  </span>
+                </div>
+                {result.run.reason && <p className="text-xs">{result.run.reason}</p>}
+                {result.run.declineCategory && (
+                  <p className="text-xs text-muted-foreground">
+                    Category: {result.run.declineCategory}
+                  </p>
+                )}
+                {result.run.usage && (
+                  <div className="grid grid-cols-3 gap-2 font-mono text-xs">
+                    <div>
+                      <div className="text-muted-foreground">Input tokens</div>
+                      <div className="text-base">{result.run.usage.inputTokens}</div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Output tokens</div>
+                      <div className="text-base">{result.run.usage.outputTokens}</div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground flex items-center gap-1">
+                        <Timer className="h-3 w-3" aria-hidden /> Latency
+                      </div>
+                      <div className="text-base">{result.run.latencyMs} ms</div>
+                    </div>
+                  </div>
+                )}
+                {result.output !== null && (
+                  <pre className="max-h-64 overflow-auto rounded-md border border-border bg-muted/20 p-2 text-xs whitespace-pre-wrap">
+                    {result.output}
+                  </pre>
+                )}
+                {result.run.status === "truncated" && (
+                  <p className="text-xs text-[color:var(--revise)]">
+                    The reply hit its length limit and is incomplete.
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">No run yet.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-primary" aria-hidden /> 3. Output check
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {result?.run.outputCheck ? (
+              <>
+                <Badge
+                  variant="outline"
+                  className={verdictClass[result.run.outputCheck.rawVerdict]}
+                >
+                  Reply {result.run.outputCheck.rawVerdict.toUpperCase()}
+                </Badge>
+                <FindingList summary={result.run.outputCheck} />
+                <p className="text-xs text-muted-foreground">
+                  {cited.length > 0
+                    ? `Mentions active policies: ${citedNames}.`
+                    : "The reply cites none of the active policies."}
+                </p>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Runs on the model&apos;s reply, under the same policies as the input.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <BookOpen className="h-4 w-4 text-primary" aria-hidden /> 4. Semantic judge
+              <Badge variant="outline" className="ml-auto text-[10px] uppercase">
+                Roadmap
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">
+            Checking whether a reply agrees with the policy text it cites is not built yet. No
+            result is simulated here.
+          </CardContent>
+        </Card>
+      </div>
+
+      {result && (
+        <Card>
+          <CardHeader className="pb-3 flex flex-row items-center justify-between gap-4">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <ScrollText className="h-4 w-4 text-primary" aria-hidden /> Receipt
+            </CardTitle>
+            <Button size="sm" variant="outline" onClick={() => downloadReceipt(result.receipt)}>
+              <Download className="h-3.5 w-3.5 mr-1.5" aria-hidden /> Download receipt
+            </Button>
+          </CardHeader>
+          <CardContent className="grid sm:grid-cols-2 gap-2 font-mono text-xs">
+            <div className="truncate">id {result.receipt.id}</div>
+            <div>
+              verdict{" "}
+              <Badge variant="outline" className={verdictClass[result.receipt.verdict]}>
+                {result.receipt.verdict}
+              </Badge>
+            </div>
+            <div className="truncate">request {result.run.requestDigest.slice(0, 16)}…</div>
+            <div className="truncate">
+              outbound{" "}
+              {result.run.outboundDigest
+                ? `${result.run.outboundDigest.slice(0, 16)}…`
+                : "nothing sent"}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {recentRuns.length > 0 && (
         <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm">Recent runs</CardTitle></CardHeader>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">Recent runs</CardTitle>
+          </CardHeader>
           <CardContent>
             <div className="space-y-1 max-h-60 overflow-y-auto">
-              {recentRuns.map((r) => (
-                <div key={r.id} className="flex items-center gap-3 py-1.5 px-2 rounded hover:bg-muted/40 text-xs font-mono">
-                  <span className="text-muted-foreground">{r.ts.slice(11, 19)}</span>
-                  <span className="w-32 truncate">{modelById(r.model).label}</span>
-                  <Badge variant="outline" className={`text-[10px] ${
-                    r.verdict === "allow" ? "border-[color:var(--allow)]/40 text-[color:var(--allow)]" :
-                    r.verdict === "block" ? "border-[color:var(--block)]/40 text-[color:var(--block)]" :
-                    "border-[color:var(--revise)]/40 text-[color:var(--revise)]"
-                  }`}>{r.verdict}</Badge>
-                  <span className="text-muted-foreground">{r.latencyMs}ms</span>
-                  <span className="flex-1 truncate text-muted-foreground/80">{r.prompt}</span>
+              {recentRuns.map((run) => (
+                <div
+                  key={run.receiptId}
+                  className="flex items-center gap-3 py-1.5 px-2 rounded hover:bg-muted/40 text-xs font-mono"
+                >
+                  <span className="text-muted-foreground">{run.ts.slice(11, 19)}</span>
+                  <span className="w-36 truncate">{gatewayModelLabel(run.model)}</span>
+                  <Badge variant="outline" className={`text-[10px] ${verdictClass[run.verdict]}`}>
+                    {run.verdict}
+                  </Badge>
+                  <span className="text-muted-foreground">{run.status}</span>
+                  <span className="text-muted-foreground">{run.latencyMs} ms</span>
                 </div>
               ))}
             </div>
           </CardContent>
         </Card>
       )}
+
+      <Card id="setup">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">Connect your own Anthropic account</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm text-muted-foreground">
+          <p>
+            The gateway calls Anthropic with an API key from your own Anthropic Console account. The
+            key is set on the server and never reaches this page. Claude Pro and Max subscriptions
+            do not include API access.
+          </p>
+          <ol className="list-decimal pl-5 space-y-1">
+            <li>
+              On the server (for local use, in <code>.env.local</code>), set your Anthropic API key,
+              turn the gateway on, and choose a gateway access token of 16 characters or more. The
+              variable names are in <code>docs/GATEWAY_SETUP.md</code>.
+            </li>
+            <li>Restart the server.</li>
+            <li>Unlock the gateway from the header with the access token.</li>
+            <li>Run Test connection. Connected appears only after that check succeeds.</li>
+          </ol>
+        </CardContent>
+      </Card>
     </div>
   );
 }

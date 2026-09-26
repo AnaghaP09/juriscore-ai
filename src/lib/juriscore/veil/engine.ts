@@ -35,7 +35,16 @@ interface Detector {
   scope: VeilPolicyScope;
   pattern: RegExp;
   valueGroup?: number;
+  /**
+   * Replace the match exactly as found. The word-boundary guard exists for short values
+   * that could sit inside a longer token; a PEM block starts and ends with dashes, and a
+   * guard there would leave a block that happens to touch a letter unredacted.
+   */
+  unguarded?: boolean;
 }
+
+/** Detector id for a PEM private-key header with no matching footer. */
+export const UNTERMINATED_PRIVATE_KEY_DETECTOR = "veil.secret.private_key_unterminated";
 
 // PDF and DOCX extraction flattens a table row into a label, a column gap, and the value
 // ("Patient Name   Maya Patel"), so a labelled field reaches the engine without its colon.
@@ -48,6 +57,32 @@ function labelledPattern(source: string) {
 }
 
 const DETECTORS: Detector[] = [
+  // Private keys run first and are redacted as a whole block, header to footer. Matching
+  // the header alone left every body line in the sanitized text, and a later detector
+  // could rewrite part of the body before the block was recognised.
+  {
+    id: "veil.secret.private_key",
+    category: "private_key",
+    label: "Private key material",
+    code: "PRIVATE_KEY",
+    severity: "high",
+    scope: "secrets",
+    pattern:
+      /-----BEGIN ((?:[A-Z0-9]+ )*)PRIVATE KEY( BLOCK)?-----[\s\S]*?-----END \1PRIVATE KEY\2-----/g,
+    unguarded: true,
+  },
+  {
+    // A header whose footer never arrives (a truncated paste) cannot be bounded, so
+    // everything from the header to the end of the text is withheld.
+    id: UNTERMINATED_PRIVATE_KEY_DETECTOR,
+    category: "private_key",
+    label: "Unterminated private key",
+    code: "PRIVATE_KEY_PARTIAL",
+    severity: "high",
+    scope: "secrets",
+    pattern: /-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----[\s\S]*/g,
+    unguarded: true,
+  },
   {
     id: "veil.health.patient_name",
     category: "patient_name",
@@ -271,15 +306,6 @@ const DETECTORS: Detector[] = [
     pattern: /\b(?:ghp|github_pat)_[A-Za-z0-9_]{16,}\b/g,
   },
   {
-    id: "veil.secret.private_key",
-    category: "private_key",
-    label: "Private key material",
-    code: "PRIVATE_KEY",
-    severity: "high",
-    scope: "secrets",
-    pattern: /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/g,
-  },
-  {
     id: "veil.saas.tenant_id",
     category: "tenant_id",
     label: "Customer tenant ID",
@@ -340,15 +366,14 @@ function escapeRegularExpression(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-export function protectText(
-  text: string,
-  options: {
-    strategy?: VeilStrategy;
-    profile?: VeilProfile;
-    policyIds?: string[];
-    policyScopes?: VeilPolicyScope[];
-  } = {},
-): VeilResult {
+export interface VeilProtectOptions {
+  strategy?: VeilStrategy;
+  profile?: VeilProfile;
+  policyIds?: string[];
+  policyScopes?: VeilPolicyScope[];
+}
+
+export function protectText(text: string, options: VeilProtectOptions = {}): VeilResult {
   const strategy = options.strategy ?? "redact";
   const profile = options.profile ?? "saas_operations";
   const policyIds = options.policyIds ?? [];
@@ -356,9 +381,7 @@ export function protectText(
   const findings: VeilFinding[] = [];
   let sanitizedText = text;
 
-  for (const detector of DETECTORS.filter((item) =>
-    detectorApplies(item, profile, policyScopes),
-  )) {
+  for (const detector of DETECTORS.filter((item) => detectorApplies(item, profile, policyScopes))) {
     const replacements: string[] = [];
     const values = Array.from(sanitizedText.matchAll(cloneGlobal(detector.pattern)))
       .map((match) => match[detector.valueGroup ?? 0])
@@ -374,8 +397,12 @@ export function protectText(
       // but never where it happens to sit inside a longer token. Without this, a short
       // value such as a lockbox "00027" also overwrites the middle of an unrelated tax
       // ID ("SAMPLE-94-0002718"), mangling the output and double-counting the receipt.
+      const escaped = escapeRegularExpression(value);
       sanitizedText = sanitizedText.replace(
-        new RegExp(`(?<![A-Za-z0-9])${escapeRegularExpression(value)}(?![A-Za-z0-9])`, flags),
+        new RegExp(
+          detector.unguarded ? escaped : `(?<![A-Za-z0-9])${escaped}(?![A-Za-z0-9])`,
+          flags,
+        ),
         () => {
           count += 1;
           replacements.push(replacement);
@@ -417,4 +444,64 @@ export function protectText(
     strategy,
     policyIds,
   };
+}
+
+declare const veilSanitizedBrand: unique symbol;
+
+/**
+ * Text (or a request built only from such text) that has passed `sanitizeForProvider`.
+ * Provider adapters accept nothing else, so an unscanned string cannot reach transport
+ * without a cast that review would see.
+ */
+export type VeilSanitized<T> = T & { readonly [veilSanitizedBrand]: true };
+
+export type ProviderSanitization =
+  | { blocked: false; text: VeilSanitized<string>; result: VeilResult }
+  | { blocked: true; reason: string; result: VeilResult };
+
+const ALL_SCOPES: VeilPolicyScope[] = ["common", "healthcare", "secrets", "prompt_security"];
+const PRIVATE_KEY_MARKER = /-----(?:BEGIN|END) (?:[A-Z0-9]+ )*PRIVATE KEY/;
+
+/**
+ * The gate in front of every provider request. It protects the text under the caller's
+ * policies, then re-scans the result under every detector: anything still detectable,
+ * an unterminated private key, or any leftover PEM marker fails closed. The verdicts in
+ * `result` are Veil's and are never changed here.
+ */
+export function sanitizeForProvider(
+  text: string,
+  options: VeilProtectOptions = {},
+): ProviderSanitization {
+  const result = protectText(text, options);
+  const unterminated = result.findings.some(
+    (finding) => finding.detectorId === UNTERMINATED_PRIVATE_KEY_DETECTOR,
+  );
+  if (unterminated) {
+    return {
+      blocked: true,
+      reason: "An unterminated private key was found. Nothing was sent.",
+      result,
+    };
+  }
+  if (PRIVATE_KEY_MARKER.test(result.sanitizedText)) {
+    return {
+      blocked: true,
+      reason: "Private key material remains after protection. Nothing was sent.",
+      result,
+    };
+  }
+  const residual = protectText(result.sanitizedText, {
+    strategy: "redact",
+    profile: "all_sensitive",
+    policyScopes: ALL_SCOPES,
+  });
+  if (residual.findings.length > 0) {
+    const labels = [...new Set(residual.findings.map((finding) => finding.label))].join(", ");
+    return {
+      blocked: true,
+      reason: `Sensitive data remains after protection (${labels}). Nothing was sent.`,
+      result,
+    };
+  }
+  return { blocked: false, text: result.sanitizedText as VeilSanitized<string>, result };
 }
