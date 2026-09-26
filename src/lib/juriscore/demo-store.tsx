@@ -8,7 +8,18 @@ import {
   type ReactNode,
 } from "react";
 import { DEFAULT_ACTIVE_POLICY_IDS, type PolicyDefinition } from "@/lib/juriscore/policies/catalog";
-import type { ValidationModule, ValidatorVerdict } from "@/lib/juriscore/core/contracts";
+import type {
+  PersistedReceipt,
+  ValidationReceipt,
+  ValidatorVerdict,
+} from "@/lib/juriscore/core/contracts";
+import { HISTORY_NOT_SAVED_NOTE, receiptStore } from "@/lib/juriscore/core/receipt-store";
+import {
+  getReceiptFolder,
+  writeReceiptToFolder,
+  type FolderWriteResult,
+} from "@/lib/juriscore/core/receipt-folder";
+import { createSafeStorage } from "@/lib/juriscore/core/safe-storage";
 
 export type ModelId = "gemini-1.5-pro" | "claude-3.5-sonnet" | "gpt-4o";
 export type DriftMode = "clean" | "drift";
@@ -61,12 +72,14 @@ export interface GatewayRun {
   stage?: string;
 }
 
-export interface SessionReceiptEntry {
-  id: string;
-  module: string;
-  verdict: string;
-  createdAt: string;
+export interface RecordedReceipt {
+  /** The stored, allowlisted record; downloads and folder writes use exactly this. */
+  receipt: PersistedReceipt;
+  /** Set when a receipt folder is chosen: where it was written, or why it was not. */
+  folder: FolderWriteResult | null;
 }
+
+const RECENT_RECEIPT_COUNT = 5;
 
 export interface VeilCheckRecord {
   verdict: ValidatorVerdict;
@@ -224,9 +237,15 @@ interface DemoStore {
   localMetrics: LocalMetricsLedger;
   recordVeilCheck: (record: VeilCheckRecord) => void;
   recordPlumbCheck: (record: PlumbCheckRecord) => void;
-  recordReceipt: (receipt: SessionReceiptEntry) => void;
+  /** Stores the receipt of a completed run in the browser history (and folder, if chosen). */
+  recordReceipt: (receipt: ValidationReceipt) => Promise<RecordedReceipt>;
   seedDemoMetrics: () => void;
-  sessionReceipts: SessionReceiptEntry[];
+  /** The latest receipts in the browser history, newest first. */
+  recentReceipts: PersistedReceipt[];
+  /** Oldest receipts dropped from history in this session to stay within the limit. */
+  receiptsTrimmed: number;
+  /** Non-null when browser storage failed and state is held in memory only. */
+  storageNote: string | null;
   connectedRepository: ConnectedRepository | null;
   setConnectedRepository: (repository: ConnectedRepository | null) => void;
   sourceDocuments: SourceDocument[];
@@ -245,15 +264,28 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
   const [activePolicyIds, setActivePolicyIds] = useState<string[]>(DEFAULT_ACTIVE_POLICY_IDS);
   const [customPolicies, setCustomPolicies] = useState<PolicyDefinition[]>([]);
   const [localMetrics, setLocalMetrics] = useState<LocalMetricsLedger>(seededLedger);
-  const [sessionReceipts, setSessionReceipts] = useState<SessionReceiptEntry[]>([]);
+  const [recentReceipts, setRecentReceipts] = useState<PersistedReceipt[]>([]);
+  const [receiptsTrimmed, setReceiptsTrimmed] = useState(0);
+  const [storageFailed, setStorageFailed] = useState(false);
   const [connectedRepository, setConnectedRepository] = useState<ConnectedRepository | null>(null);
   const [sourceDocuments, setSourceDocuments] = useState<SourceDocument[]>([]);
 
+  // Every localStorage read and write goes through this; a failure keeps state in memory
+  // and raises the same single note as an unavailable receipt history.
+  const storage = useMemo(
+    () =>
+      createSafeStorage(
+        () => window.localStorage,
+        () => setStorageFailed(true),
+      ),
+    [],
+  );
+
   useEffect(() => {
+    const savedActive = storage.get("juriscore.activePolicyIds");
+    const savedCustom = storage.get("juriscore.customPolicies");
+    const savedMetrics = storage.get(METRICS_STORAGE_KEY);
     try {
-      const savedActive = window.localStorage.getItem("juriscore.activePolicyIds");
-      const savedCustom = window.localStorage.getItem("juriscore.customPolicies");
-      const savedMetrics = window.localStorage.getItem(METRICS_STORAGE_KEY);
       if (savedActive) setActivePolicyIds(JSON.parse(savedActive) as string[]);
       if (savedCustom) setCustomPolicies(JSON.parse(savedCustom) as PolicyDefinition[]);
       if (savedMetrics) {
@@ -263,28 +295,47 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
         }
       }
     } catch {
-      // Keep the built-in defaults when browser storage is unavailable or malformed.
+      // Keep the built-in defaults when saved state is malformed.
     }
-  }, []);
+  }, [storage]);
 
   useEffect(() => {
-    window.localStorage.setItem("juriscore.activePolicyIds", JSON.stringify(activePolicyIds));
-  }, [activePolicyIds]);
+    storage.set("juriscore.activePolicyIds", JSON.stringify(activePolicyIds));
+  }, [storage, activePolicyIds]);
 
   useEffect(() => {
-    window.localStorage.setItem("juriscore.customPolicies", JSON.stringify(customPolicies));
-  }, [customPolicies]);
+    storage.set("juriscore.customPolicies", JSON.stringify(customPolicies));
+  }, [storage, customPolicies]);
 
   useEffect(() => {
-    window.localStorage.setItem(METRICS_STORAGE_KEY, JSON.stringify(localMetrics));
-  }, [localMetrics]);
+    storage.set(METRICS_STORAGE_KEY, JSON.stringify(localMetrics));
+  }, [storage, localMetrics]);
 
   useEffect(() => {
-    try {
-      for (const key of LEGACY_SOURCE_STORAGE_KEYS) window.localStorage.removeItem(key);
-    } catch {
-      // Storage unavailable: nothing was saved there to remove.
-    }
+    for (const key of LEGACY_SOURCE_STORAGE_KEYS) storage.remove(key);
+  }, [storage]);
+
+  // The Overview list reads the latest receipts from the browser history and follows
+  // changes from this tab and others.
+  useEffect(() => {
+    const store = receiptStore();
+    let cancelled = false;
+    const refresh = () => {
+      store
+        .listReceipts({ offset: 0, limit: RECENT_RECEIPT_COUNT })
+        .then((page) => {
+          if (cancelled) return;
+          setRecentReceipts(page.items);
+          if (!store.status().persistent) setStorageFailed(true);
+        })
+        .catch(() => undefined);
+    };
+    refresh();
+    const unsubscribe = store.onChange(refresh);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, []);
 
   const addSourceDocument = useCallback((document: SourceDocument) => {
@@ -350,11 +401,19 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
   );
 
   const recordReceipt = useCallback(
-    (receipt: SessionReceiptEntry) => {
+    async (receipt: ValidationReceipt): Promise<RecordedReceipt> => {
+      const store = receiptStore();
+      // Rejects only for a receipt that does not validate; storage failures degrade to
+      // memory inside the store and never reach the check.
+      const added = await store.addReceipt(receipt);
       mutateToday((day) => {
         day.receipts += 1;
       });
-      setSessionReceipts((prev) => [receipt, ...prev].slice(0, 20));
+      if (added.trimmed > 0) setReceiptsTrimmed((count) => count + added.trimmed);
+      if (!store.status().persistent) setStorageFailed(true);
+      const handle = await getReceiptFolder(store);
+      const folder = handle ? await writeReceiptToFolder(added.receipt, { handle }) : null;
+      return { receipt: added.receipt, folder };
     },
     [mutateToday],
   );
@@ -370,7 +429,6 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     setActivePolicyIds(DEFAULT_ACTIVE_POLICY_IDS);
     setCustomPolicies([]);
     setLocalMetrics(seededLedger());
-    setSessionReceipts([]);
     setConnectedRepository(null);
     setSourceDocuments([]);
   }, []);
@@ -394,7 +452,9 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       recordPlumbCheck,
       recordReceipt,
       seedDemoMetrics,
-      sessionReceipts,
+      recentReceipts,
+      receiptsTrimmed,
+      storageNote: storageFailed ? HISTORY_NOT_SAVED_NOTE : null,
       connectedRepository,
       setConnectedRepository,
       sourceDocuments,
@@ -417,7 +477,9 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       recordPlumbCheck,
       recordReceipt,
       seedDemoMetrics,
-      sessionReceipts,
+      recentReceipts,
+      receiptsTrimmed,
+      storageFailed,
       connectedRepository,
       sourceDocuments,
       addSourceDocument,

@@ -84,9 +84,22 @@ export const validatorVerdictSchema = z.enum(["allow", "revise", "block"]);
 
 export type ValidatorVerdict = z.infer<typeof validatorVerdictSchema>;
 
-export const validationModuleSchema = z.enum(["veil", "plumb"]);
+export const validationModuleSchema = z.enum(["veil", "plumb", "gateway"]);
 
 export type ValidationModule = z.infer<typeof validationModuleSchema>;
+
+/**
+ * What a receipt's `inputDigest` covers, and therefore how it can be re-checked. A receipt
+ * without the field predates it and is read as the v1 of its module.
+ */
+export const digestVersionSchema = z.enum([
+  "veil.raw-text.v1",
+  "plumb.claims.v1",
+  "plumb.sources.v2",
+  "gateway.request.v1",
+]);
+
+export type DigestVersion = z.infer<typeof digestVersionSchema>;
 
 export const evaluationMaturitySchema = z.enum([
   "target",
@@ -171,9 +184,43 @@ export const validationReceiptSchema = z.object({
   evidence: z.array(evidenceReferenceSchema),
   maturity: evaluationMaturitySchema,
   createdAt: z.string().datetime(),
+  digestVersion: digestVersionSchema.optional(),
+  /** Plumb v2 only: digest of the diff and each document's content, separate from claims. */
+  sourceDigest: z.string().min(1).optional(),
 });
 
 export type ValidationReceipt = z.infer<typeof validationReceiptSchema>;
+
+/**
+ * The only receipt shape that is stored, written to a folder, downloaded, or exported.
+ * Strict at every level: evidence carries references with no `excerpt`, and any key not
+ * listed here is rejected rather than carried along.
+ */
+export const persistedEvidenceReferenceSchema = z
+  .object({
+    sourceId: z.string().min(1),
+    sourceVersion: z.string().min(1),
+    locator: z.string().min(1),
+  })
+  .strict();
+
+export const persistedReceiptSchema = z
+  .object({
+    id: z.string().min(1),
+    module: validationModuleSchema,
+    policyVersion: z.string().min(1),
+    inputDigest: z.string().min(1),
+    verdict: validatorVerdictSchema,
+    findingIds: z.array(z.string().min(1)),
+    evidence: z.array(persistedEvidenceReferenceSchema),
+    maturity: evaluationMaturitySchema,
+    createdAt: z.string().datetime(),
+    digestVersion: digestVersionSchema.optional(),
+    sourceDigest: z.string().min(1).optional(),
+  })
+  .strict();
+
+export type PersistedReceipt = z.infer<typeof persistedReceiptSchema>;
 
 export const auditEventSchema = z.object({
   id: z.string().min(1),

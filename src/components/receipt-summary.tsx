@@ -1,5 +1,20 @@
 import { Badge } from "@/components/ui/badge";
 import type { ValidationReceipt } from "@/lib/juriscore/core/contracts";
+import type { FolderWriteResult } from "@/lib/juriscore/core/receipt-folder";
+
+/** Where a receipt was written in the chosen folder, or why it was downloaded instead. */
+export function FolderWriteNote({ result }: { result: FolderWriteResult | null }) {
+  if (!result) return null;
+  if (result.ok) {
+    return <p className="text-xs text-muted-foreground">Saved to folder: {result.path}</p>;
+  }
+  return (
+    <p role="status" className="text-xs text-[color:var(--revise)]">
+      Not saved to the receipt folder: {result.reason}
+      {result.downloaded ? " The receipt was downloaded instead." : ""}
+    </p>
+  );
+}
 
 export function ReceiptSummary({
   receipt,

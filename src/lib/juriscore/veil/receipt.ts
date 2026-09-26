@@ -12,6 +12,7 @@ export function veilReceiptInput(
   return {
     module: "veil",
     rawInput,
+    digestVersion: "veil.raw-text.v1",
     verdict: result.rawVerdict,
     findingIds: result.findings.map((finding) => finding.id),
     evidence: [],

@@ -78,6 +78,56 @@ No new metrics. All receipts carry maturity `synthetic`. Nothing in this slice m
 - the drift view no longer contains the string "receipt saved";
 - the CISO dial renders with its maturity label.
 
+## Receipt history, folder, and verification (PLAN-2 workstream R)
+
+Status: implemented 2026-09-26. Supersedes the "Out: receipt-store" line above for the browser-local case only; retention guarantees stay Enterprise.
+
+### What is persisted
+
+- Only the **persisted receipt**: `persistedReceiptSchema` in `core/contracts.ts`, strict at every level. Evidence carries `sourceId`, `sourceVersion`, and `locator`; there is no `excerpt`, and unknown keys are rejected.
+- `toPersistedReceipt()` (`core/receipts.ts`) builds that object field by field from the parsed receipt. Every storage and export path uses it: IndexedDB, the folder sink, the download (`serializeReceipt`), and CSV/JSON export.
+- Never persisted: raw input, sanitized text, documents, detected values, claim statements.
+
+### History
+
+- IndexedDB database `juriscore`, store `receipts` keyed by `id` with a `createdAt` index; store `settings` holds the chosen folder handle (`core/receipt-store.ts`).
+- The newest 200 receipts are kept. Older ones are dropped in the same transaction, and the Receipts tab reports how many were dropped this session.
+- Live updates: every stored receipt and every clear notifies the store's listeners after the write commits, and other tabs through the BroadcastChannel `juriscore.receipts`. The Receipts tab and the Overview "latest 5" refresh on those events, with no reload.
+- Domain column: each built-in policy has a `domain` in `policies/catalog.ts` (Privacy, Healthcare, Security & compliance, AI security, AI governance, Cybersecurity); a custom policy reads "Custom · <authority>". A receipt's domains are derived from its `policyVersion` against the current catalog (`core/receipt-domains.ts`): a custom policy deleted since reads "Custom (removed)", and no policies reads "None". The Domain filter lists only the domains present in stored receipts, and CSV export adds a `domain` column. Nothing new is stored in the receipt.
+- If IndexedDB is unavailable or fails, history is kept in memory and one note appears: "History not saved in this browser". The same note covers a failing `localStorage` (policies, custom policies, metrics), which is accessed only through `core/safe-storage.ts`. Nothing throws into a check.
+- The UI calls this a browser-local history, not an audit record.
+
+### When a receipt is created
+
+- **Plumb:** every completed check stores one receipt. "Download receipt" downloads that stored record.
+- **Veil:** typing never creates a receipt. The first Copy, Save report, or Download receipt for a given input, policy set, and strategy stores one; later actions on the same run reuse it.
+
+### Folder sink (Chromium only)
+
+- On the Receipts tab the user can choose a folder once. New receipts are then also written to `<folder>/<module>/<receipt file name>`; permission is re-requested on use.
+- Any failure downloads the receipt instead and says why. The control is hidden where the File System Access API is missing.
+- Reports and sanitized text are never written there.
+
+### Save report
+
+- Veil: `juriscore-veil-report-<ts>.txt`, the sanitized text plus finding labels and counts (no values).
+- Plumb: `juriscore-plumb-report-<ts>.md`, the verdict, the claims compared, and their evidence references.
+- Both are user-initiated downloads only.
+
+### Digest versions and verification
+
+| `digestVersion` | `inputDigest` covers | Verification on the Receipts tab |
+|---|---|---|
+| `veil.raw-text.v1` | SHA-256 of the raw input text | paste the original input |
+| `plumb.claims.v1` (legacy) | SHA-256 of the claims JSON, including load-time timestamps | "Verification unavailable", with the reason |
+| `plumb.sources.v2` | semantic claims digest: canonical JSON of each claim's role, source id, subject, value, unit, and statement, sorted (ids, locators, and source versions excluded) | load the same diff and documents; reports "Source text" (`sourceDigest`) and "Extracted claims" (`inputDigest`) separately |
+| `gateway.request.v1` | the canonical gateway request digest | re-run through the gateway |
+
+- A receipt without `digestVersion` is read as its module's v1.
+- `sourceDigest` is a canonical SHA-256 over the diff's content digest plus each document's content digest, sorted by name. Plumb evidence `sourceVersion` is that source's content digest, never a load time.
+- The verifier (`components/receipt-verifier.tsx`) keeps the supplied text in component state only, calls pure functions, and writes to no store; the text is dropped when it closes.
+- Limitation: receipts from the built-in sample change (no diff connected) digest the sample patch text, which the user does not have, so they cannot be re-verified from the Receipts tab.
+
 ## Risks and open questions
 
 - `policyVersion` is a single string while multiple packs can be active; the joined canonical string is the decided V1 encoding; promoting it to a structured array is deferred to the receipt-store slice (owner: product, decide with that slice's spec);

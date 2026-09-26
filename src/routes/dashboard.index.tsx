@@ -4,18 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/page-header";
-import {
-  BookOpen,
-  EyeOff,
-  GitPullRequest,
-  LayoutDashboard,
-  ReceiptText,
-} from "lucide-react";
-import {
-  SIMULATED_SEED,
-  summarizeTrailingWeek,
-  useDemoStore,
-} from "@/lib/juriscore/demo-store";
+import { BookOpen, EyeOff, GitPullRequest, LayoutDashboard, ReceiptText } from "lucide-react";
+import { SIMULATED_SEED, summarizeTrailingWeek, useDemoStore } from "@/lib/juriscore/demo-store";
 import { policyById, type PolicyDefinition } from "@/lib/juriscore/policies/catalog";
 
 export const Route = createFileRoute("/dashboard/")({
@@ -24,8 +14,7 @@ export const Route = createFileRoute("/dashboard/")({
       { title: "Overview — JurisCore" },
       {
         name: "description",
-        content:
-          "Weekly Veil and Plumb activity on this device, active policies, and receipts.",
+        content: "Weekly Veil and Plumb activity on this device, active policies, and receipts.",
       },
     ],
   }),
@@ -50,7 +39,7 @@ function formatVolume(chars: number) {
 }
 
 function Overview() {
-  const { localMetrics, sessionReceipts, activePolicyIds, customPolicies, seedDemoMetrics } =
+  const { localMetrics, recentReceipts, activePolicyIds, customPolicies, seedDemoMetrics } =
     useDemoStore();
   const activePolicies = activePolicyIds
     .map((id) => policyById(id, customPolicies))
@@ -99,10 +88,7 @@ function Overview() {
       <section aria-label="Weekly metrics" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="section-title">This week</h2>
-          <Badge
-            variant="outline"
-            className={simulated ? "text-[color:var(--revise)]" : undefined}
-          >
+          <Badge variant="outline" className={simulated ? "text-[color:var(--revise)]" : undefined}>
             {simulated ? "Simulated" : "Last 7 days · this device · live"}
           </Badge>
         </div>
@@ -135,7 +121,10 @@ function Overview() {
                 <VerdictCell label="Revise" value={overall.revise} tone="revise" />
                 <VerdictCell label="Block" value={overall.block} tone="block" />
               </dl>
-              <SmallStat value={overall.receipts.toLocaleString("en-US")} label="Receipts downloaded" />
+              <SmallStat
+                value={overall.receipts.toLocaleString("en-US")}
+                label="Receipts downloaded"
+              />
             </MetricTile>
 
             <MetricTile
@@ -214,7 +203,7 @@ function Overview() {
           <CardTitle className="flex flex-wrap items-center justify-between gap-3 text-sm">
             <span className="flex items-center gap-2">
               <ReceiptText className="h-4 w-4 text-primary" aria-hidden />
-              Receipts this session
+              Latest receipts
             </span>
             <Button asChild size="sm" variant="outline">
               <Link to="/dashboard/audit">View receipts</Link>
@@ -222,13 +211,14 @@ function Overview() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {sessionReceipts.length === 0 ? (
+          {recentReceipts.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Receipts appear here after you download one from a check.
+              Receipts appear here after a Plumb check, or when you copy, save, or download a Veil
+              result.
             </p>
           ) : (
             <ul className="divide-y divide-border/60">
-              {sessionReceipts.map((receipt) => (
+              {recentReceipts.map((receipt) => (
                 <li
                   key={receipt.id}
                   className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"

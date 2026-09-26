@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { StorageNotice } from "@/components/storage-notice";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -29,7 +30,8 @@ export const Route = createFileRoute("/dashboard")({
       { title: "Dashboard — JurisCore AI" },
       {
         name: "description",
-        content: "Policy-checked AI input and output with receipts — Veil, Plumb, and the Policy Library.",
+        content:
+          "Policy-checked AI input and output with receipts — Veil, Plumb, and the Policy Library.",
       },
     ],
   }),
@@ -188,6 +190,7 @@ function DashboardLayout() {
             </div>
           </div>
           <main id="dashboard-main" className="flex-1 min-w-0">
+            <StorageNotice />
             <Outlet />
           </main>
         </div>

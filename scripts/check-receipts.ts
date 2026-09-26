@@ -10,7 +10,7 @@ import {
 import { protectText } from "../src/lib/juriscore/veil/engine";
 import { veilReceiptInput } from "../src/lib/juriscore/veil/receipt";
 import { compareClaims, type PlumbClaim } from "../src/lib/juriscore/plumb/engine";
-import { plumbReceiptInput } from "../src/lib/juriscore/plumb/receipt";
+import { plumbReceiptInput, plumbSourceDigests } from "../src/lib/juriscore/plumb/receipt";
 import { SENSITIVE_FIXTURE_VALUES, SYNTHETIC_CLINICAL_NOTE } from "./fixtures/veil-fixtures";
 
 const CREATED_AT = "2026-08-01T00:00:00.000Z";
@@ -53,6 +53,7 @@ validationReceiptSchema.parse(veilReceipt);
 assert.equal(veilReceipt.module, "veil");
 assert.equal(veilReceipt.verdict, "block");
 assert.equal(veilReceipt.maturity, "synthetic");
+assert.equal(veilReceipt.digestVersion, "veil.raw-text.v1");
 assert.equal(
   veilReceipt.policyVersion,
   "hipaa-privacy@45 CFR Parts 160 and 164; pii-baseline@JurisCore 2026.07",
@@ -108,19 +109,30 @@ const assertionClaim: PlumbClaim = {
     excerpt: "Fees remain capped at 1.0% of principal.",
   },
 };
+const plumbDigests = await plumbSourceDigests({
+  diff: "+  crossBorderFeeBps: 250,",
+  documents: [{ name: "sec-10k-excerpt", text: "Fees remain capped at 1.0% of principal." }],
+});
 const plumbRun = compareClaims([authority], [assertionClaim], { policyIds: ["soc2-tsc"] });
 const plumbReceipt = await createReceipt({
   ...plumbReceiptInput(
     plumbRun,
     { authorities: [authority], assertions: [assertionClaim] },
     [{ id: "soc2-tsc", version: "2017 TSC with March 2020 updates" }],
+    plumbDigests,
   ),
   createdAt: CREATED_AT,
 });
 validationReceiptSchema.parse(plumbReceipt);
 assert.equal(plumbReceipt.module, "plumb");
 assert.equal(plumbReceipt.verdict, "block");
+assert.equal(plumbReceipt.digestVersion, "plumb.sources.v2");
+assert.equal(plumbReceipt.sourceDigest, plumbDigests.sourceDigest);
 assert.equal(plumbReceipt.evidence.length, 2);
+// Evidence source versions are content digests, never load times.
+for (const reference of plumbReceipt.evidence) {
+  assert.match(reference.sourceVersion, /^[0-9a-f]{64}$/);
+}
 assert.equal(serializeReceipt(plumbReceipt).includes('"excerpt"'), false);
 assert.equal(serializeReceipt(plumbReceipt).includes(assertionClaim.statement), false);
 
@@ -140,6 +152,7 @@ const cannotDetermineReceipt = await createReceipt({
     cannotDetermineRun,
     { authorities: [], assertions: [orphanAssertion] },
     [{ id: "soc2-tsc", version: "2017 TSC with March 2020 updates" }],
+    plumbDigests,
   ),
   createdAt: CREATED_AT,
 });
