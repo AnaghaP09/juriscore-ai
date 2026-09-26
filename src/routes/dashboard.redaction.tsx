@@ -305,6 +305,8 @@ function VeilWorkbench() {
       redacted: strategy === "redact" ? occurrences : 0,
       tokenized: strategy === "tokenize" ? occurrences : 0,
       chars: raw.length,
+      exposureScore: Math.round(exposure.score * 100),
+      exposureBand: exposure.band,
     });
   };
 

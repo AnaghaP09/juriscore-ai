@@ -168,6 +168,8 @@ function Overview() {
                   title="Residual exposure"
                   question="How likely is it that text Veil already cleaned still holds something sensitive?"
                   latest={latestOf(recent, "residual-exposure")}
+                  bands={bandsOf(historyOf(recent, "residual-exposure"))}
+                  bandsLabel="Recent runs by band"
                   history={historyOf(recent, "residual-exposure")}
                   emptyText="No residual-exposure predictions yet. The Veil predictor is in final review; its scores appear here once it ships."
                 />
@@ -328,6 +330,14 @@ function latestOf(recent: PredictionRecord[], kind: PredictionKind): LatestPredi
   return entry ? { score: entry.score, band: entry.band, at: entry.at } : null;
 }
 
+/** Band mix of the recent runs (up to the history cap), or nothing before the first run. */
+function bandsOf(history: PredictionRecord[]) {
+  if (history.length === 0) return undefined;
+  const counts: Record<DriftRiskBand, number> = { low: 0, uncertain: 0, high: 0 };
+  for (const run of history) counts[run.band] += 1;
+  return counts;
+}
+
 /** Oldest first, for drawing left to right. */
 function historyOf(recent: PredictionRecord[], kind: PredictionKind) {
   return recent.filter((prediction) => prediction.kind === kind).reverse();
@@ -457,6 +467,7 @@ function PredictiveSlice({
   question,
   latest,
   bands,
+  bandsLabel = "Last 7 days by band",
   history,
   emptyText,
 }: {
@@ -464,6 +475,7 @@ function PredictiveSlice({
   question: string;
   latest: LatestPrediction | null;
   bands?: Record<DriftRiskBand, number>;
+  bandsLabel?: string;
   history: PredictionRecord[];
   emptyText: string;
 }) {
@@ -492,6 +504,11 @@ function PredictiveSlice({
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">{emptyText}</p>
+      )}
+      {bands && (
+        <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+          {bandsLabel}
+        </div>
       )}
       {bands && (
         <dl className="flex gap-4 text-sm">

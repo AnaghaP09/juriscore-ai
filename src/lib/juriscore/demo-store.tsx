@@ -9,12 +9,19 @@ import {
   type ReactNode,
 } from "react";
 import { DEFAULT_ACTIVE_POLICY_IDS, type PolicyDefinition } from "@/lib/juriscore/policies/catalog";
-import type { ValidationModule, ValidatorVerdict } from "@/lib/juriscore/core/contracts";
+import type {
+  DriftRiskBand,
+  ValidationModule,
+  ValidatorVerdict,
+} from "@/lib/juriscore/core/contracts";
 import { GatewayHttpError, gatewayClient, needsUnlock } from "@/lib/juriscore/gateway/client";
 import type { GatewayRunStatus, GatewayStatus } from "@/lib/juriscore/gateway/protocol";
 import {
+  addPrediction,
+  checkDayKey,
   emptyDay,
   mutateLedgerDay,
+  stampCheck,
   normalizeLedger,
   recordPlumbCheckInLedger,
   RISK_BANDS,
@@ -59,6 +66,9 @@ export interface VeilCheckRecord {
   redacted: number;
   tokenized: number;
   chars: number;
+  /** Advisory residual-exposure score (0 to 100) of the sanitized text, if it was scored. */
+  exposureScore?: number | null;
+  exposureBand?: DriftRiskBand | null;
 }
 
 export type { PlumbCheckRecord, LocalMetricsLedger };
@@ -390,9 +400,11 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     setLocalMetrics((current) => mutateLedgerDay(current, utcDayKey(), mutate));
   }, []);
 
-  const recordVeilCheck = useCallback(
-    (record: VeilCheckRecord) => {
-      mutateToday((day) => {
+  const recordVeilCheck = useCallback((record: VeilCheckRecord) => {
+    // Stamped once, outside the state updater, so a replayed updater cannot re-stamp it.
+    const stamp = stampCheck();
+    setLocalMetrics((current) => {
+      const next = mutateLedgerDay(current, checkDayKey(stamp), (day) => {
         day.veil.checks += 1;
         day.veil[record.verdict] += 1;
         day.veil.occurrences += record.occurrences;
@@ -400,9 +412,16 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
         day.veil.tokenized += record.tokenized;
         day.veil.chars += record.chars;
       });
-    },
-    [mutateToday],
-  );
+      if (!record.exposureBand || typeof record.exposureScore !== "number") return next;
+      return addPrediction(next, {
+        kind: "residual-exposure",
+        score: record.exposureScore,
+        band: record.exposureBand,
+        at: stamp.checkedAt,
+        sequence: stamp.sequence,
+      });
+    });
+  }, []);
 
   // Dated by when the comparison completed, not by when its prediction arrived.
   const recordPlumbCheck = useCallback((record: StampedPlumbCheck) => {
