@@ -76,11 +76,26 @@ export async function sha256Hex(text: string) {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+/** 64 random bits as hex, so runs created in the same millisecond never share an id. */
+function receiptNonce() {
+  const bytes = new Uint8Array(8);
+  if (globalThis.crypto?.getRandomValues) {
+    globalThis.crypto.getRandomValues(bytes);
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) {
+      bytes[index] = Math.floor(Math.random() * 256);
+    }
+  }
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 export async function createReceipt(input: ReceiptRunInput): Promise<ValidationReceipt> {
   const createdAt = input.createdAt ?? new Date().toISOString();
   const inputDigest = await sha256Hex(input.rawInput);
   return validationReceiptSchema.parse({
-    id: `receipt.${input.module}.${createdAt}.${inputDigest.slice(0, 8)}`,
+    // Module, time, and input digest keep ids readable; the nonce keeps every run's id
+    // unique, including identical runs in the same millisecond or in other tabs.
+    id: `receipt.${input.module}.${createdAt}.${inputDigest.slice(0, 8)}.${receiptNonce()}`,
     module: input.module,
     policyVersion: encodePolicyVersion(input.policies),
     inputDigest,
@@ -136,9 +151,21 @@ export function serializeReceipt(receipt: ValidationReceipt | PersistedReceipt) 
   return JSON.stringify(toPersistedReceipt(receipt), null, 2);
 }
 
-// ISO colons are illegal in Windows filenames, so createdAt is flattened.
-export function receiptFileName(receipt: Pick<ValidationReceipt, "module" | "createdAt">) {
-  return `juriscore-${receipt.module}-receipt-${receipt.createdAt.replace(/[:.]/g, "-")}.json`;
+const RECEIPT_FILE_ID_LIMIT = 160;
+
+/**
+ * Derived from the receipt id, so two receipts never share a file name (a folder write
+ * would otherwise overwrite one with the other). Characters outside `[A-Za-z0-9_-]`,
+ * including the ISO colons Windows forbids, are flattened; legacy ids read the same way.
+ */
+export function receiptFileName(receipt: Pick<ValidationReceipt, "module" | "id">) {
+  const prefix = `receipt.${receipt.module}.`;
+  const id = receipt.id.startsWith(prefix) ? receipt.id.slice(prefix.length) : receipt.id;
+  const safe = id
+    .replace(/[^A-Za-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, RECEIPT_FILE_ID_LIMIT);
+  return `juriscore-${receipt.module}-receipt-${safe || "unnamed"}.json`;
 }
 
 /** Filesystem-safe timestamp for report and export filenames. */

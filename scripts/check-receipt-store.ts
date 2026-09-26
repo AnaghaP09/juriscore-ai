@@ -43,7 +43,13 @@ import {
   verifyPlumbSources,
   verifyVeilText,
 } from "../src/lib/juriscore/core/receipt-verify";
-import { createRunFinalizer } from "../src/lib/juriscore/core/run-finalizer";
+import {
+  RUN_FINALIZER_CAPACITY,
+  createReceiptRunFinalizer,
+  createRunFinalizer,
+  sharedReceiptRunFinalizer,
+  type RunFinalizer,
+} from "../src/lib/juriscore/core/run-finalizer";
 import { createSafeStorage } from "../src/lib/juriscore/core/safe-storage";
 import { plumbReportMarkdown, veilReportText } from "../src/lib/juriscore/core/reports";
 import { protectText } from "../src/lib/juriscore/veil/engine";
@@ -749,14 +755,238 @@ validationReceiptSchema.parse({
   assert.equal(await retry("a", async () => "a"), "a");
   assert.equal(await retry("b", async () => "rebuilt"), "b");
 
-  // Bounded: beyond capacity the least recently used run is forgotten.
+  // Bounded: beyond capacity the run built longest ago is forgotten. Reuse does not refresh
+  // it, so the kept runs are the ones whose receipts were created last (as in the history).
   const bounded = createRunFinalizer<string>(2);
   await bounded("x", async () => "x1");
   await bounded("y", async () => "y1");
-  await bounded("x", async () => "x2"); // touches x
-  await bounded("z", async () => "z1"); // evicts y
-  assert.equal(await bounded("x", async () => "x3"), "x1");
-  assert.equal(await bounded("y", async () => "y2"), "y2");
+  assert.equal(await bounded("x", async () => "x2"), "x1"); // reused, not refreshed
+  await bounded("z", async () => "z1"); // evicts x, built first
+  assert.equal(await bounded("y", async () => "y2"), "y1");
+  assert.equal(await bounded("x", async () => "x3"), "x3");
+}
+
+// ---------------------------------------------------------------------------
+// R-008. Run identities outlive the page component and follow the history.
+// ---------------------------------------------------------------------------
+{
+  type Recorded = { receipt: PersistedReceipt };
+  const store = createReceiptStore({ indexedDB: asFactory(new FakeIndexedDB()), broadcast: false });
+  let builds = 0;
+  const keyFor = async (raw: string) =>
+    JSON.stringify(["redact", encodePolicyVersion(POLICIES), await sha256Hex(raw)]);
+  const buildFor = (raw: string) => async (): Promise<Recorded> => {
+    builds += 1;
+    const created = await veilReceipt(raw, iso(4000 + builds));
+    return { receipt: (await store.addReceipt(created)).receipt };
+  };
+  const finalizeWith = async (finalize: RunFinalizer<Recorded>, raw: string) =>
+    finalize(await keyFor(raw), buildFor(raw));
+
+  // Navigation: copy the sample, leave Veil (unmount), return (a new mount), download.
+  // Both mounts get the one tab-wide finalizer, so the unchanged sample is not stored again.
+  const firstMount = sharedReceiptRunFinalizer<Recorded>("check-navigation", store);
+  const copied = await finalizeWith(firstMount, "Default sample, copied before leaving.");
+  const secondMount = sharedReceiptRunFinalizer<Recorded>("check-navigation", store);
+  assert.equal(secondMount, firstMount);
+  const downloaded = await finalizeWith(secondMount, "Default sample, copied before leaving.");
+  assert.equal(builds, 1);
+  assert.equal(downloaded?.receipt.id, copied?.receipt.id);
+  assert.equal(await store.countReceipts(), 1);
+
+  // The route no longer owns a finalizer; it uses the tab-wide one.
+  const route = readFileSync(
+    new URL("../src/routes/dashboard.redaction.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.ok(route.includes('sharedReceiptRunFinalizer<RecordedReceipt>("veil")'));
+  assert.equal(route.includes("createRunFinalizer"), false);
+
+  // Reuse beyond 64 identities: every receipt still in the history is reused.
+  assert.equal(RUN_FINALIZER_CAPACITY, RECEIPT_HISTORY_LIMIT);
+  const wide = createReceiptRunFinalizer<Recorded>(store);
+  builds = 0;
+  const firstWide = await finalizeWith(wide, "identity 0");
+  for (let index = 1; index < 70; index += 1) await finalizeWith(wide, `identity ${index}`);
+  assert.equal(builds, 70);
+  assert.equal(await finalizeWith(wide, "identity 0"), firstWide);
+  await finalizeWith(wide, "identity 5");
+  assert.equal(builds, 70);
+  assert.equal(await store.countReceipts({ module: "veil" }), 71);
+
+  // Explicit clearing forgets every identity: the next action records a receipt again.
+  assert.deepEqual(await store.clearReceipts(), { status: "deleted" });
+  const afterClear = await finalizeWith(wide, "identity 0");
+  assert.equal(builds, 71);
+  assert.notEqual(afterClear?.receipt.id, firstWide?.receipt.id);
+  assert.equal(await store.countReceipts(), 1);
+
+  // Retention: a run whose receipt was trimmed is recorded again; one still kept is reused.
+  const small = createReceiptStore({
+    indexedDB: asFactory(new FakeIndexedDB()),
+    broadcast: false,
+    limit: 3,
+  });
+  // The default capacity, so "a" is still remembered and only its trimmed receipt is stale.
+  const smallFinalize = createReceiptRunFinalizer<Recorded>(small);
+  let smallBuilds = 0;
+  const smallRun = async (raw: string) =>
+    smallFinalize(await keyFor(raw), async () => {
+      smallBuilds += 1;
+      const created = await veilReceipt(raw, iso(4500 + smallBuilds));
+      return { receipt: (await small.addReceipt(created)).receipt };
+    });
+  const trimmedRun = await smallRun("a");
+  await smallRun("b");
+  await smallRun("c");
+  await smallRun("d"); // trims a
+  assert.equal(await small.hasReceipt(trimmedRun?.receipt.id ?? ""), false);
+  const kept = await smallRun("c");
+  assert.equal(smallBuilds, 4, "a receipt still in the history is reused");
+  assert.ok(kept && (await small.hasReceipt(kept.receipt.id)));
+  const rerecorded = await smallRun("a");
+  assert.equal(smallBuilds, 5, "a trimmed receipt is recorded again");
+  assert.ok(rerecorded && (await small.hasReceipt(rerecorded.receipt.id)));
+  assert.equal(await small.countReceipts(), 3);
+}
+
+// ---------------------------------------------------------------------------
+// R-009. A digest failure before finalization shows the receipt error; Save report still
+// downloads the sanitized report without a receipt.
+// ---------------------------------------------------------------------------
+{
+  const route = readFileSync(
+    new URL("../src/routes/dashboard.redaction.tsx", import.meta.url),
+    "utf8",
+  );
+  const start = route.indexOf("const finalizeRun = async");
+  const end = route.indexOf("const copySanitized");
+  assert.ok(start > 0 && end > start);
+  const finalizeBody = route.slice(start, end);
+  const tryAt = finalizeBody.indexOf("try {");
+  assert.ok(tryAt > 0, "finalization runs inside a try");
+  assert.ok(finalizeBody.indexOf("await sha256Hex(") > tryAt, "the input digest is guarded");
+  assert.ok(finalizeBody.includes("setReceiptError(reason);"));
+  assert.ok(finalizeBody.includes("return null;"));
+  assert.ok(finalizeBody.includes("Promise<RecordedReceipt | null>"));
+  // Save report downloads whether or not a receipt was produced.
+  const saveBody = route.slice(
+    route.indexOf("const saveReport"),
+    route.indexOf("const generateReceipt"),
+  );
+  assert.ok(saveBody.includes("recorded?.receipt ?? null"));
+}
+
+// ---------------------------------------------------------------------------
+// R-010. Same-millisecond runs get distinct ids, history entries, and folder files.
+// ---------------------------------------------------------------------------
+{
+  const instant = iso(5000);
+  const store = createReceiptStore({ indexedDB: asFactory(new FakeIndexedDB()), broadcast: false });
+  // Two different Veil runs, and two identical Plumb checks, in the same millisecond.
+  const veilA = await veilReceipt("same instant A", instant);
+  const veilB = await veilReceipt("same instant B", instant);
+  const plumbA = await plumbReceipt(DIFF, DOC, instant);
+  const plumbB = await plumbReceipt(DIFF, DOC, instant);
+  assert.equal(plumbA.inputDigest, plumbB.inputDigest);
+  const ids = [veilA.id, veilB.id, plumbA.id, plumbB.id];
+  assert.equal(new Set(ids).size, 4);
+  for (const receipt of [veilA, veilB, plumbA, plumbB]) await store.addReceipt(receipt);
+  assert.equal(await store.countReceipts(), 4);
+  assert.equal(await store.countReceipts({ module: "plumb" }), 2);
+
+  // The folder sink writes one file per receipt, never over another.
+  const files = new Map<string, string>();
+  const folder: ReceiptFolderHandle = {
+    name: "receipts",
+    queryPermission: async () => "granted",
+    getDirectoryHandle: async (name) => ({
+      ...folder,
+      name,
+      getFileHandle: async (fileName) => ({
+        createWritable: async () => ({
+          write: async (data: string) => {
+            files.set(`${name}/${fileName}`, data);
+          },
+          close: async () => undefined,
+        }),
+      }),
+    }),
+    getFileHandle: async () => {
+      throw new Error("receipts are written under a module folder");
+    },
+  };
+  const paths: string[] = [];
+  for (const receipt of [veilA, veilB, plumbA, plumbB]) {
+    const written = await writeReceiptToFolder(receipt, {
+      handle: folder,
+      fallback: () => undefined,
+    });
+    if (!written.ok) throw new Error(`folder write failed: ${written.reason}`);
+    paths.push(written.path);
+  }
+  assert.equal(new Set(paths).size, 4);
+  assert.equal(files.size, 4);
+  for (const receipt of [veilA, veilB, plumbA, plumbB]) {
+    const match = [...files.values()].filter((body) => JSON.parse(body).id === receipt.id);
+    assert.equal(match.length, 1);
+  }
+
+  // A legacy receipt (four-part id, no nonce) still stores, lists, and writes.
+  const legacy = {
+    ...toPersistedReceipt(veilA),
+    id: `receipt.veil.${instant}.${veilA.inputDigest.slice(0, 8)}`,
+  };
+  await store.addReceipt(legacy);
+  assert.equal(await store.hasReceipt(legacy.id), true);
+  const legacyWrite = await writeReceiptToFolder(legacy, {
+    handle: folder,
+    fallback: () => undefined,
+  });
+  assert.ok(legacyWrite.ok && !paths.includes(legacyWrite.path));
+}
+
+// ---------------------------------------------------------------------------
+// R-011. A stale file load never overwrites newer verifier inputs.
+// ---------------------------------------------------------------------------
+{
+  // The pattern: a load takes a token; an edit, a newer load, a receipt change, or unmount
+  // invalidates it; a stale completion changes nothing.
+  const loads = createGeneration();
+  let diff = "";
+  const loadA = loads.begin();
+  const loadB = loads.begin(); // a newer load replaces A
+  if (loads.isCurrent(loadB)) diff = "B";
+  if (loads.isCurrent(loadA)) diff = "A"; // A finishes last
+  assert.equal(diff, "B");
+  const loadC = loads.begin();
+  loads.invalidate(); // the user edits the textarea
+  diff = "typed";
+  if (loads.isCurrent(loadC)) diff = "C";
+  assert.equal(diff, "typed");
+
+  const verifier = readFileSync(
+    new URL("../src/components/receipt-verifier.tsx", import.meta.url),
+    "utf8",
+  );
+  // Diff loads and document uploads each have their own tokens, apart from verification.
+  assert.ok(verifier.includes("const diffLoads = useReceiptGeneration(receipt)"));
+  assert.ok(verifier.includes("const documentLoads = useReceiptGeneration(receipt)"));
+  assert.ok(verifier.includes("if (!diffLoads.isCurrent(token)) return;"));
+  assert.ok(verifier.includes("if (!documentLoads.isCurrent(token)) return;"));
+  // A diff edit invalidates a pending diff load; errors and the busy state commit only
+  // for the current upload.
+  assert.ok(verifier.includes("diffLoads.invalidate();"));
+  assert.ok(verifier.includes("if (documentLoads.isCurrent(token)) setError("));
+  assert.ok(verifier.includes("if (documentLoads.isCurrent(token)) setUploading(false)"));
+  // The diff is committed only after the load's token check.
+  const loadAt = verifier.indexOf("await file.text()");
+  assert.ok(loadAt > 0);
+  const afterLoad = verifier.slice(loadAt);
+  assert.ok(
+    afterLoad.indexOf("if (!diffLoads.isCurrent(token)) return;") <
+      afterLoad.indexOf("setDiff(text)"),
+  );
 }
 
 // ---------------------------------------------------------------------------

@@ -58,7 +58,10 @@ assert.equal(
   veilReceipt.policyVersion,
   "hipaa-privacy@45 CFR Parts 160 and 164; pii-baseline@JurisCore 2026.07",
 );
-assert.equal(veilReceipt.id, `receipt.veil.${CREATED_AT}.${veilReceipt.inputDigest.slice(0, 8)}`);
+assert.ok(
+  veilReceipt.id.startsWith(`receipt.veil.${CREATED_AT}.${veilReceipt.inputDigest.slice(0, 8)}.`),
+);
+assert.match(veilReceipt.id, /\.[0-9a-f]{16}$/);
 assert.match(veilReceipt.inputDigest, /^[0-9a-f]{64}$/);
 
 const serializedVeilReceipt = serializeReceipt(veilReceipt);
@@ -85,7 +88,19 @@ assert.equal(noPolicyReceipt.policyVersion, "none");
 
 // Windows-safe receipt filenames: no colons or dots besides the extension.
 assert.equal(receiptFileName(veilReceipt).includes(":"), false);
-assert.match(receiptFileName(veilReceipt), /^juriscore-veil-receipt-[0-9TZ-]+\.json$/);
+assert.match(receiptFileName(veilReceipt), /^juriscore-veil-receipt-[0-9A-Za-z_-]+\.json$/);
+// The file name comes from the id: same-millisecond receipts get different names.
+const sameInstant = await createReceipt({
+  ...veilReceiptInput(veilRun, SYNTHETIC_CLINICAL_NOTE, veilPolicies),
+  createdAt: CREATED_AT,
+});
+assert.notEqual(sameInstant.id, veilReceipt.id);
+assert.notEqual(receiptFileName(sameInstant), receiptFileName(veilReceipt));
+// A legacy id (no nonce) still yields a Windows-safe name.
+assert.equal(
+  receiptFileName({ module: "veil", id: `receipt.veil.${CREATED_AT}.abcdef12` }),
+  "juriscore-veil-receipt-2026-08-01T00-00-00-000Z-abcdef12.json",
+);
 
 // Plumb drifted receipt: block verdict with excerpt-free evidence on both sides.
 const authority: PlumbClaim = {

@@ -30,10 +30,12 @@ import {
   downloadText,
   encodePolicyVersion,
   fileTimestamp,
+  ReceiptError,
   sha256Hex,
 } from "@/lib/juriscore/core/receipts";
+import { receiptStore } from "@/lib/juriscore/core/receipt-store";
 import { veilReportFileName, veilReportText } from "@/lib/juriscore/core/reports";
-import { createRunFinalizer } from "@/lib/juriscore/core/run-finalizer";
+import { sharedReceiptRunFinalizer } from "@/lib/juriscore/core/run-finalizer";
 import { veilReceiptInput } from "@/lib/juriscore/veil/receipt";
 import { FolderWriteNote, ReceiptSummary } from "@/components/receipt-summary";
 import { policiesForFeature, veilScopesForPolicies } from "@/lib/juriscore/policies/catalog";
@@ -101,7 +103,6 @@ function VeilWorkbench() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [finalizedRun, setFinalizedRun] = useState<FinalizedRun | null>(null);
   const [receiptError, setReceiptError] = useState<string | null>(null);
-  const [finalizer] = useState(() => createRunFinalizer<RecordedReceipt>());
   const [progress, setProgress] = useState<ExtractionProgress | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -148,6 +149,15 @@ function VeilWorkbench() {
   useEffect(() => {
     setReceiptError(null);
   }, [runKey]);
+
+  // A cleared history no longer holds the shown receipt; the next action records a new one.
+  useEffect(
+    () =>
+      receiptStore().onChange((event) => {
+        if (event.type === "cleared") setFinalizedRun(null);
+      }),
+    [],
+  );
 
   const releasePreview = () => {
     if (previewUrlRef.current) {
@@ -225,30 +235,37 @@ function VeilWorkbench() {
   /**
    * Builds and stores this run's receipt once. Later actions on the same run reuse it, so
    * Copy followed by Download leaves exactly one receipt in the history — also after
-   * switching to another input or strategy and back. The finalizer is keyed by strategy,
-   * policy version, and the input digest, so it never holds the input text.
+   * switching to another input or strategy and back, or leaving this page and returning.
+   * The tab-wide finalizer is keyed by strategy, policy version, and the input digest, so
+   * it never holds the input text; a receipt trimmed from or cleared out of the history is
+   * recorded again. Never rejects: any failure, including a missing Web Crypto digest,
+   * shows the receipt error and resolves null.
    */
-  const finalizeRun = async () => {
+  const finalizeRun = async (): Promise<RecordedReceipt | null> => {
     const key = runKey;
     const run = { result, raw, policyRefs, strategy };
-    const inputDigest = await sha256Hex(run.raw);
-    const recorded = await finalizer(
-      JSON.stringify([run.strategy, encodePolicyVersion(run.policyRefs), inputDigest]),
-      async () => {
-        try {
+    let reason = "A valid receipt could not be produced for this run.";
+    try {
+      const inputDigest = await sha256Hex(run.raw);
+      const recorded = await sharedReceiptRunFinalizer<RecordedReceipt>("veil")(
+        JSON.stringify([run.strategy, encodePolicyVersion(run.policyRefs), inputDigest]),
+        async () => {
           const input = veilReceiptInput(run.result, run.raw, run.policyRefs);
           const created = await createReceipt(input);
           const stored = await recordReceipt(created);
           recordCurrentRun();
           return stored;
-        } catch {
-          setReceiptError("A valid receipt could not be produced for this run.");
-          return null;
-        }
-      },
-    );
-    if (recorded) setFinalizedRun({ key, recorded });
-    return recorded;
+        },
+      );
+      if (recorded) {
+        setFinalizedRun({ key, recorded });
+        return recorded;
+      }
+    } catch (error) {
+      if (error instanceof ReceiptError) reason = error.message;
+    }
+    setReceiptError(reason);
+    return null;
   };
 
   const copySanitized = async () => {

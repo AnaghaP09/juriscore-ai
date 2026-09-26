@@ -31,7 +31,7 @@ Out:
 
 ## User-visible behavior
 
-- After a Veil protection run or a Plumb comparison run, a "Download receipt" button is enabled; clicking it downloads a JSON file named `juriscore-<module>-receipt-<createdAt>.json`;
+- After a Veil protection run or a Plumb comparison run, a "Download receipt" button is enabled; clicking it downloads a JSON file named `juriscore-<module>-receipt-<id without "receipt.<module>.">.json`, with every character outside `[A-Za-z0-9_-]` flattened to `-` (so two receipts never share a file name);
 - with no run or empty input, the button is disabled;
 - the receipt summary always shows the maturity label "Synthetic"; no receipt may render without a maturity label;
 - a Plumb "cannot determine" result still produces a receipt: verdict `revise`, findings carrying `cannot_determine` status ids; cannot-determine is a valid, receipted outcome, not an error;
@@ -39,7 +39,7 @@ Out:
 
 ### Receipt contents
 
-- `id`: `receipt.<module>.<createdAt>.<first 8 hex of inputDigest>`;
+- `id`: `receipt.<module>.<createdAt>.<first 8 hex of inputDigest>.<16 hex random nonce>`; the nonce keeps ids unique for runs created in the same millisecond (also across tabs). Receipts created before the nonce was added keep their four-part id and still validate;
 - `module`: `veil` or `plumb`;
 - `policyVersion`: the active policy packs as a semicolon-joined canonical string of `id@version` (for example `pii-baseline@JurisCore 2026.07; soc2-tsc@2017 TSC with March 2020 updates`); when no policy is active, the literal `none`;
 - `inputDigest`: SHA-256 hex of the raw input text via Web Crypto (`crypto.subtle.digest`); `createReceipt()` is therefore async;
@@ -100,7 +100,7 @@ Status: implemented 2026-09-26. Supersedes the "Out: receipt-store" line above f
 ### When a receipt is created
 
 - **Plumb:** every completed check stores one receipt. "Download receipt" downloads that stored record.
-- **Veil:** typing never creates a receipt. The first Copy, Save report, or Download receipt for a given input, policy set, and strategy stores one; later actions on the same run reuse it.
+- **Veil:** typing never creates a receipt. The first Copy, Save report, or Download receipt for a given input, policy set, and strategy stores one; later actions on the same run reuse it. Reuse lasts for the browser tab (also across leaving Veil and returning) while that receipt is still in the history: once it is trimmed by retention or the history is cleared, the next action stores a new receipt. The reuse index holds run identities (strategy, policy version, input digest) and receipt ids only, never input text.
 
 ### Folder sink (Chromium only)
 

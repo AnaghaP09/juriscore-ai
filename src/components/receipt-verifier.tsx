@@ -56,11 +56,12 @@ function MatchLine({ label, match }: { label: string; match: DigestMatch }) {
 }
 
 /**
- * One generation per verifier: every edit, upload, removal, receipt change, and unmount
- * invalidates in-flight hashing, so an older verification never shows a result for inputs
- * that are no longer displayed.
+ * One generation per kind of asynchronous work (verification, diff loads, document
+ * uploads). A receipt change or unmount invalidates it; so do the edits each caller names.
+ * An older verification never shows a result for inputs that are no longer displayed, and
+ * a stale file load never replaces newer inputs.
  */
-function useVerificationGeneration(receipt: PersistedReceipt) {
+function useReceiptGeneration(receipt: PersistedReceipt) {
   const [generation] = useState(createGeneration);
   useEffect(() => () => generation.invalidate(), [generation, receipt]);
   return generation;
@@ -69,7 +70,7 @@ function useVerificationGeneration(receipt: PersistedReceipt) {
 function VeilVerifier({ receipt }: { receipt: PersistedReceipt }) {
   const [text, setText] = useState("");
   const [match, setMatch] = useState<DigestMatch | null>(null);
-  const generation = useVerificationGeneration(receipt);
+  const generation = useReceiptGeneration(receipt);
 
   useEffect(() => {
     setMatch(null);
@@ -135,7 +136,11 @@ function PlumbVerifier({ receipt }: { receipt: PersistedReceipt }) {
   const [verifying, setVerifying] = useState(false);
   const diffInput = useRef<HTMLInputElement>(null);
   const documentInput = useRef<HTMLInputElement>(null);
-  const generation = useVerificationGeneration(receipt);
+  const generation = useReceiptGeneration(receipt);
+  // A newer load, a diff edit, a receipt change, or unmount makes a diff load stale.
+  const diffLoads = useReceiptGeneration(receipt);
+  // A newer upload, a receipt change, or unmount makes a document upload stale.
+  const documentLoads = useReceiptGeneration(receipt);
 
   // Any change to the inputs discards the shown result and any verification in flight.
   const changed = () => {
@@ -149,6 +154,8 @@ function PlumbVerifier({ receipt }: { receipt: PersistedReceipt }) {
     setResult(null);
     setError(null);
     setVerifying(false);
+    // An upload for the previous receipt was invalidated and will not reset this itself.
+    setUploading(false);
   }, [receipt]);
 
   const addDocument = (name: string, text: string) => {
@@ -159,21 +166,41 @@ function PlumbVerifier({ receipt }: { receipt: PersistedReceipt }) {
     ]);
   };
 
+  const loadDiff = async (file: File) => {
+    const token = diffLoads.begin();
+    let text: string;
+    try {
+      text = await file.text();
+    } catch {
+      if (diffLoads.isCurrent(token)) {
+        changed();
+        setError("The file could not be read.");
+      }
+      return;
+    }
+    if (!diffLoads.isCurrent(token)) return;
+    changed();
+    setDiff(text);
+  };
+
   const uploadDocuments = async (files: File[]) => {
+    const token = documentLoads.begin();
     changed();
     setUploading(true);
     try {
       for (const file of files) {
         validateDocument(file);
         const extracted = await extractDocumentText(file, () => undefined);
+        // A stale upload adds nothing more and leaves errors and the busy state alone.
+        if (!documentLoads.isCurrent(token)) return;
         addDocument(file.name, extracted.text);
       }
     } catch (uploadError) {
-      setError(
-        uploadError instanceof Error ? uploadError.message : "A document could not be read.",
-      );
+      const message =
+        uploadError instanceof Error ? uploadError.message : "A document could not be read.";
+      if (documentLoads.isCurrent(token)) setError(message);
     } finally {
-      setUploading(false);
+      if (documentLoads.isCurrent(token)) setUploading(false);
       if (documentInput.current) documentInput.current.value = "";
     }
   };
@@ -212,16 +239,10 @@ function PlumbVerifier({ receipt }: { receipt: PersistedReceipt }) {
             type="file"
             className="sr-only"
             aria-label="Load the diff from a file"
-            onChange={async (event) => {
+            onChange={(event) => {
               const file = event.target.files?.[0];
               event.target.value = "";
-              if (file) {
-                changed();
-                const text = await file.text();
-                // Invalidate again: a verification may have started while the file was read.
-                changed();
-                setDiff(text);
-              }
+              if (file) void loadDiff(file);
             }}
           />
           <Button size="sm" variant="ghost" onClick={() => diffInput.current?.click()}>
@@ -233,6 +254,7 @@ function PlumbVerifier({ receipt }: { receipt: PersistedReceipt }) {
           id="verify-plumb-diff"
           value={diff}
           onChange={(event) => {
+            diffLoads.invalidate();
             changed();
             setDiff(event.target.value);
           }}

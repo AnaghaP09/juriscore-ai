@@ -72,6 +72,8 @@ export interface ReceiptStore {
   addReceipt(receipt: unknown): Promise<AddReceiptResult>;
   listReceipts(query?: ReceiptQuery): Promise<ReceiptPage>;
   countReceipts(filter?: ReceiptFilter): Promise<number>;
+  /** Whether a receipt with this id is still in the history (not trimmed or cleared). */
+  hasReceipt(id: string): Promise<boolean>;
   exportReceipts(filter?: ReceiptFilter): Promise<PersistedReceipt[]>;
   clearReceipts(): Promise<ClearReceiptsResult>;
   getSetting<T>(key: string): Promise<T | undefined>;
@@ -346,6 +348,20 @@ export function createReceiptStore(options: ReceiptStoreOptions = {}): ReceiptSt
 
     async countReceipts(filter = {}) {
       return (await matching(filter)).length;
+    },
+
+    async hasReceipt(id) {
+      const db = await database();
+      if (db) {
+        try {
+          const transaction = db.transaction(RECEIPTS, "readonly");
+          const record: unknown = await requestResult(transaction.objectStore(RECEIPTS).get(id));
+          return persistedReceiptSchema.safeParse(record).success;
+        } catch {
+          degrade();
+        }
+      }
+      return memory.some((receipt) => receipt.id === id);
     },
 
     async exportReceipts(filter = {}) {
