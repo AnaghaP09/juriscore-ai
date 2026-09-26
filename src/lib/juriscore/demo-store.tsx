@@ -188,6 +188,7 @@ interface DemoStore {
   setDriftMode: (m: DriftMode) => void;
   recentRuns: GatewayRun[];
   pushRun: (r: GatewayRun) => void;
+  clearRecentRuns: () => void;
   activePolicyIds: string[];
   setPolicyActive: (policyId: string, active: boolean) => void;
   customPolicies: PolicyDefinition[];
@@ -275,6 +276,8 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
   const pushRun = useCallback((r: GatewayRun) => {
     setRecentRuns((prev) => [r, ...prev].slice(0, 20));
   }, []);
+
+  const clearRecentRuns = useCallback(() => setRecentRuns([]), []);
 
   const markGatewayLocked = useCallback((expired: boolean) => {
     setGateway({ phase: "locked", expired });
@@ -470,6 +473,7 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       setDriftMode,
       recentRuns,
       pushRun,
+      clearRecentRuns,
       activePolicyIds,
       setPolicyActive,
       customPolicies,
@@ -502,6 +506,7 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       driftMode,
       recentRuns,
       pushRun,
+      clearRecentRuns,
       activePolicyIds,
       setPolicyActive,
       customPolicies,

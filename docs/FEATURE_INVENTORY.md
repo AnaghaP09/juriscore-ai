@@ -157,3 +157,5 @@ These routes may be relabeled, connected to shared engines, or marked as demo da
 - GitHub pull-request integration for Plumb;
 - independent privacy, security, and benchmark validation;
 - Lovable interface regeneration after the source contracts stabilize.
+
+Addendum, 2026-09-26 — the LLM Gateway drops its Beta label (founder instruction). It now makes real, Veil-gated calls to the operator's own Anthropic account once enabled on the server; setup steps live in `docs/GATEWAY_SETUP.md`, not in the product UI.
