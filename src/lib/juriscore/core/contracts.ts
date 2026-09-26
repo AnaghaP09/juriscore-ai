@@ -84,7 +84,7 @@ export const validatorVerdictSchema = z.enum(["allow", "revise", "block"]);
 
 export type ValidatorVerdict = z.infer<typeof validatorVerdictSchema>;
 
-export const validationModuleSchema = z.enum(["veil", "plumb"]);
+export const validationModuleSchema = z.enum(["veil", "plumb", "gateway"]);
 
 export type ValidationModule = z.infer<typeof validationModuleSchema>;
 
@@ -171,6 +171,10 @@ export const validationReceiptSchema = z.object({
   evidence: z.array(evidenceReferenceSchema),
   maturity: evaluationMaturitySchema,
   createdAt: z.string().datetime(),
+  /** What `inputDigest` covers. Absent on receipts written before it existed. */
+  digestVersion: z.string().min(1).optional(),
+  /** Gateway only: digest of the sanitized payload that left the process. */
+  outboundDigest: z.string().min(1).optional(),
 });
 
 export type ValidationReceipt = z.infer<typeof validationReceiptSchema>;

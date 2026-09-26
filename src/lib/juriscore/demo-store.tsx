@@ -4,11 +4,14 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import { DEFAULT_ACTIVE_POLICY_IDS, type PolicyDefinition } from "@/lib/juriscore/policies/catalog";
 import type { ValidationModule, ValidatorVerdict } from "@/lib/juriscore/core/contracts";
+import { GatewayHttpError, gatewayClient, needsUnlock } from "@/lib/juriscore/gateway/client";
+import type { GatewayRunStatus, GatewayStatus } from "@/lib/juriscore/gateway/protocol";
 import {
   emptyDay,
   mutateLedgerDay,
@@ -21,56 +24,27 @@ import {
   type StampedPlumbCheck,
 } from "@/lib/juriscore/metrics-ledger";
 
-export type ModelId = "gemini-1.5-pro" | "claude-3.5-sonnet" | "gpt-4o";
 export type DriftMode = "clean" | "drift";
 
-export interface ModelMeta {
-  id: ModelId;
-  label: string;
-  vendor: "Google" | "Anthropic" | "OpenAI";
-  ctx: string;
-  costPer1K: string;
-  accent: string; // css color var
-}
-
-export const MODELS: ModelMeta[] = [
-  {
-    id: "gemini-1.5-pro",
-    label: "Gemini 1.5 Pro",
-    vendor: "Google",
-    ctx: "2M ctx",
-    costPer1K: "$0.0035",
-    accent: "var(--chart-4)",
-  },
-  {
-    id: "claude-3.5-sonnet",
-    label: "Claude 3.5 Sonnet",
-    vendor: "Anthropic",
-    ctx: "200K ctx",
-    costPer1K: "$0.0030",
-    accent: "var(--revise)",
-  },
-  {
-    id: "gpt-4o",
-    label: "GPT-4o",
-    vendor: "OpenAI",
-    ctx: "128K ctx",
-    costPer1K: "$0.0050",
-    accent: "var(--allow)",
-  },
-];
-
+/** A completed gateway run, text-free: no prompt, no reply, no detected value. */
 export interface GatewayRun {
-  id: string;
+  receiptId: string;
   ts: string;
-  model: ModelId;
-  prompt: string;
-  verdict: "allow" | "block" | "revise";
-  tokens: { prompt: number; completion: number };
+  model: string;
+  status: GatewayRunStatus;
+  verdict: ValidatorVerdict;
   latencyMs: number;
-  ruleId?: string;
-  stage?: string;
 }
+
+/**
+ * What the browser knows about the server-side gateway. Everything here comes from the
+ * server; "Connected" is shown only when `status.connections[model].state` says so.
+ */
+export type GatewayView =
+  | { phase: "loading" }
+  | { phase: "unavailable"; reason: "disabled" | "token-missing" | "error"; message?: string }
+  | { phase: "locked"; expired: boolean }
+  | { phase: "ready"; status: GatewayStatus };
 
 export interface SessionReceiptEntry {
   id: string;
@@ -182,8 +156,18 @@ export interface SourceDocument {
 }
 
 interface DemoStore {
-  activeModel: ModelId;
-  setActiveModel: (m: ModelId) => void;
+  /** A model id from the server allowlist; empty until gateway status has loaded. */
+  activeModel: string;
+  setActiveModel: (modelId: string) => void;
+  gateway: GatewayView;
+  /** Model ids with a connection check in flight. */
+  checkingModels: string[];
+  refreshGateway: () => Promise<void>;
+  /** Returns an error message, or null when the gateway was unlocked. */
+  unlockGateway: (token: string) => Promise<string | null>;
+  verifyGatewayModel: (modelId: string) => Promise<void>;
+  /** Called when a gateway request answers 401: reopens the Unlock dialog. */
+  markGatewayLocked: (expired: boolean) => void;
   killSwitch: boolean;
   setKillSwitch: (v: boolean) => void;
   driftMode: DriftMode;
@@ -213,7 +197,10 @@ interface DemoStore {
 const Ctx = createContext<DemoStore | null>(null);
 
 export function DemoStoreProvider({ children }: { children: ReactNode }) {
-  const [activeModel, setActiveModel] = useState<ModelId>("gemini-1.5-pro");
+  const [activeModel, setActiveModelState] = useState("");
+  const [gateway, setGateway] = useState<GatewayView>({ phase: "loading" });
+  const [checkingModels, setCheckingModels] = useState<string[]>([]);
+  const autoVerified = useRef(new Set<string>());
   const [killSwitch, setKillSwitch] = useState(false);
   const [driftMode, setDriftMode] = useState<DriftMode>("clean");
   const [recentRuns, setRecentRuns] = useState<GatewayRun[]>([]);
@@ -274,6 +261,102 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
   const pushRun = useCallback((r: GatewayRun) => {
     setRecentRuns((prev) => [r, ...prev].slice(0, 20));
   }, []);
+
+  const markGatewayLocked = useCallback((expired: boolean) => {
+    setGateway({ phase: "locked", expired });
+  }, []);
+
+  const applyGatewayError = useCallback((error: unknown) => {
+    if (needsUnlock(error)) {
+      setGateway({
+        phase: "locked",
+        expired: (error as GatewayHttpError).code === "session-expired",
+      });
+    } else if (error instanceof GatewayHttpError && error.status === 404) {
+      setGateway({ phase: "unavailable", reason: "disabled" });
+    } else if (error instanceof GatewayHttpError && error.code === "gateway-token-missing") {
+      setGateway({ phase: "unavailable", reason: "token-missing" });
+    } else {
+      setGateway({
+        phase: "unavailable",
+        reason: "error",
+        message: error instanceof Error ? error.message : undefined,
+      });
+    }
+  }, []);
+
+  const refreshGateway = useCallback(async () => {
+    try {
+      const status = await gatewayClient.status();
+      setGateway({ phase: "ready", status });
+      setActiveModelState((current) =>
+        status.models.includes(current) ? current : (status.defaultModelId ?? ""),
+      );
+    } catch (error) {
+      applyGatewayError(error);
+    }
+  }, [applyGatewayError]);
+
+  useEffect(() => {
+    void refreshGateway();
+  }, [refreshGateway]);
+
+  const unlockGateway = useCallback(
+    async (token: string) => {
+      try {
+        await gatewayClient.unlock(token);
+      } catch (error) {
+        if (error instanceof GatewayHttpError && error.code === "token-rejected") {
+          return "That gateway token was not accepted.";
+        }
+        if (error instanceof GatewayHttpError && error.code === "rate-limited") {
+          return "Too many attempts. Wait a minute and try again.";
+        }
+        return "The gateway could not be unlocked.";
+      }
+      await refreshGateway();
+      return null;
+    },
+    [refreshGateway],
+  );
+
+  const verifyGatewayModel = useCallback(
+    async (modelId: string) => {
+      setCheckingModels((current) => [...new Set([...current, modelId])]);
+      try {
+        const result = await gatewayClient.verify(modelId);
+        setGateway((current) =>
+          current.phase === "ready"
+            ? {
+                phase: "ready",
+                status: {
+                  ...current.status,
+                  connections: { ...current.status.connections, [modelId]: result.connection },
+                },
+              }
+            : current,
+        );
+      } catch (error) {
+        applyGatewayError(error);
+      } finally {
+        setCheckingModels((current) => current.filter((id) => id !== modelId));
+      }
+    },
+    [applyGatewayError],
+  );
+
+  // Choosing a model shows that model's own state and checks it once, automatically.
+  const setActiveModel = useCallback(
+    (modelId: string) => {
+      setActiveModelState(modelId);
+      if (gateway.phase !== "ready" || !gateway.status.configured) return;
+      const connection = gateway.status.connections[modelId];
+      if (connection?.state !== "not_connected" || autoVerified.current.has(modelId)) return;
+      autoVerified.current.add(modelId);
+      void verifyGatewayModel(modelId);
+    },
+    [gateway, verifyGatewayModel],
+  );
 
   const setPolicyActive = useCallback((policyId: string, active: boolean) => {
     setActivePolicyIds((current) =>
@@ -352,6 +435,12 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     () => ({
       activeModel,
       setActiveModel,
+      gateway,
+      checkingModels,
+      refreshGateway,
+      unlockGateway,
+      verifyGatewayModel,
+      markGatewayLocked,
       killSwitch,
       setKillSwitch,
       driftMode,
@@ -379,6 +468,13 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     }),
     [
       activeModel,
+      setActiveModel,
+      gateway,
+      checkingModels,
+      refreshGateway,
+      unlockGateway,
+      verifyGatewayModel,
+      markGatewayLocked,
       killSwitch,
       driftMode,
       recentRuns,
@@ -410,8 +506,4 @@ export function useDemoStore() {
   const c = useContext(Ctx);
   if (!c) throw new Error("useDemoStore must be used within DemoStoreProvider");
   return c;
-}
-
-export function modelById(id: ModelId): ModelMeta {
-  return MODELS.find((m) => m.id === id)!;
 }
