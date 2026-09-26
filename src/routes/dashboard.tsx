@@ -49,7 +49,7 @@ const groups: Array<{
       { to: "/dashboard/drift", label: "Plumb · Drift", icon: GitPullRequest },
       { to: "/dashboard/rulebooks", label: "Policy Library", icon: BookOpen },
       { to: "/dashboard/audit", label: "Receipts", icon: ScrollText },
-      { to: "/dashboard/gateway", label: "LLM Gateway", icon: Zap, badge: "Beta" },
+      { to: "/dashboard/gateway", label: "LLM Gateway", icon: Zap },
     ],
   },
 ];

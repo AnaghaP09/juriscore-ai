@@ -4,6 +4,28 @@ The LLM Gateway sends prompts to a model from **your own Anthropic account**. Ju
 runs Veil before every request and again over every reply, and writes a receipt for every
 run. The provider key is held by the JurisCore server and never reaches the browser.
 
+Setup instructions live in this document only; the product itself shows connection
+state, not configuration steps.
+
+## Turn the gateway on (quick start)
+
+1. In the project root (the folder you run `bun run dev` from), create `.env.local` with:
+
+   ```
+   ANTHROPIC_API_KEY=<your Anthropic API key>
+   JURISCORE_GATEWAY=enabled
+   JURISCORE_GATEWAY_TOKEN=<a passphrase of 16 characters or more>
+   ```
+
+2. Restart the dev server (stop it, then `bun run dev`). Environment variables are read
+   only at startup.
+3. Open `/dashboard`, choose **Unlock gateway** in the header, and enter the passphrase.
+4. Choose **Test connection**. The header badge reads **Connected — Anthropic · <model>**
+   once the check succeeds.
+
+To turn it off, remove `JURISCORE_GATEWAY=enabled` (or set it to anything else) and
+restart: every gateway route then answers 404 and the header shows **Not configured**.
+
 ## What you need
 
 - An Anthropic API key from the [Anthropic Console](https://console.anthropic.com/).
