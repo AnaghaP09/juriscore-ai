@@ -52,7 +52,7 @@ Addendum, same date — Veil protection-profile simplification, founder decision
 Addendum, same date — Overview weekly metrics, founder instruction:
 
 - the Overview shows populated weekly metrics: one overall tile and one each for Veil and Plumb, including the amount of data protected;
-- implementation is a locally persisted metrics ledger of real per-check aggregates (trailing 7 days, this device, labeled live); by founder decision the page ships populated by default with fixed simulated seed values, badged "Simulated" on every tile, which the first real check evicts and Reset demo restores; specification in `SPEC_OVERVIEW.md`;
+- implementation is a locally persisted metrics ledger of real per-check aggregates (trailing 7 days, this device, labeled live); by founder decision the page ships populated by default with fixed simulated seed values, badged "Simulated" on every tile, which the first real check evicts; specification in `SPEC_OVERVIEW.md`;
 - the ledger stores numeric aggregates only — never text, findings, or digests; no unlabeled number may appear;
 - the server-side, receipt-backed weekly metrics remain the roadmap item recorded above.
 
