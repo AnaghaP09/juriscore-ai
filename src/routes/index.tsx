@@ -91,12 +91,13 @@ function Landing() {
               >
                 Dashboard
               </Link>
-              <Link
-                to="/connect"
-                className="hidden sm:inline-block hover:text-foreground transition-colors"
+              <span
+                aria-disabled="true"
+                title="MCP Connect is coming soon"
+                className="hidden cursor-not-allowed text-muted-foreground/50 sm:inline-block"
               >
                 Connect
-              </Link>
+              </span>
               <Button asChild size="sm">
                 <Link to="/dashboard">Open dashboard</Link>
               </Button>
@@ -133,10 +134,8 @@ function Landing() {
               <Button asChild variant="outline" size="lg">
                 <Link to="/dashboard/drift">Try Plumb</Link>
               </Button>
-              <Button asChild variant="ghost" size="lg">
-                <Link to="/connect">
-                  <Plug aria-hidden="true" className="mr-2 h-4 w-4" /> Connect your AI tools
-                </Link>
+              <Button variant="ghost" size="lg" disabled title="MCP Connect is coming soon">
+                <Plug aria-hidden="true" className="mr-2 h-4 w-4" /> Connect your AI tools · soon
               </Button>
             </div>
 
@@ -171,11 +170,7 @@ function Landing() {
                         <feature.icon className="h-5 w-5 text-primary" aria-hidden />
                       </div>
                       <div>
-                        <div
-                          className="eyebrow"
-                        >
-                          {feature.eyebrow}
-                        </div>
+                        <div className="eyebrow">{feature.eyebrow}</div>
                         <h3 className="font-semibold text-lg">{feature.title}</h3>
                       </div>
                     </div>
@@ -200,8 +195,8 @@ function Landing() {
                   Start free. Pay when JurisCore becomes infrastructure.
                 </h2>
                 <p className="page-sub">
-                  Explore the core workflow at no cost, then add shared governance, automation,
-                  and enterprise controls as usage grows.
+                  Explore the core workflow at no cost, then add shared governance, automation, and
+                  enterprise controls as usage grows.
                 </p>
               </div>
               <div className="mt-10 grid gap-4 md:grid-cols-3">
@@ -279,8 +274,8 @@ function Landing() {
                   taking action.
                 </p>
                 <div className="mt-8 flex flex-wrap gap-3">
-                  <Button asChild>
-                    <Link to="/connect">Connection guide</Link>
+                  <Button disabled title="MCP Connect is coming soon">
+                    Connection guide · soon
                   </Button>
                   <Button asChild variant="outline">
                     <Link to="/dashboard/rulebooks">Open Policy Library</Link>
