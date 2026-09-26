@@ -68,7 +68,9 @@ import {
   checkDayKey,
   emptyDay,
   latestRiskAfter,
+  addPrediction,
   normalizeLedger,
+  RECENT_PREDICTIONS_PER_KIND,
   recordPlumbCheckInLedger,
   stampCheck,
   type LocalMetricsLedger,
@@ -1274,6 +1276,7 @@ const weekLedger: LocalMetricsLedger = {
   version: 1,
   simulated: false,
   latestRisk: null,
+  recentPredictions: [],
   days: {
     "2026-09-19": weekDay(1000), // first excluded date
     "2026-09-20": weekDay(1), // oldest included date
@@ -1295,6 +1298,7 @@ const emptyLedger = (): LocalMetricsLedger => ({
   simulated: false,
   days: {},
   latestRisk: null,
+  recentPredictions: [],
 });
 const harmlessChange = parseConnectedChange(harmless);
 const harmlessRisk = (await workbenchRiskFor(harmlessChange)).risk;
@@ -1391,5 +1395,101 @@ const fromSeed = recordPlumbCheckInLedger(
 );
 assert.equal(fromSeed.simulated, false);
 assert.deepEqual(Object.keys(fromSeed.days), ["2026-09-26"]);
+
+// Recent predictions on the Overview: scores and bands only, newest first, capped per kind.
+{
+  const blank = (): LocalMetricsLedger => ({
+    version: 1,
+    simulated: false,
+    days: {},
+    latestRisk: null,
+    recentPredictions: [],
+  });
+  const check = (sequence: number, checkedAt: string, riskScore: number | null) =>
+    ({
+      verdict: "allow",
+      assertions: 1,
+      matches: 1,
+      drifted: 0,
+      cannotDetermine: 0,
+      riskBand:
+        riskScore === null
+          ? null
+          : riskScore >= 65
+            ? "high"
+            : riskScore >= 35
+              ? "uncertain"
+              : "low",
+      riskScore,
+      checkedAt,
+      sequence,
+    }) as StampedPlumbCheck;
+
+  let ledger = recordPlumbCheckInLedger(blank(), check(1, "2026-09-26T10:00:00.000Z", 20));
+  assert.equal(ledger.recentPredictions.length, 1);
+  assert.deepEqual(ledger.recentPredictions[0], {
+    kind: "drift-risk",
+    score: 20,
+    band: "low",
+    at: "2026-09-26T10:00:00.000Z",
+    sequence: 1,
+  });
+  // A check with no score (sample, snapshot) adds nothing to the history.
+  assert.equal(
+    recordPlumbCheckInLedger(ledger, check(2, "2026-09-26T10:01:00.000Z", null)).recentPredictions
+      .length,
+    1,
+  );
+  // Recorded out of order, the history is still newest first.
+  ledger = recordPlumbCheckInLedger(ledger, check(3, "2026-09-26T11:00:00.000Z", 80));
+  ledger = recordPlumbCheckInLedger(ledger, check(2, "2026-09-26T10:30:00.000Z", 50));
+  assert.deepEqual(
+    ledger.recentPredictions.map((entry) => entry.score),
+    [80, 50, 20],
+  );
+  // Capped per kind, so a busy predictor never crowds out the other one.
+  let busy = addPrediction(blank(), {
+    kind: "residual-exposure",
+    score: 10,
+    band: "low",
+    at: "2026-09-01T00:00:00.000Z",
+    sequence: 0,
+  });
+  for (let index = 0; index < RECENT_PREDICTIONS_PER_KIND + 5; index += 1) {
+    busy = recordPlumbCheckInLedger(
+      busy,
+      check(index + 1, `2026-09-26T12:${String(index).padStart(2, "0")}:00.000Z`, 40),
+    );
+  }
+  assert.equal(
+    busy.recentPredictions.filter((entry) => entry.kind === "drift-risk").length,
+    RECENT_PREDICTIONS_PER_KIND,
+  );
+  assert.equal(
+    busy.recentPredictions.filter((entry) => entry.kind === "residual-exposure").length,
+    1,
+  );
+  // The first real check clears the simulated seed's history too.
+  const seeded = { ...blank(), simulated: true, recentPredictions: busy.recentPredictions };
+  assert.equal(
+    recordPlumbCheckInLedger(seeded, check(1, "2026-09-26T13:00:00.000Z", 30)).recentPredictions
+      .length,
+    1,
+  );
+  // Older saves without a history load with none; malformed entries are dropped.
+  const { recentPredictions: _dropped, ...legacy } = blank();
+  assert.deepEqual(normalizeLedger(legacy as LocalMetricsLedger).recentPredictions, []);
+  assert.equal(
+    normalizeLedger({
+      ...blank(),
+      recentPredictions: [
+        { kind: "drift-risk", score: 5, band: "low", at: "2026-09-26T00:00:00.000Z", sequence: 1 },
+        { kind: "other", score: 5, band: "low", at: "x", sequence: 1 },
+        { kind: "drift-risk", score: 5, band: "extreme", at: "x", sequence: 1 },
+      ] as never,
+    }).recentPredictions.length,
+    1,
+  );
+}
 
 console.log("JurisCore predictive drift-risk checks passed.");

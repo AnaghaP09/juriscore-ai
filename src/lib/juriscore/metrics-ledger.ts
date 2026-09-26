@@ -70,12 +70,30 @@ export interface LedgerDay {
   receipts: number;
 }
 
+/** Which advisory predictor produced a score. */
+export type PredictionKind = "drift-risk" | "residual-exposure";
+
+/** One advisory prediction from a completed check: a score and band only, never text. */
+export interface PredictionRecord {
+  kind: PredictionKind;
+  /** 0 to 100. */
+  score: number;
+  band: DriftRiskBand;
+  at: string;
+  sequence: number;
+}
+
+/** How many recent predictions of each kind the device keeps for the Overview. */
+export const RECENT_PREDICTIONS_PER_KIND = 20;
+
 export interface LocalMetricsLedger {
   version: 1;
   simulated: boolean;
   days: Record<string, LedgerDay>;
   /** The most recent advisory drift-risk score on this device, if any. */
   latestRisk: LatestRisk | null;
+  /** The latest predictions per kind, newest first. Older saves load with none. */
+  recentPredictions: PredictionRecord[];
 }
 
 export const RISK_BANDS: readonly DriftRiskBand[] = ["low", "uncertain", "high"];
@@ -144,7 +162,44 @@ export function normalizeLedger(saved: LocalMetricsLedger): LocalMetricsLedger {
           sequence: count(latest.sequence),
         }
       : null;
-  return { version: 1, simulated: saved.simulated === true, days, latestRisk };
+  const recentPredictions = Array.isArray(saved.recentPredictions)
+    ? saved.recentPredictions.filter(
+        (entry): entry is PredictionRecord =>
+          (entry?.kind === "drift-risk" || entry?.kind === "residual-exposure") &&
+          isRiskBand(entry.band) &&
+          typeof entry.at === "string",
+      )
+    : [];
+  return {
+    version: 1,
+    simulated: saved.simulated === true,
+    days,
+    latestRisk,
+    recentPredictions: orderPredictions(recentPredictions),
+  };
+}
+
+function isNewerPrediction(a: PredictionRecord, b: PredictionRecord) {
+  return a.at === b.at ? a.sequence > b.sequence : a.at > b.at;
+}
+
+/** Newest first, capped per kind, so a busy predictor never crowds out the other. */
+export function orderPredictions(entries: PredictionRecord[]): PredictionRecord[] {
+  const sorted = [...entries].sort((a, b) => (isNewerPrediction(a, b) ? -1 : 1));
+  const kept: Record<PredictionKind, number> = { "drift-risk": 0, "residual-exposure": 0 };
+  return sorted.filter((entry) => {
+    kept[entry.kind] += 1;
+    return kept[entry.kind] <= RECENT_PREDICTIONS_PER_KIND;
+  });
+}
+
+/** Adds a prediction to the device history; ledgers still showing the seed start empty. */
+export function addPrediction(
+  ledger: LocalMetricsLedger,
+  prediction: PredictionRecord,
+): LocalMetricsLedger {
+  const previous = ledger.simulated ? [] : ledger.recentPredictions;
+  return { ...ledger, recentPredictions: orderPredictions([prediction, ...previous]) };
 }
 
 /** Adds one Plumb check to a day. Only counts and the band are kept. */
@@ -218,6 +273,7 @@ export function mutateLedgerDay(
     simulated: false,
     days: { ...days, [key]: day },
     latestRisk: nextLatestRisk ? nextLatestRisk(previousRisk) : previousRisk,
+    recentPredictions: ledger.simulated ? [] : ledger.recentPredictions,
   };
 }
 
@@ -229,10 +285,18 @@ export function recordPlumbCheckInLedger(
   ledger: LocalMetricsLedger,
   record: StampedPlumbCheck,
 ): LocalMetricsLedger {
-  return mutateLedgerDay(
+  const next = mutateLedgerDay(
     ledger,
     checkDayKey(record),
     (day) => addPlumbCheck(day, record),
     (previous) => latestRiskAfter(previous, record),
   );
+  if (!isRiskBand(record.riskBand) || typeof record.riskScore !== "number") return next;
+  return addPrediction(next, {
+    kind: "drift-risk",
+    score: record.riskScore,
+    band: record.riskBand,
+    at: record.checkedAt,
+    sequence: record.sequence,
+  });
 }

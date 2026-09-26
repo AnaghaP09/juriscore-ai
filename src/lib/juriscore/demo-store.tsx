@@ -95,6 +95,9 @@ export const SIMULATED_SEED = {
   veil: { checks: 126, occurrences: 1482, redacted: 1178, tokenized: 304, chars: 3_600_000 },
   plumb: { checks: 88, assertions: 412, matches: 354, drifted: 37, cannotDetermine: 21 },
   overall: { checks: 214, allow: 132, revise: 51, block: 31, receipts: 47 },
+  // Per-tool verdict splits; they sum to each tool's checks and to the overall split.
+  veilOutcomes: { allow: 70, revise: 36, block: 20 },
+  plumbOutcomes: { allow: 62, revise: 15, block: 11 },
   plumbRisk: {
     counts: { low: 52, uncertain: 24, high: 12 },
     latest: { score: 38, band: "uncertain" },
@@ -112,6 +115,7 @@ const seededLedger = (): LocalMetricsLedger => ({
   simulated: true,
   days: {},
   latestRisk: null,
+  recentPredictions: [],
 });
 
 const utcDayKey = () => new Date().toISOString().slice(0, 10);
