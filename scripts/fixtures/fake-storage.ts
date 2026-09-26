@@ -33,9 +33,17 @@ class FakeObjectStore {
   }
 }
 
+/**
+ * A fault injected after the database opened: `"all"` makes every new transaction throw
+ * (quota, eviction, a revoked permission); `"clear"` makes a clear request fail, which
+ * aborts its transaction with nothing deleted.
+ */
+export type FakeFault = "all" | "clear" | null;
+
 class FakeDatabase {
   readonly stores = new Map<string, FakeObjectStore>();
   version = 0;
+  fault: FakeFault = null;
 
   get objectStoreNames() {
     return { contains: (name: string) => this.stores.has(name) };
@@ -48,6 +56,7 @@ class FakeDatabase {
   }
 
   transaction(names: string | string[], _mode?: string) {
+    if (this.fault === "all") throw new Error("Storage became unavailable.");
     const list = Array.isArray(names) ? names : [names];
     for (const name of list) {
       if (!this.stores.has(name)) throw new Error(`No object store named ${name}.`);
@@ -85,7 +94,11 @@ class FakeTransaction {
       get: (key: unknown) => run(() => cloneValue(store.records.get(key))),
       getAll: () => run(() => [...store.records.values()].map((value) => cloneValue(value))),
       delete: (key: unknown) => run(() => void store.records.delete(key)),
-      clear: () => run(() => void store.records.clear()),
+      clear: () =>
+        run(() => {
+          if (this.db.fault === "clear") throw new Error("Clear was aborted.");
+          store.records.clear();
+        }),
     };
   }
 
@@ -139,6 +152,13 @@ export class FakeIndexedDB {
       request.onsuccess?.();
     }, 0);
     return request;
+  }
+
+  /** Injects (or, with null, removes) a fault in an already-created database. */
+  setFault(fault: FakeFault, name = "juriscore") {
+    const db = this.databases.get(name);
+    if (!db) throw new Error(`No database named ${name}.`);
+    db.fault = fault;
   }
 
   /** Every persisted value, as JSON, for byte scans. */

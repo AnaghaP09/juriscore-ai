@@ -13,7 +13,7 @@ import type {
   ValidationReceipt,
   ValidatorVerdict,
 } from "@/lib/juriscore/core/contracts";
-import { HISTORY_NOT_SAVED_NOTE, receiptStore } from "@/lib/juriscore/core/receipt-store";
+import { receiptStore, storageNote } from "@/lib/juriscore/core/receipt-store";
 import {
   getReceiptFolder,
   writeReceiptToFolder,
@@ -266,17 +266,20 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
   const [localMetrics, setLocalMetrics] = useState<LocalMetricsLedger>(seededLedger);
   const [recentReceipts, setRecentReceipts] = useState<PersistedReceipt[]>([]);
   const [receiptsTrimmed, setReceiptsTrimmed] = useState(0);
-  const [storageFailed, setStorageFailed] = useState(false);
+  // Tracked separately so the one notice says what actually is and is not being saved.
+  const [settingsStorageFailed, setSettingsStorageFailed] = useState(false);
+  const [receiptStorageFailed, setReceiptStorageFailed] = useState(false);
+  const [receiptFolderActive, setReceiptFolderActive] = useState(false);
   const [connectedRepository, setConnectedRepository] = useState<ConnectedRepository | null>(null);
   const [sourceDocuments, setSourceDocuments] = useState<SourceDocument[]>([]);
 
-  // Every localStorage read and write goes through this; a failure keeps state in memory
-  // and raises the same single note as an unavailable receipt history.
+  // Every localStorage read and write goes through this; a failure keeps settings in
+  // memory and is reported in the single storage notice (see `storageNote`).
   const storage = useMemo(
     () =>
       createSafeStorage(
         () => window.localStorage,
-        () => setStorageFailed(true),
+        () => setSettingsStorageFailed(true),
       ),
     [],
   );
@@ -326,7 +329,7 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
         .then((page) => {
           if (cancelled) return;
           setRecentReceipts(page.items);
-          if (!store.status().persistent) setStorageFailed(true);
+          if (!store.status().persistent) setReceiptStorageFailed(true);
         })
         .catch(() => undefined);
     };
@@ -410,9 +413,10 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
         day.receipts += 1;
       });
       if (added.trimmed > 0) setReceiptsTrimmed((count) => count + added.trimmed);
-      if (!store.status().persistent) setStorageFailed(true);
+      if (!store.status().persistent) setReceiptStorageFailed(true);
       const handle = await getReceiptFolder(store);
       const folder = handle ? await writeReceiptToFolder(added.receipt, { handle }) : null;
+      setReceiptFolderActive(folder?.ok === true);
       return { receipt: added.receipt, folder };
     },
     [mutateToday],
@@ -454,7 +458,11 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       seedDemoMetrics,
       recentReceipts,
       receiptsTrimmed,
-      storageNote: storageFailed ? HISTORY_NOT_SAVED_NOTE : null,
+      storageNote: storageNote({
+        receiptsFailed: receiptStorageFailed,
+        settingsFailed: settingsStorageFailed,
+        folderActive: receiptFolderActive,
+      }),
       connectedRepository,
       setConnectedRepository,
       sourceDocuments,
@@ -479,7 +487,9 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       seedDemoMetrics,
       recentReceipts,
       receiptsTrimmed,
-      storageFailed,
+      settingsStorageFailed,
+      receiptStorageFailed,
+      receiptFolderActive,
       connectedRepository,
       sourceDocuments,
       addSourceDocument,

@@ -30,6 +30,7 @@ import {
   downloadText,
   encodePolicyVersion,
   fileTimestamp,
+  sha256Hex,
 } from "@/lib/juriscore/core/receipts";
 import { veilReportFileName, veilReportText } from "@/lib/juriscore/core/reports";
 import { createRunFinalizer } from "@/lib/juriscore/core/run-finalizer";
@@ -223,22 +224,31 @@ function VeilWorkbench() {
 
   /**
    * Builds and stores this run's receipt once. Later actions on the same run reuse it, so
-   * Copy followed by Download leaves exactly one receipt in the history.
+   * Copy followed by Download leaves exactly one receipt in the history — also after
+   * switching to another input or strategy and back. The finalizer is keyed by strategy,
+   * policy version, and the input digest, so it never holds the input text.
    */
-  const finalizeRun = () => {
+  const finalizeRun = async () => {
     const key = runKey;
-    return finalizer(key, async () => {
-      try {
-        const created = await createReceipt(veilReceiptInput(result, raw, policyRefs));
-        const recorded = await recordReceipt(created);
-        recordCurrentRun();
-        setFinalizedRun({ key, recorded });
-        return recorded;
-      } catch {
-        setReceiptError("A valid receipt could not be produced for this run.");
-        return null;
-      }
-    });
+    const run = { result, raw, policyRefs, strategy };
+    const inputDigest = await sha256Hex(run.raw);
+    const recorded = await finalizer(
+      JSON.stringify([run.strategy, encodePolicyVersion(run.policyRefs), inputDigest]),
+      async () => {
+        try {
+          const input = veilReceiptInput(run.result, run.raw, run.policyRefs);
+          const created = await createReceipt(input);
+          const stored = await recordReceipt(created);
+          recordCurrentRun();
+          return stored;
+        } catch {
+          setReceiptError("A valid receipt could not be produced for this run.");
+          return null;
+        }
+      },
+    );
+    if (recorded) setFinalizedRun({ key, recorded });
+    return recorded;
   };
 
   const copySanitized = async () => {

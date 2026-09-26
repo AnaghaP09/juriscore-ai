@@ -123,7 +123,7 @@ function Overview() {
               </dl>
               <SmallStat
                 value={overall.receipts.toLocaleString("en-US")}
-                label="Receipts downloaded"
+                label="Receipts recorded"
               />
             </MetricTile>
 

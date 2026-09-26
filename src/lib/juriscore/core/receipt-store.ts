@@ -57,20 +57,68 @@ export type ReceiptStoreEvent =
   | { type: "cleared" }
   | { type: "status" };
 
+/**
+ * What clearing did. `deleted`: the saved history was deleted and the deletion committed.
+ * `memory-cleared`: only this tab's temporary history was cleared; `persistedRemain` says
+ * receipts saved earlier in this browser could not be reached and were not deleted.
+ * `failed`: the saved history could not be deleted and is unchanged.
+ */
+export type ClearReceiptsResult =
+  | { status: "deleted" }
+  | { status: "memory-cleared"; persistedRemain: boolean }
+  | { status: "failed"; reason: string };
+
 export interface ReceiptStore {
   addReceipt(receipt: unknown): Promise<AddReceiptResult>;
   listReceipts(query?: ReceiptQuery): Promise<ReceiptPage>;
   countReceipts(filter?: ReceiptFilter): Promise<number>;
   exportReceipts(filter?: ReceiptFilter): Promise<PersistedReceipt[]>;
-  clearReceipts(): Promise<void>;
+  clearReceipts(): Promise<ClearReceiptsResult>;
   getSetting<T>(key: string): Promise<T | undefined>;
   setSetting(key: string, value: unknown): Promise<void>;
   status(): ReceiptStoreStatus;
   onChange(listener: (event: ReceiptStoreEvent) => void): () => void;
 }
 
+/** Both receipt history (IndexedDB) and settings (localStorage) are unavailable. */
 export const HISTORY_NOT_SAVED_NOTE =
   "History not saved in this browser: browser storage is unavailable, so receipts and settings last only until this tab closes.";
+
+/** Receipt history (IndexedDB) is unavailable; settings are still saved. */
+export const RECEIPTS_NOT_SAVED_NOTE =
+  "Receipt history not saved in this browser: IndexedDB is unavailable, so receipts listed here last only until this tab closes. Settings are still saved.";
+
+/** Settings (localStorage) are unavailable; receipt history is still saved. */
+export const SETTINGS_NOT_SAVED_NOTE =
+  "Settings not saved in this browser: local storage is unavailable, so policies, metrics, and loaded sources last only until this tab closes. Receipt history is still saved.";
+
+const FOLDER_STILL_SAVED = " New receipts are still written to the folder you chose.";
+
+/**
+ * The one storage notice, naming what failed. It never says receipts are temporary while
+ * receipt history is still saved, and says so when the receipt folder still gets copies.
+ */
+export function storageNote(state: {
+  receiptsFailed: boolean;
+  settingsFailed: boolean;
+  folderActive?: boolean;
+}): string | null {
+  const folder = state.folderActive ? FOLDER_STILL_SAVED : "";
+  if (state.receiptsFailed && state.settingsFailed) return HISTORY_NOT_SAVED_NOTE + folder;
+  if (state.receiptsFailed) return RECEIPTS_NOT_SAVED_NOTE + folder;
+  if (state.settingsFailed) return SETTINGS_NOT_SAVED_NOTE;
+  return null;
+}
+
+/**
+ * Keeps a page offset inside the current total: an offset past the end (after receipts
+ * were cleared or trimmed, here or in another tab) moves to the last page that has rows.
+ */
+export function clampPageOffset(offset: number, total: number, pageSize: number) {
+  if (total <= 0 || pageSize <= 0) return 0;
+  const lastPage = Math.floor((total - 1) / pageSize) * pageSize;
+  return Math.min(Math.max(0, offset), lastPage);
+}
 
 export interface ReceiptStoreOptions {
   /** Defaults to `globalThis.indexedDB`. Pass `null` to force the in-memory store. */
@@ -153,9 +201,14 @@ function overflow(all: PersistedReceipt[], limit: number) {
 export function createReceiptStore(options: ReceiptStoreOptions = {}): ReceiptStore {
   const limit = options.limit ?? RECEIPT_HISTORY_LIMIT;
   const listeners = new Set<(event: ReceiptStoreEvent) => void>();
+  // A bounded, validated snapshot of what IndexedDB last returned or committed. While
+  // storage works it mirrors the saved history; if storage later fails, the store carries
+  // on from it instead of dropping receipts that were already shown.
   let memory: PersistedReceipt[] = [];
   const memorySettings = new Map<string, unknown>();
   let persistent = true;
+  // Set once IndexedDB has been opened: receipts may then exist that memory cannot delete.
+  let everPersisted = false;
   let dbPromise: Promise<IDBDatabase | null> | null = null;
 
   let channel: BroadcastChannel | null = null;
@@ -197,7 +250,9 @@ export function createReceiptStore(options: ReceiptStoreOptions = {}): ReceiptSt
     }
     dbPromise = (async () => {
       try {
-        return await openDatabase(factory);
+        const db = await openDatabase(factory);
+        everPersisted = true;
+        return db;
       } catch {
         degrade();
         return null;
@@ -215,12 +270,14 @@ export function createReceiptStore(options: ReceiptStoreOptions = {}): ReceiptSt
           transaction.objectStore(RECEIPTS).getAll() as IDBRequest<unknown[]>,
         );
         // A record that no longer parses is skipped rather than shown or exported.
-        return all
+        const valid = all
           .flatMap((record) => {
             const parsed = persistedReceiptSchema.safeParse(record);
             return parsed.success ? [parsed.data] : [];
           })
           .sort(newestFirst);
+        memory = valid.slice(0, limit);
+        return valid;
       } catch {
         degrade();
       }
@@ -258,9 +315,20 @@ export function createReceiptStore(options: ReceiptStoreOptions = {}): ReceiptSt
           const dropped = overflow(all, limit);
           for (const item of dropped) store.delete(item.id);
           await done;
+          // Mirror the committed history (validated, within the limit) for a later fallback.
+          const droppedIds = new Set(dropped.map((item) => item.id));
+          memory = all
+            .filter((item) => !droppedIds.has(item.id))
+            .flatMap((record) => {
+              const parsed = persistedReceiptSchema.safeParse(record);
+              return parsed.success ? [parsed.data] : [];
+            })
+            .sort(newestFirst)
+            .slice(0, limit);
           emit({ type: "added", id: receipt.id, trimmed: dropped.length });
           return { receipt, trimmed: dropped.length };
         } catch {
+          // The write did not commit; it joins the snapshot of what was already saved.
           degrade();
         }
       }
@@ -285,7 +353,7 @@ export function createReceiptStore(options: ReceiptStoreOptions = {}): ReceiptSt
       return all.map((receipt) => toPersistedReceipt(receipt));
     },
 
-    async clearReceipts() {
+    async clearReceipts(): Promise<ClearReceiptsResult> {
       const db = await database();
       if (db) {
         try {
@@ -293,12 +361,25 @@ export function createReceiptStore(options: ReceiptStoreOptions = {}): ReceiptSt
           const done = transactionDone(transaction);
           transaction.objectStore(RECEIPTS).clear();
           await done;
-        } catch {
-          degrade();
+        } catch (error) {
+          // The saved history is unchanged: keep showing it, and let the caller retry.
+          // Storage is not marked unavailable here, since reads would then hide receipts
+          // that still exist.
+          return {
+            status: "failed",
+            reason:
+              error instanceof Error && error.message
+                ? error.message
+                : "The browser did not delete the saved history.",
+          };
         }
+        memory = [];
+        emit({ type: "cleared" });
+        return { status: "deleted" };
       }
       memory = [];
       emit({ type: "cleared" });
+      return { status: "memory-cleared", persistedRemain: everPersisted };
     },
 
     async getSetting<T>(key: string) {
@@ -307,6 +388,8 @@ export function createReceiptStore(options: ReceiptStoreOptions = {}): ReceiptSt
         try {
           const transaction = db.transaction(SETTINGS, "readonly");
           const value: unknown = await requestResult(transaction.objectStore(SETTINGS).get(key));
+          if (value === undefined) memorySettings.delete(key);
+          else memorySettings.set(key, value);
           return value as T | undefined;
         } catch {
           degrade();
@@ -325,6 +408,8 @@ export function createReceiptStore(options: ReceiptStoreOptions = {}): ReceiptSt
           if (value === undefined) store.delete(key);
           else store.put(value, key);
           await done;
+          if (value === undefined) memorySettings.delete(key);
+          else memorySettings.set(key, value);
           return;
         } catch {
           degrade();
@@ -335,7 +420,7 @@ export function createReceiptStore(options: ReceiptStoreOptions = {}): ReceiptSt
     },
 
     status() {
-      return { persistent, note: persistent ? null : HISTORY_NOT_SAVED_NOTE };
+      return { persistent, note: persistent ? null : RECEIPTS_NOT_SAVED_NOTE };
     },
 
     onChange(listener) {

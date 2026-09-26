@@ -1,10 +1,11 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, Upload, X, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { PersistedReceipt } from "@/lib/juriscore/core/contracts";
+import { createGeneration } from "@/lib/juriscore/core/generation";
 import {
   verificationMode,
   verifyPlumbSources,
@@ -54,9 +55,31 @@ function MatchLine({ label, match }: { label: string; match: DigestMatch }) {
   );
 }
 
+/**
+ * One generation per verifier: every edit, upload, removal, receipt change, and unmount
+ * invalidates in-flight hashing, so an older verification never shows a result for inputs
+ * that are no longer displayed.
+ */
+function useVerificationGeneration(receipt: PersistedReceipt) {
+  const [generation] = useState(createGeneration);
+  useEffect(() => () => generation.invalidate(), [generation, receipt]);
+  return generation;
+}
+
 function VeilVerifier({ receipt }: { receipt: PersistedReceipt }) {
   const [text, setText] = useState("");
   const [match, setMatch] = useState<DigestMatch | null>(null);
+  const generation = useVerificationGeneration(receipt);
+
+  useEffect(() => {
+    setMatch(null);
+  }, [receipt]);
+
+  const verify = async () => {
+    const token = generation.begin();
+    const next = await verifyVeilText(receipt, text);
+    if (generation.isCurrent(token)) setMatch(next);
+  };
 
   return (
     <div className="space-y-2">
@@ -67,6 +90,7 @@ function VeilVerifier({ receipt }: { receipt: PersistedReceipt }) {
         id="verify-veil-input"
         value={text}
         onChange={(event) => {
+          generation.invalidate();
           setText(event.target.value);
           setMatch(null);
         }}
@@ -74,11 +98,7 @@ function VeilVerifier({ receipt }: { receipt: PersistedReceipt }) {
         className="font-mono text-xs"
       />
       <div className="flex flex-wrap items-center gap-3">
-        <Button
-          size="sm"
-          onClick={async () => setMatch(await verifyVeilText(receipt, text))}
-          disabled={!text}
-        >
+        <Button size="sm" onClick={() => void verify()} disabled={!text}>
           Verify
         </Button>
         <div aria-live="polite">
@@ -111,14 +131,25 @@ function PlumbVerifier({ receipt }: { receipt: PersistedReceipt }) {
   const [pastedText, setPastedText] = useState("");
   const [result, setResult] = useState<PlumbVerification | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const diffInput = useRef<HTMLInputElement>(null);
   const documentInput = useRef<HTMLInputElement>(null);
+  const generation = useVerificationGeneration(receipt);
 
+  // Any change to the inputs discards the shown result and any verification in flight.
   const changed = () => {
+    generation.invalidate();
     setResult(null);
     setError(null);
+    setVerifying(false);
   };
+
+  useEffect(() => {
+    setResult(null);
+    setError(null);
+    setVerifying(false);
+  }, [receipt]);
 
   const addDocument = (name: string, text: string) => {
     changed();
@@ -129,7 +160,8 @@ function PlumbVerifier({ receipt }: { receipt: PersistedReceipt }) {
   };
 
   const uploadDocuments = async (files: File[]) => {
-    setBusy(true);
+    changed();
+    setUploading(true);
     try {
       for (const file of files) {
         validateDocument(file);
@@ -141,25 +173,26 @@ function PlumbVerifier({ receipt }: { receipt: PersistedReceipt }) {
         uploadError instanceof Error ? uploadError.message : "A document could not be read.",
       );
     } finally {
-      setBusy(false);
+      setUploading(false);
       if (documentInput.current) documentInput.current.value = "";
     }
   };
 
   const verify = async () => {
-    setBusy(true);
+    const token = generation.begin();
+    setVerifying(true);
     setError(null);
+    setResult(null);
     try {
-      setResult(
-        await verifyPlumbSources(receipt, {
-          diff,
-          documents: documents.map(({ name, text }) => ({ name, text })),
-        }),
-      );
+      const next = await verifyPlumbSources(receipt, {
+        diff,
+        documents: documents.map(({ name, text }) => ({ name, text })),
+      });
+      if (generation.isCurrent(token)) setResult(next);
     } catch {
-      setError("The supplied sources could not be digested.");
+      if (generation.isCurrent(token)) setError("The supplied sources could not be digested.");
     } finally {
-      setBusy(false);
+      if (generation.isCurrent(token)) setVerifying(false);
     }
   };
 
@@ -181,11 +214,14 @@ function PlumbVerifier({ receipt }: { receipt: PersistedReceipt }) {
             aria-label="Load the diff from a file"
             onChange={async (event) => {
               const file = event.target.files?.[0];
+              event.target.value = "";
               if (file) {
                 changed();
-                setDiff(await file.text());
+                const text = await file.text();
+                // Invalidate again: a verification may have started while the file was read.
+                changed();
+                setDiff(text);
               }
-              event.target.value = "";
             }}
           />
           <Button size="sm" variant="ghost" onClick={() => diffInput.current?.click()}>
@@ -221,7 +257,7 @@ function PlumbVerifier({ receipt }: { receipt: PersistedReceipt }) {
             size="sm"
             variant="ghost"
             onClick={() => documentInput.current?.click()}
-            disabled={busy}
+            disabled={uploading}
           >
             <Upload className="mr-1.5 h-3.5 w-3.5" aria-hidden />
             Load documents
@@ -282,7 +318,7 @@ function PlumbVerifier({ receipt }: { receipt: PersistedReceipt }) {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button size="sm" onClick={verify} disabled={busy || !diff}>
+        <Button size="sm" onClick={() => void verify()} disabled={verifying || uploading || !diff}>
           Verify
         </Button>
         {error && (

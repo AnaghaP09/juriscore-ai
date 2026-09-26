@@ -12,6 +12,7 @@ import {
   encodePolicyVersion,
   receiptDigestVersion,
   serializeReceipt,
+  sha256Hex,
   toPersistedReceipt,
 } from "../src/lib/juriscore/core/receipts";
 import { receiptDomainResolver, receiptDomains } from "../src/lib/juriscore/core/receipt-domains";
@@ -22,11 +23,17 @@ import {
 } from "../src/lib/juriscore/policies/catalog";
 import {
   HISTORY_NOT_SAVED_NOTE,
+  RECEIPTS_NOT_SAVED_NOTE,
   RECEIPT_HISTORY_LIMIT,
+  SETTINGS_NOT_SAVED_NOTE,
+  clampPageOffset,
   createReceiptStore,
   receiptsToCsv,
   receiptsToJson,
+  storageNote,
+  type ReceiptStoreEvent,
 } from "../src/lib/juriscore/core/receipt-store";
+import { createGeneration } from "../src/lib/juriscore/core/generation";
 import {
   writeReceiptToFolder,
   type ReceiptFolderHandle,
@@ -458,7 +465,7 @@ async function plumbReceipt(diff: string, doc: string, createdAt: string) {
     const plumb = await plumbReceipt(DIFF, DOC, iso(11));
     await store.addReceipt(veil);
     await store.addReceipt(plumb);
-    assert.deepEqual(store.status(), { persistent: false, note: HISTORY_NOT_SAVED_NOTE }, mode);
+    assert.deepEqual(store.status(), { persistent: false, note: RECEIPTS_NOT_SAVED_NOTE }, mode);
     const listed = await store.listReceipts();
     assert.deepEqual(
       listed.items.map((item) => item.id),
@@ -469,7 +476,13 @@ async function plumbReceipt(diff: string, doc: string, createdAt: string) {
     assert.equal(serializeReceipt(listed.items[1]), serializeReceipt(veil));
     await store.setSetting("receiptFolder", { name: "memory" });
     assert.deepEqual(await store.getSetting("receiptFolder"), { name: "memory" });
-    await store.clearReceipts();
+    // Only temporary history is cleared; a database that opened before failing may still
+    // hold receipts this tab can no longer reach, and the result says so.
+    assert.deepEqual(
+      await store.clearReceipts(),
+      { status: "memory-cleared", persistedRemain: mode === "throw-on-use" },
+      mode,
+    );
     assert.equal(await store.countReceipts(), 0);
   }
 
@@ -508,7 +521,8 @@ async function plumbReceipt(diff: string, doc: string, createdAt: string) {
   );
   const directAccess = demoStore.match(/localStorage\s*\.\s*(getItem|setItem|removeItem)/g);
   assert.equal(directAccess, null, "demo-store touches localStorage directly");
-  assert.ok(demoStore.includes("HISTORY_NOT_SAVED_NOTE"));
+  // The one notice is composed from what actually failed (R-006 below).
+  assert.ok(demoStore.includes("storageNote({"));
 }
 
 // ---------------------------------------------------------------------------
@@ -569,7 +583,7 @@ async function plumbReceipt(diff: string, doc: string, createdAt: string) {
   // The listener fires after the write committed, so a refresh sees the new receipt.
   assert.deepEqual(events, [`added:${receipt.id}`]);
   assert.equal((await store.listReceipts({ offset: 0, limit: 5 })).items[0].id, receipt.id);
-  await store.clearReceipts();
+  assert.deepEqual(await store.clearReceipts(), { status: "deleted" });
   assert.deepEqual(events, [`added:${receipt.id}`, "cleared"]);
   unsubscribe();
   await store.addReceipt(receipt);
@@ -681,5 +695,300 @@ validationReceiptSchema.parse({
   maturity: "synthetic",
   createdAt: "2026-08-01T00:00:00.000Z",
 });
+
+// ---------------------------------------------------------------------------
+// R-001. The finalizer reuses a run's receipt by its full identity, not just the last key.
+// ---------------------------------------------------------------------------
+{
+  const store = createReceiptStore({ indexedDB: asFactory(new FakeIndexedDB()), broadcast: false });
+  const finalize = createRunFinalizer<PersistedReceipt>();
+  let builds = 0;
+  // The workbench's key: strategy, policy version, and the input digest (never the text).
+  const runKey = async (strategy: "redact" | "tokenize", raw: string) =>
+    JSON.stringify([strategy, encodePolicyVersion(POLICIES), await sha256Hex(raw)]);
+  const finalizeRun = async (strategy: "redact" | "tokenize", raw: string) =>
+    finalize(await runKey(strategy, raw), async () => {
+      builds += 1;
+      const run = protectText(raw, { profile: "all_sensitive", strategy });
+      const created = await createReceipt({
+        ...veilReceiptInput(run, raw, POLICIES),
+        createdAt: iso(3000 + builds),
+      });
+      return (await store.addReceipt(created)).receipt;
+    });
+
+  const inputA = "Contact maya.patel@example.test about acme-prod-4831.";
+  const inputB = "Call 415-555-0199 about the export timeout.";
+  assert.equal((await runKey("redact", inputA)).includes("maya.patel"), false);
+
+  // Copy A, copy B, restore A and download: A is reused, not built and stored again.
+  const copiedA = await finalizeRun("redact", inputA);
+  await finalizeRun("redact", inputB);
+  const downloadedA = await finalizeRun("redact", inputA);
+  assert.equal(builds, 2);
+  assert.equal(downloadedA, copiedA);
+
+  // Redact → Tokenize → Redact: one receipt per strategy, the first reused on return.
+  const tokenized = await finalizeRun("tokenize", inputA);
+  const redactedAgain = await finalizeRun("redact", inputA);
+  assert.equal(builds, 3);
+  assert.notEqual(tokenized?.id, copiedA?.id);
+  assert.equal(redactedAgain, copiedA);
+  assert.equal(await store.countReceipts({ module: "veil" }), 3);
+
+  // A failed entry is dropped for retry even after other runs were finalized.
+  const retry = createRunFinalizer<string>();
+  assert.equal(await retry("a", async () => null), null);
+  assert.equal(await retry("b", async () => "b"), "b");
+  assert.equal(
+    await retry("a", async () => {
+      throw new Error("boom");
+    }),
+    null,
+  );
+  assert.equal(await retry("a", async () => "a"), "a");
+  assert.equal(await retry("b", async () => "rebuilt"), "b");
+
+  // Bounded: beyond capacity the least recently used run is forgotten.
+  const bounded = createRunFinalizer<string>(2);
+  await bounded("x", async () => "x1");
+  await bounded("y", async () => "y1");
+  await bounded("x", async () => "x2"); // touches x
+  await bounded("z", async () => "z1"); // evicts y
+  assert.equal(await bounded("x", async () => "x3"), "x1");
+  assert.equal(await bounded("y", async () => "y2"), "y2");
+}
+
+// ---------------------------------------------------------------------------
+// R-002. Clearing reports the outcome; a failed durable deletion is not shown as cleared.
+// ---------------------------------------------------------------------------
+{
+  const idb = new FakeIndexedDB();
+  const store = createReceiptStore({ indexedDB: asFactory(idb), broadcast: false });
+  const events: ReceiptStoreEvent["type"][] = [];
+  store.onChange((event) => events.push(event.type));
+  await store.addReceipt(await veilReceipt("clear one", iso(3100)));
+  await store.addReceipt(await veilReceipt("clear two", iso(3101)));
+
+  idb.setFault("clear");
+  const failed = await store.clearReceipts();
+  assert.equal(failed.status, "failed");
+  assert.ok(failed.status === "failed" && failed.reason.length > 0);
+  assert.equal(events.includes("cleared"), false, "a failed clear must not announce clearance");
+  // Still persistent, still listed here, and still there after a reload.
+  assert.equal(store.status().persistent, true);
+  assert.equal(await store.countReceipts(), 2);
+  const reloaded = createReceiptStore({ indexedDB: asFactory(idb), broadcast: false });
+  assert.equal(await reloaded.countReceipts(), 2);
+
+  // Retry succeeds; clearance is announced only after the deletion committed.
+  idb.setFault(null);
+  assert.deepEqual(await store.clearReceipts(), { status: "deleted" });
+  assert.equal(events[events.length - 1], "cleared");
+  const afterDelete = createReceiptStore({ indexedDB: asFactory(idb), broadcast: false });
+  assert.equal(await afterDelete.countReceipts(), 0);
+
+  // Memory-only history: clearing says it cleared temporary history, with nothing saved.
+  const memoryOnly = createReceiptStore({ indexedDB: null, broadcast: false });
+  await memoryOnly.addReceipt(await veilReceipt("temporary", iso(3102)));
+  assert.deepEqual(await memoryOnly.clearReceipts(), {
+    status: "memory-cleared",
+    persistedRemain: false,
+  });
+
+  // Saved, then storage failed: clearing memory does not claim the saved receipt is gone.
+  const idb2 = new FakeIndexedDB();
+  const degrading = createReceiptStore({ indexedDB: asFactory(idb2), broadcast: false });
+  const saved = await veilReceipt("saved before failure", iso(3103));
+  await degrading.addReceipt(saved);
+  idb2.setFault("all");
+  await degrading.addReceipt(await veilReceipt("after failure", iso(3104)));
+  assert.deepEqual(await degrading.clearReceipts(), {
+    status: "memory-cleared",
+    persistedRemain: true,
+  });
+  idb2.setFault(null);
+  const later = createReceiptStore({ indexedDB: asFactory(idb2), broadcast: false });
+  assert.deepEqual(
+    (await later.listReceipts()).items.map((item) => item.id),
+    [saved.id],
+  );
+}
+
+// ---------------------------------------------------------------------------
+// R-003. A later storage failure keeps the history already read or committed.
+// ---------------------------------------------------------------------------
+{
+  const idb = new FakeIndexedDB();
+  const writer = createReceiptStore({ indexedDB: asFactory(idb), broadcast: false });
+  const earlier: string[] = [];
+  for (let index = 0; index < 3; index += 1) {
+    const receipt = await veilReceipt(`earlier ${index}`, iso(3200 + index));
+    earlier.push(receipt.id);
+    await writer.addReceipt(receipt);
+  }
+  await writer.setSetting("receiptFolder", { name: "kept" });
+
+  // A reader that listed history, then loses storage on its next write.
+  const reader = createReceiptStore({ indexedDB: asFactory(idb), broadcast: false });
+  assert.equal((await reader.listReceipts()).total, 3);
+  assert.deepEqual(await reader.getSetting("receiptFolder"), { name: "kept" });
+  idb.setFault("all");
+  const failedWrite = await veilReceipt("written during failure", iso(3210));
+  await reader.addReceipt(failedWrite);
+  assert.equal(reader.status().persistent, false);
+  const readerIds = (await reader.exportReceipts()).map((item) => item.id);
+  assert.deepEqual(readerIds, [failedWrite.id, ...[...earlier].reverse()]);
+  assert.deepEqual(await reader.getSetting("receiptFolder"), { name: "kept" });
+
+  // The writer never listed; its snapshot comes from its own committed writes. A settings
+  // failure degrades it without losing those receipts either.
+  await writer.setSetting("another", 1);
+  assert.equal(writer.status().persistent, false);
+  assert.deepEqual(
+    (await writer.exportReceipts()).map((item) => item.id),
+    [...earlier].reverse(),
+  );
+  assert.deepEqual(await writer.getSetting("receiptFolder"), { name: "kept" });
+  assert.equal(await writer.getSetting("another"), 1);
+
+  // The snapshot is bounded by the history limit and holds validated records only.
+  idb.setFault(null);
+  const smallIdb = new FakeIndexedDB();
+  const bounded = createReceiptStore({
+    indexedDB: asFactory(smallIdb),
+    broadcast: false,
+    limit: 2,
+  });
+  for (let index = 0; index < 4; index += 1) {
+    await bounded.addReceipt(await veilReceipt(`bounded ${index}`, iso(3300 + index)));
+  }
+  smallIdb.setFault("all");
+  assert.equal(await bounded.countReceipts(), 2);
+  assert.equal(bounded.status().persistent, false);
+}
+
+// ---------------------------------------------------------------------------
+// R-004. An older verification never commits over newer inputs.
+// ---------------------------------------------------------------------------
+{
+  const generation = createGeneration();
+  const plumb = toPersistedReceipt(await plumbReceipt(DIFF, DOC, iso(3400)));
+  let shown: { source: string; claims: string } | null = null;
+
+  // Verify the matching sources, then edit before the hash finishes: nothing is shown.
+  const token = generation.begin();
+  const pending = verifyPlumbSources(plumb, {
+    diff: DIFF,
+    documents: [{ name: DOC_NAME, text: DOC }],
+  });
+  generation.invalidate(); // the user edits the diff or removes a document
+  const stale = await pending;
+  assert.deepEqual(stale, { source: "matches", claims: "matches" });
+  if (generation.isCurrent(token)) shown = stale;
+  assert.equal(shown, null);
+
+  // A newer verification supersedes an older one still in flight.
+  const first = generation.begin();
+  const second = generation.begin();
+  assert.equal(generation.isCurrent(first), false);
+  assert.equal(generation.isCurrent(second), true);
+  generation.invalidate(); // unmount or receipt change
+  assert.equal(generation.isCurrent(second), false);
+
+  // Both verifiers commit only through the generation check, and invalidate on edits.
+  const verifier = readFileSync(
+    new URL("../src/components/receipt-verifier.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.ok(verifier.includes("if (generation.isCurrent(token)) setMatch(next)"));
+  assert.ok(verifier.includes("if (generation.isCurrent(token)) setResult(next)"));
+  assert.equal(/setMatch\(await /.test(verifier), false);
+  assert.equal(/setResult\(\s*await /.test(verifier), false);
+  assert.ok(verifier.includes("() => generation.invalidate()"), "unmount must invalidate");
+}
+
+// ---------------------------------------------------------------------------
+// R-005. A page offset past a shrunken total moves back to a page with rows.
+// ---------------------------------------------------------------------------
+{
+  assert.equal(clampPageOffset(50, 1, 50), 0);
+  assert.equal(clampPageOffset(50, 0, 50), 0);
+  assert.equal(clampPageOffset(0, 0, 50), 0);
+  assert.equal(clampPageOffset(100, 120, 50), 100);
+  assert.equal(clampPageOffset(150, 120, 50), 100);
+  assert.equal(clampPageOffset(100, 100, 50), 50);
+  assert.equal(clampPageOffset(-5, 10, 50), 0);
+
+  // Page 2, history cleared elsewhere, one new receipt: the clamped page shows it.
+  const store = createReceiptStore({ indexedDB: asFactory(new FakeIndexedDB()), broadcast: false });
+  for (let index = 0; index < 60; index += 1) {
+    await store.addReceipt(await veilReceipt(`paged ${index}`, iso(3500 + index)));
+  }
+  let offset = 50;
+  assert.equal((await store.listReceipts({ offset, limit: 50 })).items.length, 10);
+  await store.clearReceipts();
+  const fresh = await veilReceipt("after clear", iso(3600));
+  await store.addReceipt(fresh);
+  const stalePage = await store.listReceipts({ offset, limit: 50 });
+  assert.equal(stalePage.items.length, 0);
+  offset = clampPageOffset(offset, stalePage.total, 50);
+  const page = await store.listReceipts({ offset, limit: 50 });
+  assert.deepEqual(
+    page.items.map((item) => item.id),
+    [fresh.id],
+  );
+
+  const audit = readFileSync(new URL("../src/routes/dashboard.audit.tsx", import.meta.url), "utf8");
+  assert.ok(audit.includes("clampPageOffset(offset, nextPage.total, PAGE_SIZE)"));
+  assert.ok(audit.includes('result.status === "failed"'), "clear failures are reported");
+}
+
+// ---------------------------------------------------------------------------
+// R-006. The storage notice names what failed and never overstates receipt loss.
+// ---------------------------------------------------------------------------
+{
+  assert.equal(storageNote({ receiptsFailed: false, settingsFailed: false }), null);
+  const settingsOnly = storageNote({ receiptsFailed: false, settingsFailed: true });
+  assert.equal(settingsOnly, SETTINGS_NOT_SAVED_NOTE);
+  assert.ok(settingsOnly?.includes("Receipt history is still saved"));
+  assert.equal(/receipts (and settings )?last only/i.test(settingsOnly ?? ""), false);
+  assert.equal(
+    storageNote({ receiptsFailed: false, settingsFailed: true, folderActive: true }),
+    SETTINGS_NOT_SAVED_NOTE,
+  );
+  assert.equal(
+    storageNote({ receiptsFailed: true, settingsFailed: false }),
+    RECEIPTS_NOT_SAVED_NOTE,
+  );
+  assert.equal(storageNote({ receiptsFailed: true, settingsFailed: true }), HISTORY_NOT_SAVED_NOTE);
+  const withFolder = storageNote({
+    receiptsFailed: true,
+    settingsFailed: true,
+    folderActive: true,
+  });
+  assert.ok(withFolder?.startsWith(HISTORY_NOT_SAVED_NOTE));
+  assert.ok(withFolder?.includes("folder"));
+
+  const demoStore = readFileSync(
+    new URL("../src/lib/juriscore/demo-store.tsx", import.meta.url),
+    "utf8",
+  );
+  // A localStorage failure is tracked apart from receipt storage.
+  assert.ok(demoStore.includes("() => setSettingsStorageFailed(true)"));
+  assert.equal(demoStore.includes("HISTORY_NOT_SAVED_NOTE"), false);
+}
+
+// ---------------------------------------------------------------------------
+// R-007. The Overview counter says what it counts: receipts recorded, not downloaded.
+// ---------------------------------------------------------------------------
+{
+  const overview = readFileSync(
+    new URL("../src/routes/dashboard.index.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.equal(overview.includes("Receipts downloaded"), false);
+  assert.ok(overview.includes("Receipts recorded"));
+}
 
 console.log("JurisCore receipt store checks passed.");

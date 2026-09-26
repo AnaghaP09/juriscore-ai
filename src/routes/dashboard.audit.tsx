@@ -41,6 +41,7 @@ import {
 } from "@/lib/juriscore/core/contracts";
 import {
   RECEIPT_HISTORY_LIMIT,
+  clampPageOffset,
   receiptStore,
   receiptsToCsv,
   receiptsToJson,
@@ -145,6 +146,9 @@ function YourReceipts() {
   const [page, setPage] = useState<ReceiptPage>({ items: [], total: 0 });
   const [domainOptions, setDomainOptions] = useState<string[]>([]);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [clearError, setClearError] = useState<string | null>(null);
+  const [clearNote, setClearNote] = useState<string | null>(null);
   const [folderSupported, setFolderSupported] = useState(false);
   const [folderName, setFolderName] = useState<string | null>(null);
   // Refreshes can overlap when receipts arrive quickly; only the latest one is applied.
@@ -170,6 +174,13 @@ function YourReceipts() {
     ])
       .then(([nextPage, all]) => {
         if (seq !== refreshSeq.current) return;
+        // The total can shrink under this page (cleared or trimmed here or in another
+        // tab). Move to the last page with rows; the offset change refetches that page.
+        const valid = clampPageOffset(offset, nextPage.total, PAGE_SIZE);
+        if (valid !== offset) {
+          setOffset(valid);
+          return;
+        }
         setPage(nextPage);
         setDomainOptions([...new Set(all.flatMap(domainOf))].sort((a, b) => a.localeCompare(b)));
       })
@@ -206,8 +217,30 @@ function YourReceipts() {
   };
 
   const clearHistory = async () => {
-    await receiptStore().clearReceipts();
-    setConfirmClear(false);
+    setClearing(true);
+    setClearError(null);
+    setClearNote(null);
+    try {
+      const result = await receiptStore().clearReceipts();
+      if (result.status === "failed") {
+        // Keep the confirmation open so the deletion can be retried.
+        setClearError(
+          `The saved history could not be deleted and is unchanged (${result.reason}). Try again.`,
+        );
+        return;
+      }
+      setConfirmClear(false);
+      setOffset(0);
+      setClearNote(
+        result.status === "deleted"
+          ? "Receipt history deleted from this browser."
+          : result.persistedRemain
+            ? "Cleared this tab's temporary history. Browser storage stopped responding, so any receipts saved earlier in this browser could not be reached and were not deleted."
+            : "Cleared this tab's temporary history. Nothing had been saved in this browser.",
+      );
+    } finally {
+      setClearing(false);
+    }
   };
 
   return (
@@ -351,7 +384,15 @@ function YourReceipts() {
             <FileJson className="mr-2 h-4 w-4" aria-hidden />
             Export JSON
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setConfirmClear(true)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setClearError(null);
+              setClearNote(null);
+              setConfirmClear(true);
+            }}
+          >
             <Trash2 className="mr-2 h-4 w-4" aria-hidden />
             Clear history
           </Button>
@@ -361,21 +402,46 @@ function YourReceipts() {
           <div
             role="alertdialog"
             aria-label="Confirm clearing receipt history"
-            className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[color:var(--block)]/40 bg-[color:var(--block)]/[0.05] px-3 py-2 text-sm"
+            className="space-y-2 rounded-md border border-[color:var(--block)]/40 bg-[color:var(--block)]/[0.05] px-3 py-2 text-sm"
           >
-            <span>
-              Delete every receipt in this browser&apos;s history? Downloaded and exported files are
-              not affected.
-            </span>
-            <span className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => setConfirmClear(false)}>
-                Cancel
-              </Button>
-              <Button size="sm" variant="destructive" onClick={() => void clearHistory()}>
-                Delete history
-              </Button>
-            </span>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span>
+                Delete every receipt in this browser&apos;s history? Downloaded and exported files
+                are not affected.
+              </span>
+              <span className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={clearing}
+                  onClick={() => {
+                    setConfirmClear(false);
+                    setClearError(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  disabled={clearing}
+                  onClick={() => void clearHistory()}
+                >
+                  {clearError ? "Retry delete" : "Delete history"}
+                </Button>
+              </span>
+            </div>
+            {clearError && (
+              <p role="alert" className="text-xs text-[color:var(--block)]">
+                {clearError}
+              </p>
+            )}
           </div>
+        )}
+        {clearNote && (
+          <p role="status" className="text-xs text-muted-foreground">
+            {clearNote}
+          </p>
         )}
 
         <div className="overflow-x-auto rounded-lg border border-border">
