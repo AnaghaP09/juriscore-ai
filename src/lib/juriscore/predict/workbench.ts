@@ -4,7 +4,9 @@ import { isDocPath, normalizeDocPath } from "./doc-paths";
 import {
   buildPredictionEnvelope,
   buildPredictionRequest,
+  isCurrentPredictionResult,
   requestDigest,
+  type ActivePredictionRequest,
   type PredictionEnvelope,
   type PredictionRequestInput,
   type PredictionRequestRecord,
@@ -109,4 +111,138 @@ export async function assessWorkbenchRisk(
       docsTouched,
     },
   };
+}
+
+export type WorkbenchRiskScorer = typeof assessWorkbenchRisk;
+
+/** What the risk panel can show: a result, or a note that scoring failed. */
+export type WorkbenchRiskView = WorkbenchRisk | { status: "failed" };
+
+/**
+ * Everything one scoring request reads. The workbench memoizes this object, so its
+ * identity changes exactly when any input changes or a reset asks for a fresh request.
+ */
+export interface WorkbenchRiskInputs {
+  change: ConnectedChange | null;
+  documents: PredictionRequestInput["documents"];
+  policyConfig: PredictionRequestInput["policyConfig"];
+  /** Bumped by a reset so it always starts a fresh request. */
+  run: number;
+}
+
+/** A result that was accepted, bound to the inputs and generation that produced it. */
+export interface AcceptedWorkbenchRisk {
+  inputs: WorkbenchRiskInputs;
+  generation: number;
+  risk: WorkbenchRiskView;
+}
+
+export interface WorkbenchRiskRefs {
+  generation: { current: number };
+  active: { current: ActivePredictionRequest | null };
+}
+
+/**
+ * The accepted result, but only while it still answers the current inputs and
+ * generation. An already-accepted result for a replaced source is never shown beside the
+ * new source, even in the render before scoring for the new source starts.
+ */
+export function visibleWorkbenchRisk(
+  accepted: AcceptedWorkbenchRisk | null,
+  inputs: WorkbenchRiskInputs,
+  generation: number,
+): WorkbenchRiskView | null {
+  if (!accepted) return null;
+  if (accepted.inputs !== inputs || accepted.generation !== generation) return null;
+  return accepted.risk;
+}
+
+/** Retires whatever request is running: a reset, an input change, or unmount. */
+export function retireWorkbenchRisk(refs: WorkbenchRiskRefs) {
+  refs.generation.current += 1;
+  refs.active.current = null;
+}
+
+/**
+ * Starts scoring the given inputs and returns the cleanup that retires it. `accept` is
+ * called with null straight away, and later with a result only if its generation and
+ * request digest are still the active ones.
+ */
+export function startWorkbenchRiskScoring(
+  inputs: WorkbenchRiskInputs,
+  refs: WorkbenchRiskRefs,
+  accept: (accepted: AcceptedWorkbenchRisk | null) => void,
+  scorer: WorkbenchRiskScorer = assessWorkbenchRisk,
+): () => void {
+  const generation = ++refs.generation.current;
+  refs.active.current = null;
+  accept(null);
+  const change = inputs.change;
+  if (change) {
+    const isStillActive = () => refs.generation.current === generation;
+    void (async () => {
+      try {
+        const { request, requestDigest: digest } = await buildWorkbenchRequest(change, {
+          documents: inputs.documents,
+          policyConfig: inputs.policyConfig,
+        });
+        if (!isStillActive()) return;
+        refs.active.current = { generation, requestDigest: digest };
+        const result = await scorer(change, request);
+        const current = await isCurrentPredictionResult(() => refs.active.current, {
+          generation,
+          envelope: result.envelope,
+        });
+        // Committed in the same continuation as the freshness check, so nothing can
+        // change the active request in between.
+        if (current) accept({ inputs, generation, risk: result.risk });
+      } catch {
+        if (isStillActive()) accept({ inputs, generation, risk: { status: "failed" } });
+      }
+    })();
+  }
+  return () => retireWorkbenchRisk(refs);
+}
+
+/** The advisory band and score a recorded check carries. */
+export interface CheckRisk {
+  riskBand: DriftRiskBand | null;
+  riskScore: number | null;
+}
+
+/**
+ * The prediction for a comparison's exact inputs, scored from those inputs rather than
+ * read from whatever the panel happens to show, so a check run while the panel is still
+ * scoring records the same band the panel then shows. Never rejects: no change, no
+ * score, or a failure all record as no band.
+ */
+export async function riskForCheck(
+  change: ConnectedChange | null,
+  context: Pick<PredictionRequestInput, "documents" | "policyConfig">,
+  scorer: WorkbenchRiskScorer = assessWorkbenchRisk,
+): Promise<CheckRisk> {
+  if (!change) return { riskBand: null, riskScore: null };
+  try {
+    const { request } = await buildWorkbenchRequest(change, context);
+    const { risk } = await scorer(change, request);
+    if (risk.status !== "scored") return { riskBand: null, riskScore: null };
+    return { riskBand: risk.band, riskScore: risk.score };
+  } catch {
+    return { riskBand: null, riskScore: null };
+  }
+}
+
+/**
+ * Records one comparison exactly once, with the prediction for its exact inputs attached.
+ * The comparison outcome is already decided before this runs; the prediction never feeds it.
+ */
+export async function recordCheckWithRisk<R extends object>(
+  record: R,
+  change: ConnectedChange | null,
+  context: Pick<PredictionRequestInput, "documents" | "policyConfig">,
+  onRecord: (record: R & CheckRisk) => void,
+  scorer: WorkbenchRiskScorer = assessWorkbenchRisk,
+) {
+  const risk = await riskForCheck(change, context, scorer);
+  onRecord({ ...record, ...risk });
 }

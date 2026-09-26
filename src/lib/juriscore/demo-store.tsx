@@ -121,11 +121,22 @@ function pruneDays(days: Record<string, LedgerDay>): Record<string, LedgerDay> {
   return Object.fromEntries(Object.entries(days).filter(([key]) => key >= cutoff));
 }
 
-export function summarizeTrailingWeek(ledger: LocalMetricsLedger) {
-  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+/**
+ * The "Last 7 days" window: seven UTC calendar days, today and the six dates before it.
+ * Dates after today are excluded.
+ */
+export function trailingWeekRange(now = new Date()) {
+  const newest = now.toISOString().slice(0, 10);
+  const sixDaysMs = 6 * 24 * 60 * 60 * 1000;
+  const oldest = new Date(Date.parse(newest) - sixDaysMs).toISOString().slice(0, 10);
+  return { oldest, newest };
+}
+
+export function summarizeTrailingWeek(ledger: LocalMetricsLedger, now = new Date()) {
+  const { oldest, newest } = trailingWeekRange(now);
   const summary = emptyDay();
   for (const [key, day] of Object.entries(ledger.days)) {
-    if (key < cutoff) continue;
+    if (key < oldest || key > newest) continue;
     for (const field of Object.keys(summary.veil) as Array<keyof LedgerDay["veil"]>) {
       summary.veil[field] += day.veil[field];
     }

@@ -45,13 +45,27 @@ import {
   buildWorkbenchRequest,
   docsTouchedBy,
   parseConnectedChange,
+  recordCheckWithRisk,
+  retireWorkbenchRisk,
   riskScorePercent,
+  startWorkbenchRiskScoring,
   topContributions,
+  visibleWorkbenchRisk,
+  type AcceptedWorkbenchRisk,
+  type CheckRisk,
   type ConnectedChange,
+  type WorkbenchRiskInputs,
+  type WorkbenchRiskRefs,
+  type WorkbenchRiskScorer,
 } from "../src/lib/juriscore/predict/workbench";
-import { SIMULATED_SEED, summarizeTrailingWeek } from "../src/lib/juriscore/demo-store";
+import {
+  SIMULATED_SEED,
+  summarizeTrailingWeek,
+  trailingWeekRange,
+} from "../src/lib/juriscore/demo-store";
 import {
   addPlumbCheck,
+  emptyDay,
   latestRiskAfter,
   normalizeLedger,
   type LocalMetricsLedger,
@@ -1028,5 +1042,229 @@ assert.equal(
   SIMULATED_SEED.plumb.checks,
 );
 assert.equal(bandFor(seedRisk.latest.score / 100), seedRisk.latest.band);
+
+// ---------------------------------------------------------------------------
+// Phase C inspection fixes
+// ---------------------------------------------------------------------------
+
+/** A scorer that holds its result until released, to model slow scoring. */
+function gatedScorer(fail = false) {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  let markStarted!: () => void;
+  const started = new Promise<void>((resolve) => (markStarted = resolve));
+  const scorer: WorkbenchRiskScorer = async (change, request) => {
+    markStarted();
+    await gate;
+    if (fail) throw new Error("scoring failed");
+    return assessWorkbenchRisk(change, request);
+  };
+  return { scorer, release, started };
+}
+
+/**
+ * Drives the workbench's own scoring functions in React's order: a render reads
+ * `shown`, then the commit runs the previous effect's cleanup and the next effect. The
+ * route's useEffect is exactly `startWorkbenchRiskScoring(riskInputs, refs, setAccepted)`,
+ * its render is `visibleWorkbenchRisk(...)`, and resetRun is `retireWorkbenchRisk` plus
+ * clearing the accepted result.
+ */
+class WorkbenchRiskHarness {
+  refs: WorkbenchRiskRefs = { generation: { current: 0 }, active: { current: null } };
+  accepted: AcceptedWorkbenchRisk | null = null;
+  private cleanup: (() => void) | null = null;
+  private waiters: Array<() => void> = [];
+  accept = (next: AcceptedWorkbenchRisk | null) => {
+    this.accepted = next;
+    if (next) for (const resolve of this.waiters.splice(0)) resolve();
+  };
+  nextResult() {
+    return new Promise<void>((resolve) => this.waiters.push(resolve));
+  }
+  shown(inputs: WorkbenchRiskInputs) {
+    return visibleWorkbenchRisk(this.accepted, inputs, this.refs.generation.current);
+  }
+  commit(inputs: WorkbenchRiskInputs, scorer?: WorkbenchRiskScorer) {
+    this.cleanup?.();
+    this.cleanup = startWorkbenchRiskScoring(inputs, this.refs, this.accept, scorer);
+  }
+  reset() {
+    retireWorkbenchRisk(this.refs);
+    this.accepted = null;
+  }
+  unmount() {
+    this.cleanup?.();
+    this.cleanup = null;
+  }
+}
+
+const riskInputsFor = (change: ConnectedChange | null, run = 0): WorkbenchRiskInputs => ({
+  change,
+  documents: [],
+  policyConfig,
+  run,
+});
+
+// C1: a pasted change is scored, then a GitHub fetch completes and replaces the source.
+const harness = new WorkbenchRiskHarness();
+const pastedInputs = riskInputsFor(parseConnectedChange(publicLimit));
+const pastedResult = harness.nextResult();
+harness.commit(pastedInputs);
+await pastedResult;
+const pastedShown = harness.shown(pastedInputs);
+assert.equal(pastedShown?.status, "scored");
+// The render with the fetched source happens before its effect runs. The pasted score is
+// not shown beside it, even before any reset has cleared it.
+const fetchedInputs = riskInputsFor(parseConnectedChange(harmless), 1);
+assert.equal(harness.shown(fetchedInputs), null, "a replaced source never shows the old score");
+// The reset the workbench performs clears the stored result as well.
+harness.reset();
+assert.equal(harness.accepted, null);
+assert.equal(harness.shown(pastedInputs), null);
+// The fetched source's own scoring shows nothing until its result is accepted.
+const fetchedGate = gatedScorer();
+const fetchedResult = harness.nextResult();
+harness.commit(fetchedInputs, fetchedGate.scorer);
+await fetchedGate.started;
+assert.equal(harness.shown(fetchedInputs), null, "nothing is shown while the new source scores");
+fetchedGate.release();
+await fetchedResult;
+assert.deepEqual(
+  harness.shown(fetchedInputs),
+  (await workbenchRiskFor(parseConnectedChange(harmless))).risk,
+);
+assert.notDeepEqual(harness.shown(fetchedInputs), pastedShown);
+// Equal content in a new inputs object (a fresh parse or a reset) is a new request.
+assert.equal(harness.shown(riskInputsFor(fetchedInputs.change, 1)), null);
+// A result is bound to its generation too: a later generation for the same inputs hides it.
+const acceptedFetched = harness.accepted;
+assert.ok(acceptedFetched);
+assert.equal(
+  visibleWorkbenchRisk(acceptedFetched, fetchedInputs, acceptedFetched.generation + 1),
+  null,
+);
+// Clearing the source clears the panel.
+const clearedInputs = riskInputsFor(null, 2);
+harness.reset();
+harness.commit(clearedInputs);
+assert.equal(harness.shown(clearedInputs), null);
+harness.unmount();
+
+// C2: a comparison made while scoring is deliberately delayed records the band once it
+// is known, exactly once, and with the prediction for its own inputs.
+const limitChange = parseConnectedChange(publicLimit);
+const limitRisk = (await workbenchRiskFor(limitChange)).risk;
+assert.equal(limitRisk.status, "scored");
+type RecordedCheck = typeof baseRecord & CheckRisk;
+const recordedChecks: RecordedCheck[] = [];
+const recordGate = gatedScorer();
+const recording = recordCheckWithRisk(
+  baseRecord,
+  limitChange,
+  { documents: [], policyConfig },
+  (record) => recordedChecks.push(record),
+  recordGate.scorer,
+);
+await recordGate.started;
+assert.equal(recordedChecks.length, 0, "the check waits for its prediction");
+recordGate.release();
+await recording;
+assert.equal(recordedChecks.length, 1, "the check is recorded exactly once");
+if (limitRisk.status === "scored") {
+  assert.deepEqual(recordedChecks[0], {
+    ...baseRecord,
+    riskBand: limitRisk.band,
+    riskScore: limitRisk.score,
+  });
+  const recordedDay = emptyDay();
+  addPlumbCheck(recordedDay, recordedChecks[0]);
+  assert.equal(recordedDay.plumb.risk[limitRisk.band], 1);
+  assert.deepEqual(latestRiskAfter(null, recordedChecks[0], recordedAt), {
+    score: limitRisk.score,
+    band: limitRisk.band,
+    at: recordedAt,
+  });
+}
+// The panel and the recorded check agree when both score the same inputs concurrently.
+const panelHarness = new WorkbenchRiskHarness();
+const panelInputs = riskInputsFor(limitChange);
+const panelGate = gatedScorer();
+const panelResult = panelHarness.nextResult();
+panelHarness.commit(panelInputs, panelGate.scorer);
+await panelGate.started;
+assert.equal(panelHarness.shown(panelInputs), null, "the panel is still scoring");
+const concurrentChecks: RecordedCheck[] = [];
+await recordCheckWithRisk(baseRecord, limitChange, { documents: [], policyConfig }, (record) =>
+  concurrentChecks.push(record),
+);
+panelGate.release();
+await panelResult;
+const panelShown = panelHarness.shown(panelInputs);
+assert.ok(panelShown?.status === "scored");
+assert.equal(concurrentChecks.length, 1);
+assert.equal(concurrentChecks[0].riskBand, panelShown.band);
+assert.equal(concurrentChecks[0].riskScore, panelShown.score);
+panelHarness.unmount();
+// No change, a snapshot, a docs-only change, and a failed scoring each record once, with
+// no band and the verdict untouched.
+const failingGate = gatedScorer(true);
+failingGate.release();
+for (const [change, scorer] of [
+  [null, undefined],
+  [pastedFile, undefined],
+  [parseConnectedChange(docEdit), undefined],
+  [limitChange, failingGate.scorer],
+] as Array<[ConnectedChange | null, WorkbenchRiskScorer | undefined]>) {
+  const records: RecordedCheck[] = [];
+  await recordCheckWithRisk(
+    baseRecord,
+    change,
+    { documents: [], policyConfig },
+    (record) => records.push(record),
+    scorer,
+  );
+  assert.deepEqual(records, [{ ...baseRecord, riskBand: null, riskScore: null }]);
+}
+
+// C3: "Last 7 days" is today and the six UTC dates before it, never a future date.
+const weekNow = new Date("2026-09-26T12:00:00.000Z");
+assert.deepEqual(trailingWeekRange(weekNow), { oldest: "2026-09-20", newest: "2026-09-26" });
+assert.deepEqual(trailingWeekRange(new Date("2026-09-26T00:00:00.000Z")), {
+  oldest: "2026-09-20",
+  newest: "2026-09-26",
+});
+assert.deepEqual(trailingWeekRange(new Date("2026-09-25T23:59:59.999Z")), {
+  oldest: "2026-09-19",
+  newest: "2026-09-25",
+});
+assert.deepEqual(trailingWeekRange(new Date("2026-10-03T08:00:00.000Z")), {
+  oldest: "2026-09-27",
+  newest: "2026-10-03",
+});
+const weekDay = (checks: number) => {
+  const day = emptyDay();
+  day.plumb.checks = checks;
+  day.plumb.allow = checks;
+  day.plumb.risk.high = checks;
+  day.veil.checks = checks;
+  day.receipts = checks;
+  return day;
+};
+const weekLedger: LocalMetricsLedger = {
+  version: 1,
+  simulated: false,
+  latestRisk: null,
+  days: {
+    "2026-09-19": weekDay(1000), // first excluded date
+    "2026-09-20": weekDay(1), // oldest included date
+    "2026-09-26": weekDay(10), // today
+    "2026-09-27": weekDay(100), // future, excluded
+  },
+};
+const week = summarizeTrailingWeek(weekLedger, weekNow);
+assert.equal(week.plumb.checks, 11);
+assert.equal(week.plumb.risk.high, 11);
+assert.equal(week.veil.checks, 11);
+assert.equal(week.receipts, 11);
 
 console.log("JurisCore predictive drift-risk checks passed.");

@@ -34,16 +34,17 @@ import {
   parseUnifiedDiff,
   type DiffLine,
 } from "@/lib/juriscore/plumb/sources";
+import type { ActivePredictionRequest } from "@/lib/juriscore/predict/envelope";
 import {
-  isCurrentPredictionResult,
-  type ActivePredictionRequest,
-} from "@/lib/juriscore/predict/envelope";
-import {
-  assessWorkbenchRisk,
-  buildWorkbenchRequest,
   parseConnectedChange,
+  recordCheckWithRisk,
+  retireWorkbenchRisk,
+  startWorkbenchRiskScoring,
   topContributions,
-  type WorkbenchRisk,
+  visibleWorkbenchRisk,
+  type AcceptedWorkbenchRisk,
+  type WorkbenchRiskInputs,
+  type WorkbenchRiskView,
 } from "@/lib/juriscore/predict/workbench";
 
 export const Route = createFileRoute("/dashboard/drift")({
@@ -185,7 +186,7 @@ function DocumentSentenceLine({ text, locator }: { text: string; locator?: strin
   );
 }
 
-type RiskView = WorkbenchRisk | { status: "failed" };
+type RiskView = WorkbenchRiskView;
 
 const BAND_COPY: Record<"low" | "uncertain" | "high", { label: string; tone: string }> = {
   low: { label: "Low", tone: "text-[color:var(--allow)] border-[color:var(--allow)]/40" },
@@ -404,48 +405,35 @@ function DriftView() {
     }),
     [activePlumbPolicies],
   );
-  const [risk, setRisk] = useState<RiskView | null>(null);
   // Bumped by resetRun so a reset always starts a fresh scoring request.
   const [riskRun, setRiskRun] = useState(0);
-  // Scoring is asynchronous, so a result is shown only while the request that produced it
-  // is still the active one: same generation, same request digest.
+  const riskInputs = useMemo<WorkbenchRiskInputs>(
+    () => ({
+      change: connectedChange,
+      documents: riskDocuments,
+      policyConfig: riskPolicyConfig,
+      run: riskRun,
+    }),
+    [connectedChange, riskDocuments, riskPolicyConfig, riskRun],
+  );
+  const [acceptedRisk, setAcceptedRisk] = useState<AcceptedWorkbenchRisk | null>(null);
+  // Scoring is asynchronous, so a result is accepted only while the request that produced
+  // it is still the active one (same generation, same request digest), and shown only
+  // while it still answers the current inputs and generation.
   const riskGeneration = useRef(0);
   const activeRisk = useRef<ActivePredictionRequest | null>(null);
+  const riskRefs = useMemo(() => ({ generation: riskGeneration, active: activeRisk }), []);
 
-  useEffect(() => {
-    const generation = ++riskGeneration.current;
-    activeRisk.current = null;
-    setRisk(null);
-    if (!connectedChange) return;
-
-    const isStillActive = () => riskGeneration.current === generation;
-    void (async () => {
-      try {
-        const { request, requestDigest } = await buildWorkbenchRequest(connectedChange, {
-          documents: riskDocuments,
-          policyConfig: riskPolicyConfig,
-        });
-        if (!isStillActive()) return;
-        activeRisk.current = { generation, requestDigest };
-        const result = await assessWorkbenchRisk(connectedChange, request);
-        const current = await isCurrentPredictionResult(() => activeRisk.current, {
-          generation,
-          envelope: result.envelope,
-        });
-        // Committed in the same continuation as the freshness check, so nothing can
-        // change the active request in between.
-        if (current) setRisk(result.risk);
-      } catch {
-        if (isStillActive()) setRisk({ status: "failed" });
-      }
-    })();
-
-    // A source, document, or policy change, a reset, or unmount retires this request.
-    return () => {
-      riskGeneration.current += 1;
-      activeRisk.current = null;
-    };
-  }, [connectedChange, riskDocuments, riskPolicyConfig, riskRun]);
+  // A source, document, or policy change, a reset, or unmount retires the request.
+  useEffect(
+    () => startWorkbenchRiskScoring(riskInputs, riskRefs, setAcceptedRisk),
+    [riskInputs, riskRefs],
+  );
+  const risk: RiskView | null = visibleWorkbenchRisk(
+    acceptedRisk,
+    riskInputs,
+    riskGeneration.current,
+  );
 
   const loadSampleDocuments = () => {
     const now = new Date().toISOString();
@@ -484,15 +472,20 @@ function DriftView() {
     });
     setRan(true);
     setEvaluation(nextEvaluation);
-    recordPlumbCheck({
-      verdict: nextEvaluation.verdict,
-      assertions: nextEvaluation.findings.length,
-      matches: nextEvaluation.counts.matches,
-      drifted: nextEvaluation.counts.drifted,
-      cannotDetermine: nextEvaluation.counts.cannot_determine,
-      riskBand: risk?.status === "scored" ? risk.band : null,
-      riskScore: risk?.status === "scored" ? risk.score : null,
-    });
+    // The check is recorded once, with the prediction for these exact inputs, even when
+    // the panel is still scoring them. The verdict above is already final.
+    void recordCheckWithRisk(
+      {
+        verdict: nextEvaluation.verdict,
+        assertions: nextEvaluation.findings.length,
+        matches: nextEvaluation.counts.matches,
+        drifted: nextEvaluation.counts.drifted,
+        cannotDetermine: nextEvaluation.counts.cannot_determine,
+      },
+      connectedChange,
+      { documents: riskDocuments, policyConfig: riskPolicyConfig },
+      recordPlumbCheck,
+    );
   };
 
   const openDocumentPicker = useRef<(() => void) | null>(null);
@@ -506,8 +499,8 @@ function DriftView() {
     setEvaluation(null);
     setReceipt(null);
     setReceiptError(null);
-    riskGeneration.current += 1;
-    activeRisk.current = null;
+    retireWorkbenchRisk(riskRefs);
+    setAcceptedRisk(null);
     setRiskRun((run) => run + 1);
   };
 
