@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,7 @@ import {
   Upload,
 } from "lucide-react";
 import { useDemoStore } from "@/lib/juriscore/demo-store";
+import { stampCheck } from "@/lib/juriscore/metrics-ledger";
 import { compareClaims, type PlumbClaim, type PlumbResult } from "@/lib/juriscore/plumb/engine";
 import { policiesForFeature } from "@/lib/juriscore/policies/catalog";
 import { createReceipt, downloadReceipt } from "@/lib/juriscore/core/receipts";
@@ -34,6 +35,18 @@ import {
   parseUnifiedDiff,
   type DiffLine,
 } from "@/lib/juriscore/plumb/sources";
+import type { ActivePredictionRequest } from "@/lib/juriscore/predict/envelope";
+import {
+  parseConnectedChange,
+  recordCheckWithRisk,
+  retireWorkbenchRisk,
+  startWorkbenchRiskScoring,
+  topContributions,
+  visibleWorkbenchRisk,
+  type AcceptedWorkbenchRisk,
+  type WorkbenchRiskInputs,
+  type WorkbenchRiskView,
+} from "@/lib/juriscore/predict/workbench";
 
 export const Route = createFileRoute("/dashboard/drift")({
   head: () => ({
@@ -174,6 +187,129 @@ function DocumentSentenceLine({ text, locator }: { text: string; locator?: strin
   );
 }
 
+type RiskView = WorkbenchRiskView;
+
+const BAND_COPY: Record<"low" | "uncertain" | "high", { label: string; tone: string }> = {
+  low: { label: "Low", tone: "text-[color:var(--allow)] border-[color:var(--allow)]/40" },
+  uncertain: {
+    label: "Uncertain",
+    tone: "text-[color:var(--revise)] border-[color:var(--revise)]/40",
+  },
+  high: { label: "High", tone: "text-[color:var(--block)] border-[color:var(--block)]/40" },
+};
+
+const featureLabel = (feature: string) => feature.replace(/_/g, " ");
+
+/**
+ * The advisory drift-risk band for the connected change. It sits beside the comparison
+ * and never feeds it, so nothing here can change what the check reports.
+ */
+function DriftRiskPanel({
+  risk,
+  hasConnectedChange,
+  showsSampleCode,
+}: {
+  risk: RiskView | null;
+  hasConnectedChange: boolean;
+  showsSampleCode: boolean;
+}) {
+  const scored = risk?.status === "scored" ? risk : null;
+  const maturityLabel = scored
+    ? `${scored.maturity}${scored.placeholder ? " · placeholder weights" : ""}`
+    : "target · placeholder weights";
+  const docsTouched = risk && risk.status !== "failed" ? risk.docsTouched : [];
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-sm">
+          <span>Drift risk</span>
+          <span className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline">Free · local</Badge>
+            <Badge variant="outline" className="text-[color:var(--revise)]">
+              {maturityLabel}
+            </Badge>
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm" aria-live="polite">
+        {!hasConnectedChange ? (
+          showsSampleCode ? (
+            <div className="text-muted-foreground">
+              <Badge variant="outline" className="mr-2">
+                sample
+              </Badge>
+              The built-in sample change is not scored. Connect a pull request or paste a diff to
+              see how likely it is that its docs need updating.
+            </div>
+          ) : (
+            <p className="text-muted-foreground">
+              Connect a pull request or paste a diff to see how likely it is that its docs need
+              updating.
+            </p>
+          )
+        ) : risk === null ? (
+          <p className="text-muted-foreground">Scoring the connected change…</p>
+        ) : risk.status === "failed" ? (
+          <p className="text-muted-foreground">Risk could not be computed for this change.</p>
+        ) : risk.status === "unavailable" ? (
+          <div>
+            <div className="font-medium">
+              Risk unavailable: {risk.reason === "no-baseline" ? "no baseline" : "no code files"}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {risk.reason === "no-baseline"
+                ? "A whole file was supplied rather than a change, so there is nothing that changed to score."
+                : "This change touches only documentation, so there is no code change to score."}
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-start gap-6">
+            <div>
+              <div className="flex items-baseline gap-2">
+                <span className="font-mono text-3xl font-semibold">{risk.score}</span>
+                <span className="text-xs text-muted-foreground">/ 100</span>
+                <Badge variant="outline" className={BAND_COPY[risk.band].tone}>
+                  {BAND_COPY[risk.band].label}
+                </Badge>
+              </div>
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Risk score · {maturityLabel}
+              </div>
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-xs text-muted-foreground">Top contributing features</div>
+              {topContributions(risk.contributions).length === 0 ? (
+                <p className="text-xs text-muted-foreground">No feature raised the score.</p>
+              ) : (
+                <ul className="mt-1 space-y-0.5 font-mono text-xs">
+                  {topContributions(risk.contributions).map((contribution) => (
+                    <li key={contribution.feature}>
+                      {featureLabel(contribution.feature)}{" "}
+                      <span className="text-muted-foreground">
+                        +{contribution.contribution.toFixed(2)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
+        {docsTouched.length > 0 && (
+          <p className="text-xs text-muted-foreground">
+            Docs already touched in this change:{" "}
+            <span className="font-mono">{docsTouched.join(", ")}</span>
+          </p>
+        )}
+        <p className="text-xs text-muted-foreground">
+          Advisory only — does not change the verdict.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 function DriftView() {
   const {
     driftMode,
@@ -251,6 +387,55 @@ function DriftView() {
     });
   }, [selectedDoc, selectedSentences]);
 
+  // The advisory drift-risk band reads every parsed file of the connected change, not
+  // only the one Plumb shows, and learns how the text was read from the parser itself.
+  const connectedChange = useMemo(
+    () =>
+      connectedRepository
+        ? parseConnectedChange(connectedRepository.diff, connectedRepository.sourcePath)
+        : null,
+    [connectedRepository],
+  );
+  const riskDocuments = useMemo(
+    () => (selectedDoc ? [{ id: selectedDoc.id, content: selectedDoc.text }] : []),
+    [selectedDoc],
+  );
+  const riskPolicyConfig = useMemo(
+    () => ({
+      policies: activePlumbPolicies.map((policy) => ({ id: policy.id, version: policy.version })),
+    }),
+    [activePlumbPolicies],
+  );
+  // Bumped by resetRun so a reset always starts a fresh scoring request.
+  const [riskRun, setRiskRun] = useState(0);
+  const riskInputs = useMemo<WorkbenchRiskInputs>(
+    () => ({
+      change: connectedChange,
+      documents: riskDocuments,
+      policyConfig: riskPolicyConfig,
+      run: riskRun,
+    }),
+    [connectedChange, riskDocuments, riskPolicyConfig, riskRun],
+  );
+  const [acceptedRisk, setAcceptedRisk] = useState<AcceptedWorkbenchRisk | null>(null);
+  // Scoring is asynchronous, so a result is accepted only while the request that produced
+  // it is still the active one (same generation, same request digest), and shown only
+  // while it still answers the current inputs and generation.
+  const riskGeneration = useRef(0);
+  const activeRisk = useRef<ActivePredictionRequest | null>(null);
+  const riskRefs = useMemo(() => ({ generation: riskGeneration, active: activeRisk }), []);
+
+  // A source, document, or policy change, a reset, or unmount retires the request.
+  useEffect(
+    () => startWorkbenchRiskScoring(riskInputs, riskRefs, setAcceptedRisk),
+    [riskInputs, riskRefs],
+  );
+  const risk: RiskView | null = visibleWorkbenchRisk(
+    acceptedRisk,
+    riskInputs,
+    riskGeneration.current,
+  );
+
   const loadSampleDocuments = () => {
     const now = new Date().toISOString();
     for (const sample of SAMPLE_DOCUMENTS) {
@@ -288,13 +473,22 @@ function DriftView() {
     });
     setRan(true);
     setEvaluation(nextEvaluation);
-    recordPlumbCheck({
-      verdict: nextEvaluation.verdict,
-      assertions: nextEvaluation.findings.length,
-      matches: nextEvaluation.counts.matches,
-      drifted: nextEvaluation.counts.drifted,
-      cannotDetermine: nextEvaluation.counts.cannot_determine,
-    });
+    // The check is recorded once, with the prediction for these exact inputs, even when
+    // the panel is still scoring them. The verdict above is already final, and the stamp
+    // taken here dates the check however long its prediction takes.
+    void recordCheckWithRisk(
+      {
+        ...stampCheck(),
+        verdict: nextEvaluation.verdict,
+        assertions: nextEvaluation.findings.length,
+        matches: nextEvaluation.counts.matches,
+        drifted: nextEvaluation.counts.drifted,
+        cannotDetermine: nextEvaluation.counts.cannot_determine,
+      },
+      connectedChange,
+      { documents: riskDocuments, policyConfig: riskPolicyConfig },
+      recordPlumbCheck,
+    );
   };
 
   const openDocumentPicker = useRef<(() => void) | null>(null);
@@ -308,6 +502,9 @@ function DriftView() {
     setEvaluation(null);
     setReceipt(null);
     setReceiptError(null);
+    retireWorkbenchRisk(riskRefs);
+    setAcceptedRisk(null);
+    setRiskRun((run) => run + 1);
   };
 
   const generateReceipt = async () => {
@@ -468,6 +665,12 @@ function DriftView() {
         policies={activePlumbPolicies}
         parsedDiff={parsedDiff}
         registerUploadTrigger={registerUploadTrigger}
+      />
+
+      <DriftRiskPanel
+        risk={risk}
+        hasConnectedChange={Boolean(connectedChange)}
+        showsSampleCode={showsSampleCode}
       />
 
       <div className="grid lg:grid-cols-2 gap-4">
