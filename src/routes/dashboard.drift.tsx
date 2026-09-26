@@ -222,6 +222,9 @@ function DriftView() {
   // stays empty until they connect a real change.
   const hasUserDocuments = sourceDocuments.some((document) => document.kind !== "sample");
   const showsSampleCode = !connectedRepository && !hasUserDocuments;
+  // A connected change with no recognised subject still runs: the check then reports what
+  // it cannot determine instead of refusing to start.
+  const hasCodeSource = Boolean(connectedRepository) || showsSampleCode;
 
   const authorities = useMemo(() => {
     if (!parsedDiff || !connectedRepository) return showsSampleCode ? codeClaims(driftMode) : [];
@@ -372,11 +375,13 @@ function DriftView() {
             )}
             <Button
               onClick={runJudge}
-              disabled={killSwitch || !selectedDoc || authorities.length === 0}
+              disabled={killSwitch || !selectedDoc || !hasCodeSource}
               title={
-                authorities.length === 0
-                  ? "Connect a pull request or paste a diff to compare against"
-                  : undefined
+                !selectedDoc
+                  ? "Upload a document to check"
+                  : !hasCodeSource
+                    ? "Connect a pull request or paste a diff to compare against"
+                    : undefined
               }
             >
               {killSwitch ? (
