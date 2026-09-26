@@ -1,4 +1,5 @@
 import type { DriftRiskBand, ValidatorVerdict } from "@/lib/juriscore/core/contracts";
+import { isResidualRuleId } from "@/lib/juriscore/predict/exposure-rule";
 
 /**
  * The local metrics ledger's shape and the pure rules for updating it. The ledger holds
@@ -81,6 +82,13 @@ export interface PredictionRecord {
   band: DriftRiskBand;
   at: string;
   sequence: number;
+  /**
+   * Residual-exposure records only: whether the heuristic residual rule fired on the same
+   * sanitized text, and which rules (ids only, never the matched text). Older records and
+   * drift-risk records carry neither.
+   */
+  ruleFlag?: boolean;
+  ruleIds?: string[];
 }
 
 /** How many recent predictions of each kind the device keeps for the Overview. */
@@ -163,12 +171,24 @@ export function normalizeLedger(saved: LocalMetricsLedger): LocalMetricsLedger {
         }
       : null;
   const recentPredictions = Array.isArray(saved.recentPredictions)
-    ? saved.recentPredictions.filter(
-        (entry): entry is PredictionRecord =>
-          (entry?.kind === "drift-risk" || entry?.kind === "residual-exposure") &&
-          isRiskBand(entry.band) &&
-          typeof entry.at === "string",
-      )
+    ? saved.recentPredictions
+        .filter(
+          (entry): entry is PredictionRecord =>
+            (entry?.kind === "drift-risk" || entry?.kind === "residual-exposure") &&
+            isRiskBand(entry.band) &&
+            typeof entry.at === "string",
+        )
+        .map((entry) => {
+          const { ruleFlag, ruleIds, ...rest } = entry;
+          // Only a boolean flag and known rule ids survive a reload; anything else is dropped.
+          return typeof ruleFlag === "boolean"
+            ? {
+                ...rest,
+                ruleFlag,
+                ruleIds: Array.isArray(ruleIds) ? ruleIds.filter(isResidualRuleId) : [],
+              }
+            : rest;
+        })
     : [];
   return {
     version: 1,

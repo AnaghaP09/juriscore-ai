@@ -42,6 +42,14 @@ import type { ValidationReceipt } from "@/lib/juriscore/core/contracts";
 import { policiesForFeature, veilScopesForPolicies } from "@/lib/juriscore/policies/catalog";
 import { protectText, type VeilStrategy } from "@/lib/juriscore/veil/engine";
 import { predictResidualExposure } from "@/lib/juriscore/predict/exposure-model";
+import {
+  RESIDUAL_RULE_LABEL,
+  RULE_AGREEMENT_LABEL,
+  residualRuleCheck,
+  ruleAgreement,
+  type ResidualRuleMatch,
+} from "@/lib/juriscore/predict/exposure-rule";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type {
   DriftRiskBand,
   ExposureSpan,
@@ -140,27 +148,48 @@ function renderProtectedText(text: string, keyPrefix: string) {
 // in the preview, and the panel says how many there are in all.
 const MAX_HIGHLIGHTED_SPANS = 200;
 
-/** The sanitized preview, with residual-exposure spans highlighted by category. */
-function renderSanitizedPreview(text: string, spans: ExposureSpan[]) {
+/**
+ * The sanitized preview, with residual-exposure spans highlighted by category and the
+ * baseline rule's matches highlighted with the same styling but labelled "rule".
+ */
+function renderSanitizedPreview(
+  text: string,
+  spans: ExposureSpan[],
+  ruleMatches: ResidualRuleMatch[] = [],
+) {
+  const marks = [
+    ...spans.slice(0, MAX_HIGHLIGHTED_SPANS).map((span) => ({
+      start: span.start,
+      end: span.end,
+      label: SPAN_CATEGORY_LABEL[span.category],
+      title: `Possible residual exposure: ${SPAN_CATEGORY_LABEL[span.category]}`,
+    })),
+    ...ruleMatches.slice(0, MAX_HIGHLIGHTED_SPANS).map((match) => ({
+      start: match.start,
+      end: match.end,
+      label: "rule",
+      title: `Baseline rule: ${RESIDUAL_RULE_LABEL[match.rule]}`,
+    })),
+  ].sort((a, b) => a.start - b.start || b.end - a.end);
   const nodes: ReactNode[] = [];
   let cursor = 0;
-  spans.slice(0, MAX_HIGHLIGHTED_SPANS).forEach((span, index) => {
-    if (span.start < cursor) return;
-    nodes.push(...renderProtectedText(text.slice(cursor, span.start), `before-${index}`));
-    const label = SPAN_CATEGORY_LABEL[span.category];
+  marks.forEach((mark, index) => {
+    if (mark.start < cursor) return;
+    nodes.push(...renderProtectedText(text.slice(cursor, mark.start), `before-${index}`));
+    const { label } = mark;
     nodes.push(
       <mark
-        key={`span-${span.start}-${span.end}`}
-        title={`Possible residual exposure: ${label}`}
+        key={`span-${mark.start}-${mark.end}-${label}`}
+        title={mark.title}
         className="rounded bg-[color:var(--revise)]/20 px-0.5 text-foreground underline decoration-[color:var(--revise)] decoration-dotted underline-offset-2"
       >
-        {text.slice(span.start, span.end)}
+        {text.slice(mark.start, mark.end)}
         <sup className="ml-0.5 font-sans text-[9px] uppercase tracking-wide text-[color:var(--revise)]">
           {label}
         </sup>
       </mark>,
     );
-    cursor = span.end;
+    cursor = mark.end;
   });
   nodes.push(...renderProtectedText(text.slice(cursor), "tail"));
   return nodes;
@@ -230,6 +259,10 @@ function VeilWorkbench() {
     .filter((contribution) => contribution.weight > 0)
     .slice(0, 4);
   const exposureCategories = [...new Set(exposure.spans.map((span) => span.category))];
+  // The fixed reference rule, on exactly the sanitized text the model scores. Advisory:
+  // it never feeds protectText, so Veil's verdict cannot depend on it.
+  const baselineRule = useMemo(() => residualRuleCheck(result.sanitizedText), [result]);
+  const agreement = ruleAgreement(exposure.band, baselineRule.flagged);
   // Each recomputation (new upload, edit, strategy or policy change) is stamped and compared
   // with the score before it, so a changed input visibly produces its own result.
   const [exposureScoredAt, setExposureScoredAt] = useState<string | null>(null);
@@ -360,6 +393,8 @@ function VeilWorkbench() {
       chars: raw.length,
       exposureScore: Math.round(exposure.score * 100),
       exposureBand: exposure.band,
+      ruleFlag: baselineRule.flagged,
+      ruleIds: baselineRule.ruleIds,
     });
   };
 
@@ -474,6 +509,45 @@ function VeilWorkbench() {
                 Scored {uploadedDocument ? uploadedDocument.fileName : "pasted text"}
                 {exposureScoredAt ? ` · ${exposureScoredAt}` : ""}
               </span>
+            </div>
+            <div className="space-y-1 rounded-md border border-border/60 px-3 py-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">Baseline rule</span>
+                <Badge
+                  variant="outline"
+                  className={
+                    baselineRule.flagged ? exposureBandClass.uncertain : exposureBandClass.low
+                  }
+                >
+                  {baselineRule.flagged ? "Flagged" : "Not flagged"}
+                </Badge>
+                <Popover>
+                  <PopoverTrigger
+                    className="text-muted-foreground hover:text-foreground"
+                    aria-label="About the baseline rule"
+                  >
+                    ⓘ
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72 text-xs">
+                    A fixed rule JurisCore uses as a reference point. The model score above should
+                    agree with it or catch more. When they disagree, review the highlighted text.
+                  </PopoverContent>
+                </Popover>
+                <span
+                  className={
+                    agreement === "rule-flags-more"
+                      ? "text-[color:var(--revise)]"
+                      : "text-muted-foreground"
+                  }
+                >
+                  · {RULE_AGREEMENT_LABEL[agreement]}
+                </span>
+              </div>
+              {baselineRule.flagged && (
+                <p className="text-muted-foreground">
+                  Fired: {baselineRule.ruleIds.map((id) => RESIDUAL_RULE_LABEL[id]).join(", ")}
+                </p>
+              )}
             </div>
             {exposure.spans.length === 0 && (
               <p className="text-muted-foreground">
@@ -876,7 +950,7 @@ function VeilWorkbench() {
               aria-label="Sanitized output"
               className="rounded-md border border-border bg-muted/20 p-3 font-mono text-xs whitespace-pre-wrap min-h-[24rem] overflow-auto"
             >
-              {renderSanitizedPreview(result.sanitizedText, exposure.spans)}
+              {renderSanitizedPreview(result.sanitizedText, exposure.spans, baselineRule.matches)}
             </pre>
             {result.requiresReview && (
               <p className="mt-3 text-xs text-muted-foreground">

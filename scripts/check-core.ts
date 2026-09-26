@@ -5,6 +5,7 @@ import "./check-receipts";
 import "./check-receipt-store";
 import "./check-mcp";
 import "./check-predict";
+import "./check-ml";
 import "./check-exposure";
 import "./check-gateway";
 

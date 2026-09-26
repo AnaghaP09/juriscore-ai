@@ -1,0 +1,291 @@
+{
+  "rows": {
+    "train": {
+      "n": 8260,
+      "positives": 5212
+    },
+    "val": {
+      "n": 1387,
+      "positives": 701
+    },
+    "test": {
+      "n": 4594,
+      "positives": 2616
+    }
+  },
+  "sources": {
+    "train": [
+      "Lakera/gandalf_ignore_instructions",
+      "deepset/prompt-injections",
+      "docs:encode/httpx",
+      "docs:expressjs/express",
+      "docs:fastapi/fastapi",
+      "docs:juspay/hyperswitch",
+      "docs:psf/requests",
+      "docs:pypa/pip",
+      "docs:stripe/stripe-node",
+      "docs:traefik/traefik",
+      "gitleaks/gitleaks testdata",
+      "gretelai/synthetic_pii_finance_multilingual",
+      "reshabhs/SPML_Chatbot_Prompt_Injection"
+    ],
+    "val": [
+      "Lakera/gandalf_ignore_instructions",
+      "deepset/prompt-injections",
+      "docs:cli/cli",
+      "docs:moov-io/ach",
+      "docs:urllib3/urllib3",
+      "gretelai/synthetic_pii_finance_multilingual"
+    ],
+    "test": [
+      "Lakera/gandalf_ignore_instructions",
+      "Yelp/detect-secrets test_data",
+      "docs:docker/compose",
+      "docs:jestjs/jest",
+      "docs:pallets/flask",
+      "docs:stripe/stripe-go",
+      "gretelai/gretel-pii-masking-en-v1",
+      "jackhhao/jailbreak-classification"
+    ]
+  },
+  "C_selection": [
+    {
+      "C": 0.01,
+      "val_pr_auc": 0.5823,
+      "val_auc": 0.5163
+    },
+    {
+      "C": 0.03,
+      "val_pr_auc": 0.5816,
+      "val_auc": 0.516
+    },
+    {
+      "C": 0.1,
+      "val_pr_auc": 0.5807,
+      "val_auc": 0.5166
+    },
+    {
+      "C": 0.3,
+      "val_pr_auc": 0.579,
+      "val_auc": 0.5142
+    },
+    {
+      "C": 1.0,
+      "val_pr_auc": 0.579,
+      "val_auc": 0.5142
+    },
+    {
+      "C": 3.0,
+      "val_pr_auc": 0.5789,
+      "val_auc": 0.5141
+    }
+  ],
+  "C": 0.01,
+  "bands": {
+    "uncertain": 0.3871,
+    "high": 0.5975
+  },
+  "test": {
+    "model": {
+      "precision": 0.5611,
+      "recall": 0.9396,
+      "f1": 0.7026,
+      "flagged": 4381,
+      "n": 4594,
+      "auc": 0.5513,
+      "pr_auc": 0.6406,
+      "threshold": 0.3871
+    },
+    "majority_class(predict 1)": {
+      "precision": 0.5694,
+      "recall": 1.0,
+      "f1": 0.7257,
+      "flagged": 4594,
+      "n": 4594
+    },
+    "heuristic_residual_rule": {
+      "precision": 0.7541,
+      "recall": 0.0528,
+      "f1": 0.0986,
+      "flagged": 183,
+      "n": 4594
+    }
+  },
+  "test_by_source": {
+    "Lakera/gandalf_ignore_instructions": {
+      "precision": 0.92,
+      "recall": 1.0,
+      "f1": 0.9583,
+      "flagged": 100,
+      "n": 112,
+      "rule": {
+        "precision": 1.0,
+        "recall": 0.1087,
+        "f1": 0.1961,
+        "flagged": 10,
+        "n": 112
+      },
+      "positive_rate": 0.821
+    },
+    "Yelp/detect-secrets test_data": {
+      "precision": 1.0,
+      "recall": 0.9333,
+      "f1": 0.9655,
+      "flagged": 14,
+      "n": 15,
+      "rule": {
+        "precision": 1.0,
+        "recall": 0.8,
+        "f1": 0.8889,
+        "flagged": 12,
+        "n": 15
+      },
+      "positive_rate": 1.0
+    },
+    "docs:docker/compose": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "flagged": 120,
+      "n": 120,
+      "rule": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "flagged": 5,
+        "n": 120
+      },
+      "positive_rate": 0.0
+    },
+    "docs:jestjs/jest": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "flagged": 120,
+      "n": 120,
+      "rule": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "flagged": 4,
+        "n": 120
+      },
+      "positive_rate": 0.0
+    },
+    "docs:pallets/flask": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "flagged": 120,
+      "n": 120,
+      "rule": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "flagged": 1,
+        "n": 120
+      },
+      "positive_rate": 0.0
+    },
+    "docs:stripe/stripe-go": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "flagged": 109,
+      "n": 109,
+      "rule": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "flagged": 20,
+        "n": 109
+      },
+      "positive_rate": 0.0
+    },
+    "gretelai/gretel-pii-masking-en-v1": {
+      "precision": 0.9467,
+      "recall": 0.9157,
+      "f1": 0.9309,
+      "flagged": 1801,
+      "n": 2000,
+      "rule": {
+        "precision": 0.9706,
+        "recall": 0.0177,
+        "f1": 0.0348,
+        "flagged": 34,
+        "n": 2000
+      },
+      "positive_rate": 0.931
+    },
+    "jackhhao/jailbreak-classification": {
+      "precision": 0.324,
+      "recall": 1.0,
+      "f1": 0.4894,
+      "flagged": 1997,
+      "n": 1998,
+      "rule": {
+        "precision": 0.8557,
+        "recall": 0.1283,
+        "f1": 0.2231,
+        "flagged": 97,
+        "n": 1998
+      },
+      "positive_rate": 0.324
+    }
+  },
+  "calibration_test": {
+    "ece": 0.2345,
+    "bins": [
+      {
+        "bin": "0.2-0.3",
+        "n": 98,
+        "mean_predicted": 0.28,
+        "observed_rate": 0.653
+      },
+      {
+        "bin": "0.3-0.4",
+        "n": 136,
+        "mean_predicted": 0.357,
+        "observed_rate": 0.831
+      },
+      {
+        "bin": "0.4-0.5",
+        "n": 340,
+        "mean_predicted": 0.457,
+        "observed_rate": 0.9
+      },
+      {
+        "bin": "0.5-0.6",
+        "n": 2704,
+        "mean_predicted": 0.591,
+        "observed_rate": 0.374
+      },
+      {
+        "bin": "0.6-0.7",
+        "n": 89,
+        "mean_predicted": 0.659,
+        "observed_rate": 0.933
+      },
+      {
+        "bin": "0.7-0.8",
+        "n": 251,
+        "mean_predicted": 0.76,
+        "observed_rate": 0.873
+      },
+      {
+        "bin": "0.8-0.9",
+        "n": 455,
+        "mean_predicted": 0.851,
+        "observed_rate": 0.987
+      },
+      {
+        "bin": "0.9-1.0",
+        "n": 521,
+        "mean_predicted": 0.952,
+        "observed_rate": 0.712
+      }
+    ]
+  },
+  "promoted": false,
+  "rows_sha256": "830bb473332e14fc31c19ac993714baca61eb0276ee661215f09655222aa5c59"
+}

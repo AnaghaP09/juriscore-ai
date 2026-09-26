@@ -80,6 +80,9 @@ export interface VeilCheckRecord {
   /** Advisory residual-exposure score (0 to 100) of the sanitized text, if it was scored. */
   exposureScore?: number | null;
   exposureBand?: DriftRiskBand | null;
+  /** The heuristic residual rule on the same sanitized text: flag and rule ids only. */
+  ruleFlag?: boolean;
+  ruleIds?: string[];
 }
 
 export type { PlumbCheckRecord, LocalMetricsLedger };
@@ -474,6 +477,9 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
         band: record.exposureBand,
         at: stamp.checkedAt,
         sequence: stamp.sequence,
+        ...(typeof record.ruleFlag === "boolean"
+          ? { ruleFlag: record.ruleFlag, ruleIds: record.ruleIds ?? [] }
+          : {}),
       });
     });
   }, []);

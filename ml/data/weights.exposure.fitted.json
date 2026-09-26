@@ -1,0 +1,25 @@
+{
+  "modelId": "juriscore.residual-exposure.local-logistic",
+  "modelVersion": "1.0.0-unpromoted",
+  "placeholder": false,
+  "note": "Fitted by ml/train_exposure.py (L2 logistic regression, seed 7) on the training-OK datasets in ml/data/SOURCES.md, labelled by running JurisCore's Veil engine; dataset-level held-out evaluation in docs/RESIDUAL_EXPOSURE.md.",
+  "featuresVersion": "exposure-features.v1",
+  "maturity": "synthetic",
+  "intercept": 0.395228,
+  "coefficients": {
+    "max_span_score": 1.43982,
+    "secret_shapes": 0.169915,
+    "assigned_secrets": -0.557831,
+    "high_entropy_tokens": -0.830677,
+    "card_numbers": -0.720228,
+    "network_identifiers": 0.644104,
+    "labelled_identifiers": 0.998204,
+    "prompt_attacks": 2.111582,
+    "entropy_density": -0.172638,
+    "redaction_density": -1.354415
+  },
+  "bands": {
+    "uncertain": 0.3871,
+    "high": 0.5975
+  }
+}

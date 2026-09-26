@@ -19,6 +19,7 @@
     "check:receipt-store": "bun scripts/check-receipt-store.ts",
     "check:mcp": "bun scripts/check-mcp.ts",
     "check:predict": "bun scripts/check-predict.ts",
+    "check:ml": "bun scripts/check-ml.ts",
     "check:exposure": "bun scripts/check-exposure.ts",
     "check:gateway": "bun scripts/check-gateway.ts",
     "check:core": "bun scripts/check-core.ts",
