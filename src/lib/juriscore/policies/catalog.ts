@@ -19,6 +19,8 @@ export interface PolicyDefinition {
   veilScopes: VeilPolicyScope[];
   defaultActive: boolean;
   custom?: boolean;
+  /** ISO time of the last create or edit; custom policies only. Absent on older saves. */
+  updatedAt?: string;
   source: PolicySource;
 }
 
@@ -157,9 +159,7 @@ export function veilScopesForPolicies(
 ) {
   return [
     ...new Set(
-      policiesForFeature(policyIds, "veil", customPolicies).flatMap(
-        (policy) => policy.veilScopes,
-      ),
+      policiesForFeature(policyIds, "veil", customPolicies).flatMap((policy) => policy.veilScopes),
     ),
   ];
 }

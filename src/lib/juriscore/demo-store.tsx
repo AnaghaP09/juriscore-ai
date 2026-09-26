@@ -221,6 +221,8 @@ interface DemoStore {
   setPolicyActive: (policyId: string, active: boolean) => void;
   customPolicies: PolicyDefinition[];
   addCustomPolicy: (policy: PolicyDefinition) => void;
+  updateCustomPolicy: (policy: PolicyDefinition) => void;
+  removeCustomPolicy: (policyId: string) => void;
   localMetrics: LocalMetricsLedger;
   recordVeilCheck: (record: VeilCheckRecord) => void;
   recordPlumbCheck: (record: PlumbCheckRecord) => void;
@@ -310,6 +312,19 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     setActivePolicyIds((current) => [...new Set([...current, policy.id])]);
   }, []);
 
+  // An edit keeps the policy id, so activation and past receipts (which record id@version at
+  // check time) are unaffected; only later checks see the new definition.
+  const updateCustomPolicy = useCallback((policy: PolicyDefinition) => {
+    setCustomPolicies((current) =>
+      current.map((existing) => (existing.id === policy.id ? policy : existing)),
+    );
+  }, []);
+
+  const removeCustomPolicy = useCallback((policyId: string) => {
+    setCustomPolicies((current) => current.filter((policy) => policy.id !== policyId));
+    setActivePolicyIds((current) => current.filter((id) => id !== policyId));
+  }, []);
+
   const mutateToday = useCallback((mutate: (day: LedgerDay) => void) => {
     setLocalMetrics((current) => {
       // The first real record evicts the simulated seed entirely.
@@ -389,6 +404,8 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       setPolicyActive,
       customPolicies,
       addCustomPolicy,
+      updateCustomPolicy,
+      removeCustomPolicy,
       localMetrics,
       recordVeilCheck,
       recordPlumbCheck,
@@ -412,6 +429,8 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       setPolicyActive,
       customPolicies,
       addCustomPolicy,
+      updateCustomPolicy,
+      removeCustomPolicy,
       localMetrics,
       recordVeilCheck,
       recordPlumbCheck,
