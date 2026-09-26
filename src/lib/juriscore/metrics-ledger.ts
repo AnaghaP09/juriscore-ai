@@ -17,6 +17,21 @@ export interface PlumbCheckRecord {
   riskScore?: number | null;
 }
 
+/**
+ * When a comparison completed, captured at the moment its verdict was decided rather than
+ * when its asynchronous prediction finished, so slow scoring never moves a check to a
+ * later day or lets an older check look newer than one run after it.
+ */
+export interface CheckStamp {
+  /** ISO time the comparison completed. Its UTC date is the day the check counts toward. */
+  checkedAt: string;
+  /** Increases with every check in this session; orders checks with the same time. */
+  sequence: number;
+}
+
+/** A comparison's counts with the time it completed. */
+export type StampedPlumbCheck = PlumbCheckRecord & CheckStamp;
+
 /** Checks by advisory drift-risk band. */
 export type RiskBandCounts = Record<DriftRiskBand, number>;
 
@@ -24,7 +39,10 @@ export interface LatestRisk {
   /** 0 to 100. */
   score: number;
   band: DriftRiskBand;
+  /** When the check that produced this score completed. */
   at: string;
+  /** That check's session sequence, used only to order checks with the same time. */
+  sequence: number;
 }
 
 export interface LedgerDay {
@@ -119,7 +137,12 @@ export function normalizeLedger(saved: LocalMetricsLedger): LocalMetricsLedger {
   const latest = saved.latestRisk;
   const latestRisk =
     latest && isRiskBand(latest.band) && typeof latest.at === "string"
-      ? { score: count(latest.score), band: latest.band, at: latest.at }
+      ? {
+          score: count(latest.score),
+          band: latest.band,
+          at: latest.at,
+          sequence: count(latest.sequence),
+        }
       : null;
   return { version: 1, simulated: saved.simulated === true, days, latestRisk };
 }
@@ -135,12 +158,81 @@ export function addPlumbCheck(day: LedgerDay, record: PlumbCheckRecord) {
   if (isRiskBand(record.riskBand)) day.plumb.risk[record.riskBand] += 1;
 }
 
-/** The latest score after a check, or the previous one when the check had no score. */
+let lastCheckSequence = 0;
+
+/** Stamps a comparison as it completes. Call it before any asynchronous work starts. */
+export function stampCheck(now: Date = new Date()): CheckStamp {
+  lastCheckSequence += 1;
+  return { checkedAt: now.toISOString(), sequence: lastCheckSequence };
+}
+
+/** The UTC day a check counts toward: the date it completed, not the date it was recorded. */
+export function checkDayKey(stamp: CheckStamp) {
+  return new Date(stamp.checkedAt).toISOString().slice(0, 10);
+}
+
+/** Whether a check completed after the one that produced the stored latest score. */
+export function isNewerCheck(stamp: CheckStamp, latest: LatestRisk) {
+  const checked = Date.parse(stamp.checkedAt);
+  const stored = Date.parse(latest.at);
+  if (Number.isNaN(stored)) return true;
+  if (checked !== stored) return checked > stored;
+  return stamp.sequence > latest.sequence;
+}
+
+/**
+ * The latest score after a check. The previous one stays when the check had no score, or
+ * when the check completed before the one that produced it: checks can finish scoring in
+ * a different order than they were run.
+ */
 export function latestRiskAfter(
   previous: LatestRisk | null,
-  record: PlumbCheckRecord,
-  at: string,
+  record: StampedPlumbCheck,
 ): LatestRisk | null {
   if (!isRiskBand(record.riskBand) || typeof record.riskScore !== "number") return previous;
-  return { score: record.riskScore, band: record.riskBand, at };
+  if (previous && !isNewerCheck(record, previous)) return previous;
+  return {
+    score: record.riskScore,
+    band: record.riskBand,
+    at: record.checkedAt,
+    sequence: record.sequence,
+  };
+}
+
+/**
+ * Applies a change to one UTC day of the ledger. The first real record evicts the
+ * simulated seed entirely.
+ */
+export function mutateLedgerDay(
+  ledger: LocalMetricsLedger,
+  key: string,
+  mutate: (day: LedgerDay) => void,
+  nextLatestRisk?: (previous: LatestRisk | null) => LatestRisk | null,
+): LocalMetricsLedger {
+  const days = ledger.simulated ? {} : { ...ledger.days };
+  const previousRisk = ledger.simulated ? null : ledger.latestRisk;
+  const day = structuredClone(days[key] ?? emptyDay());
+  mutate(day);
+  return {
+    version: 1,
+    simulated: false,
+    days: { ...days, [key]: day },
+    latestRisk: nextLatestRisk ? nextLatestRisk(previousRisk) : previousRisk,
+  };
+}
+
+/**
+ * Records one Plumb check in the day it completed, and moves the latest score only if
+ * this check is newer than the one that produced it.
+ */
+export function recordPlumbCheckInLedger(
+  ledger: LocalMetricsLedger,
+  record: StampedPlumbCheck,
+): LocalMetricsLedger {
+  return mutateLedgerDay(
+    ledger,
+    checkDayKey(record),
+    (day) => addPlumbCheck(day, record),
+    (previous) => latestRiskAfter(previous, record),
+  );
 }

@@ -10,15 +10,15 @@ import {
 import { DEFAULT_ACTIVE_POLICY_IDS, type PolicyDefinition } from "@/lib/juriscore/policies/catalog";
 import type { ValidationModule, ValidatorVerdict } from "@/lib/juriscore/core/contracts";
 import {
-  addPlumbCheck,
   emptyDay,
-  latestRiskAfter,
+  mutateLedgerDay,
   normalizeLedger,
+  recordPlumbCheckInLedger,
   RISK_BANDS,
-  type LatestRisk,
   type LedgerDay,
   type LocalMetricsLedger,
   type PlumbCheckRecord,
+  type StampedPlumbCheck,
 } from "@/lib/juriscore/metrics-ledger";
 
 export type ModelId = "gemini-1.5-pro" | "claude-3.5-sonnet" | "gpt-4o";
@@ -198,7 +198,7 @@ interface DemoStore {
   removeCustomPolicy: (policyId: string) => void;
   localMetrics: LocalMetricsLedger;
   recordVeilCheck: (record: VeilCheckRecord) => void;
-  recordPlumbCheck: (record: PlumbCheckRecord) => void;
+  recordPlumbCheck: (record: StampedPlumbCheck) => void;
   recordReceipt: (receipt: SessionReceiptEntry) => void;
   seedDemoMetrics: () => void;
   sessionReceipts: SessionReceiptEntry[];
@@ -299,28 +299,9 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     setActivePolicyIds((current) => current.filter((id) => id !== policyId));
   }, []);
 
-  const mutateToday = useCallback(
-    (
-      mutate: (day: LedgerDay) => void,
-      nextLatestRisk?: (previous: LatestRisk | null) => LatestRisk | null,
-    ) => {
-      setLocalMetrics((current) => {
-        // The first real record evicts the simulated seed entirely.
-        const days = current.simulated ? {} : { ...current.days };
-        const previousRisk = current.simulated ? null : current.latestRisk;
-        const key = utcDayKey();
-        const day = structuredClone(days[key] ?? emptyDay());
-        mutate(day);
-        return {
-          version: 1,
-          simulated: false,
-          days: { ...days, [key]: day },
-          latestRisk: nextLatestRisk ? nextLatestRisk(previousRisk) : previousRisk,
-        };
-      });
-    },
-    [],
-  );
+  const mutateToday = useCallback((mutate: (day: LedgerDay) => void) => {
+    setLocalMetrics((current) => mutateLedgerDay(current, utcDayKey(), mutate));
+  }, []);
 
   const recordVeilCheck = useCallback(
     (record: VeilCheckRecord) => {
@@ -336,16 +317,10 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     [mutateToday],
   );
 
-  const recordPlumbCheck = useCallback(
-    (record: PlumbCheckRecord) => {
-      const at = new Date().toISOString();
-      mutateToday(
-        (day) => addPlumbCheck(day, record),
-        (previous) => latestRiskAfter(previous, record, at),
-      );
-    },
-    [mutateToday],
-  );
+  // Dated by when the comparison completed, not by when its prediction arrived.
+  const recordPlumbCheck = useCallback((record: StampedPlumbCheck) => {
+    setLocalMetrics((current) => recordPlumbCheckInLedger(current, record));
+  }, []);
 
   const recordReceipt = useCallback(
     (receipt: SessionReceiptEntry) => {

@@ -1,4 +1,5 @@
 import type { DriftRiskBand, DriftRiskContribution } from "../core/contracts";
+import type { CheckStamp } from "../metrics-ledger";
 import { parseSourceSnapshot, parseUnifiedDiff, type DiffFile } from "../plumb/sources";
 import { isDocPath, normalizeDocPath } from "./doc-paths";
 import {
@@ -235,8 +236,10 @@ export async function riskForCheck(
 /**
  * Records one comparison exactly once, with the prediction for its exact inputs attached.
  * The comparison outcome is already decided before this runs; the prediction never feeds it.
+ * The record must already carry the stamp taken when the comparison completed, so the check
+ * counts toward that day and orders by that time however long scoring takes.
  */
-export async function recordCheckWithRisk<R extends object>(
+export async function recordCheckWithRisk<R extends CheckStamp>(
   record: R,
   change: ConnectedChange | null,
   context: Pick<PredictionRequestInput, "documents" | "policyConfig">,

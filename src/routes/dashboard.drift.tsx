@@ -18,6 +18,7 @@ import {
   Upload,
 } from "lucide-react";
 import { useDemoStore } from "@/lib/juriscore/demo-store";
+import { stampCheck } from "@/lib/juriscore/metrics-ledger";
 import { compareClaims, type PlumbClaim, type PlumbResult } from "@/lib/juriscore/plumb/engine";
 import { policiesForFeature } from "@/lib/juriscore/policies/catalog";
 import { createReceipt, downloadReceipt } from "@/lib/juriscore/core/receipts";
@@ -473,9 +474,11 @@ function DriftView() {
     setRan(true);
     setEvaluation(nextEvaluation);
     // The check is recorded once, with the prediction for these exact inputs, even when
-    // the panel is still scoring them. The verdict above is already final.
+    // the panel is still scoring them. The verdict above is already final, and the stamp
+    // taken here dates the check however long its prediction takes.
     void recordCheckWithRisk(
       {
+        ...stampCheck(),
         verdict: nextEvaluation.verdict,
         assertions: nextEvaluation.findings.length,
         matches: nextEvaluation.counts.matches,

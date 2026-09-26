@@ -65,10 +65,14 @@ import {
 } from "../src/lib/juriscore/demo-store";
 import {
   addPlumbCheck,
+  checkDayKey,
   emptyDay,
   latestRiskAfter,
   normalizeLedger,
+  recordPlumbCheckInLedger,
+  stampCheck,
   type LocalMetricsLedger,
+  type StampedPlumbCheck,
 } from "../src/lib/juriscore/metrics-ledger";
 import {
   bandFor,
@@ -1014,16 +1018,19 @@ assert.equal(ledgerDay.plumb.checks, 6);
 assert.deepEqual(summarizeTrailingWeek(legacyLedger).plumb.risk, someRisk);
 
 const recordedAt = "2026-09-26T00:00:00.000Z";
-const unscored = { ...baseRecord, riskBand: null, riskScore: null };
-const latestScore = latestRiskAfter(
-  null,
-  { ...baseRecord, riskBand: "high", riskScore: 81 },
-  recordedAt,
-);
-assert.deepEqual(latestScore, { score: 81, band: "high", at: recordedAt });
+const recordedStamp = { checkedAt: recordedAt, sequence: 1 };
+const laterStamp = { checkedAt: "2026-09-26T00:00:01.000Z", sequence: 2 };
+const unscored = { ...baseRecord, ...laterStamp, riskBand: null, riskScore: null };
+const latestScore = latestRiskAfter(null, {
+  ...baseRecord,
+  ...recordedStamp,
+  riskBand: "high",
+  riskScore: 81,
+});
+assert.deepEqual(latestScore, { score: 81, band: "high", at: recordedAt, sequence: 1 });
 // A check without a score (the sample, a snapshot) keeps the previous latest score.
-assert.deepEqual(latestRiskAfter(latestScore, unscored, recordedAt), latestScore);
-assert.deepEqual(latestRiskAfter(latestScore, baseRecord, recordedAt), latestScore);
+assert.deepEqual(latestRiskAfter(latestScore, unscored), latestScore);
+assert.deepEqual(latestRiskAfter(latestScore, { ...baseRecord, ...laterStamp }), latestScore);
 
 // A round trip through storage keeps the new fields and nothing else.
 const persisted = normalizeLedger(
@@ -1033,7 +1040,18 @@ assert.deepEqual(persisted.latestRisk, latestScore);
 assert.deepEqual(persisted.days[today].plumb.risk, someRisk);
 const riskKeys = Object.keys(persisted.days[today].plumb.risk).sort();
 assert.deepEqual(riskKeys, ["high", "low", "uncertain"]);
-assert.deepEqual(Object.keys(persisted.latestRisk ?? {}).sort(), ["at", "band", "score"]);
+assert.deepEqual(Object.keys(persisted.latestRisk ?? {}).sort(), [
+  "at",
+  "band",
+  "score",
+  "sequence",
+]);
+// A latest score saved before checks carried a sequence loads with sequence 0.
+const legacyLatest = normalizeLedger({
+  ...legacyLedger,
+  latestRisk: { score: 81, band: "high", at: recordedAt },
+} as unknown as LocalMetricsLedger);
+assert.deepEqual(legacyLatest.latestRisk, { score: 81, band: "high", at: recordedAt, sequence: 0 });
 
 // The simulated seed is internally consistent with the Plumb tile and the shipped bands.
 const seedRisk = SIMULATED_SEED.plumbRisk;
@@ -1155,11 +1173,12 @@ harness.unmount();
 const limitChange = parseConnectedChange(publicLimit);
 const limitRisk = (await workbenchRiskFor(limitChange)).risk;
 assert.equal(limitRisk.status, "scored");
-type RecordedCheck = typeof baseRecord & CheckRisk;
+const stampedRecord = { ...baseRecord, ...recordedStamp };
+type RecordedCheck = typeof stampedRecord & CheckRisk;
 const recordedChecks: RecordedCheck[] = [];
 const recordGate = gatedScorer();
 const recording = recordCheckWithRisk(
-  baseRecord,
+  stampedRecord,
   limitChange,
   { documents: [], policyConfig },
   (record) => recordedChecks.push(record),
@@ -1172,17 +1191,18 @@ await recording;
 assert.equal(recordedChecks.length, 1, "the check is recorded exactly once");
 if (limitRisk.status === "scored") {
   assert.deepEqual(recordedChecks[0], {
-    ...baseRecord,
+    ...stampedRecord,
     riskBand: limitRisk.band,
     riskScore: limitRisk.score,
   });
   const recordedDay = emptyDay();
   addPlumbCheck(recordedDay, recordedChecks[0]);
   assert.equal(recordedDay.plumb.risk[limitRisk.band], 1);
-  assert.deepEqual(latestRiskAfter(null, recordedChecks[0], recordedAt), {
+  assert.deepEqual(latestRiskAfter(null, recordedChecks[0]), {
     score: limitRisk.score,
     band: limitRisk.band,
     at: recordedAt,
+    sequence: recordedStamp.sequence,
   });
 }
 // The panel and the recorded check agree when both score the same inputs concurrently.
@@ -1194,7 +1214,7 @@ panelHarness.commit(panelInputs, panelGate.scorer);
 await panelGate.started;
 assert.equal(panelHarness.shown(panelInputs), null, "the panel is still scoring");
 const concurrentChecks: RecordedCheck[] = [];
-await recordCheckWithRisk(baseRecord, limitChange, { documents: [], policyConfig }, (record) =>
+await recordCheckWithRisk(stampedRecord, limitChange, { documents: [], policyConfig }, (record) =>
   concurrentChecks.push(record),
 );
 panelGate.release();
@@ -1217,13 +1237,13 @@ for (const [change, scorer] of [
 ] as Array<[ConnectedChange | null, WorkbenchRiskScorer | undefined]>) {
   const records: RecordedCheck[] = [];
   await recordCheckWithRisk(
-    baseRecord,
+    stampedRecord,
     change,
     { documents: [], policyConfig },
     (record) => records.push(record),
     scorer,
   );
-  assert.deepEqual(records, [{ ...baseRecord, riskBand: null, riskScore: null }]);
+  assert.deepEqual(records, [{ ...stampedRecord, riskBand: null, riskScore: null }]);
 }
 
 // C3: "Last 7 days" is today and the six UTC dates before it, never a future date.
@@ -1266,5 +1286,110 @@ assert.equal(week.plumb.checks, 11);
 assert.equal(week.plumb.risk.high, 11);
 assert.equal(week.veil.checks, 11);
 assert.equal(week.receipts, 11);
+
+// C4: a check is dated and ordered by when its comparison completed, not by when its
+// prediction arrived. The ledger is updated in the order predictions finish, exactly as
+// the workbench's record callback does.
+const emptyLedger = (): LocalMetricsLedger => ({
+  version: 1,
+  simulated: false,
+  days: {},
+  latestRisk: null,
+});
+const harmlessChange = parseConnectedChange(harmless);
+const harmlessRisk = (await workbenchRiskFor(harmlessChange)).risk;
+assert.ok(limitRisk.status === "scored" && harmlessRisk.status === "scored");
+assert.notEqual(limitRisk.score, harmlessRisk.score, "the two checks score differently");
+
+// Check A runs first, check B second; B's prediction finishes before A's.
+let reversedLedger = emptyLedger();
+const recordInto = (record: StampedPlumbCheck) => {
+  reversedLedger = recordPlumbCheckInLedger(reversedLedger, record);
+};
+const stampA = stampCheck(new Date("2026-09-26T10:00:00.000Z"));
+const stampB = stampCheck(new Date("2026-09-26T10:00:05.000Z"));
+assert.ok(stampB.sequence > stampA.sequence);
+const gateA = gatedScorer();
+const gateB = gatedScorer();
+const recordingA = recordCheckWithRisk(
+  { ...baseRecord, ...stampA },
+  limitChange,
+  { documents: [], policyConfig },
+  recordInto,
+  gateA.scorer,
+);
+const recordingB = recordCheckWithRisk(
+  { ...baseRecord, ...stampB },
+  harmlessChange,
+  { documents: [], policyConfig },
+  recordInto,
+  gateB.scorer,
+);
+await Promise.all([gateA.started, gateB.started]);
+gateB.release();
+await recordingB;
+gateA.release();
+await recordingA;
+const newestB = { score: harmlessRisk.score, band: harmlessRisk.band, at: stampB.checkedAt };
+assert.deepEqual(reversedLedger.latestRisk, { ...newestB, sequence: stampB.sequence });
+assert.deepEqual(Object.keys(reversedLedger.days), ["2026-09-26"]);
+assert.equal(reversedLedger.days["2026-09-26"].plumb.checks, 2, "each check counted once");
+const reversedBands = reversedLedger.days["2026-09-26"].plumb.risk;
+assert.equal(reversedBands.low + reversedBands.uncertain + reversedBands.high, 2);
+
+// Two checks stamped in the same millisecond are ordered by their sequence.
+const sameMoment = new Date("2026-09-26T11:00:00.000Z");
+const tieFirst = stampCheck(sameMoment);
+const tieSecond = stampCheck(sameMoment);
+const tieLatest = latestRiskAfter(
+  latestRiskAfter(null, { ...baseRecord, ...tieSecond, riskBand: "low", riskScore: 10 }),
+  { ...baseRecord, ...tieFirst, riskBand: "high", riskScore: 90 },
+);
+assert.equal(tieLatest?.score, 10, "the older of two same-time checks never wins");
+
+// A comparison run just before UTC midnight whose prediction finishes after it still
+// counts toward the day it ran, and the later check sets the latest score.
+let midnightLedger = emptyLedger();
+const lateStamp = stampCheck(new Date("2026-09-26T23:59:59.900Z"));
+const lateGate = gatedScorer();
+const lateRecording = recordCheckWithRisk(
+  { ...baseRecord, ...lateStamp },
+  limitChange,
+  { documents: [], policyConfig },
+  (record) => {
+    midnightLedger = recordPlumbCheckInLedger(midnightLedger, record);
+  },
+  lateGate.scorer,
+);
+await lateGate.started;
+// Midnight passes and a new comparison completes and records first.
+const nextDayStamp = stampCheck(new Date("2026-09-27T00:00:00.200Z"));
+await recordCheckWithRisk(
+  { ...baseRecord, ...nextDayStamp },
+  harmlessChange,
+  { documents: [], policyConfig },
+  (record) => {
+    midnightLedger = recordPlumbCheckInLedger(midnightLedger, record);
+  },
+);
+lateGate.release();
+await lateRecording;
+assert.equal(checkDayKey(lateStamp), "2026-09-26");
+assert.equal(midnightLedger.days["2026-09-26"].plumb.checks, 1, "counted on the day it ran");
+assert.equal(midnightLedger.days["2026-09-27"].plumb.checks, 1);
+assert.equal(midnightLedger.days["2026-09-26"].plumb.risk[limitRisk.band], 1);
+assert.deepEqual(midnightLedger.latestRisk, {
+  score: harmlessRisk.score,
+  band: harmlessRisk.band,
+  at: nextDayStamp.checkedAt,
+  sequence: nextDayStamp.sequence,
+});
+// The first real check still evicts the simulated seed, dated by its own stamp.
+const fromSeed = recordPlumbCheckInLedger(
+  { ...emptyLedger(), simulated: true, days: { "2026-09-01": weekDay(5) } },
+  { ...baseRecord, ...lateStamp, riskBand: "high", riskScore: 81 },
+);
+assert.equal(fromSeed.simulated, false);
+assert.deepEqual(Object.keys(fromSeed.days), ["2026-09-26"]);
 
 console.log("JurisCore predictive drift-risk checks passed.");
