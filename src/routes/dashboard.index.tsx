@@ -171,7 +171,8 @@ function Overview() {
                   bands={bandsOf(historyOf(recent, "residual-exposure"))}
                   bandsLabel="Recent runs by band"
                   history={historyOf(recent, "residual-exposure")}
-                  emptyText="No residual-exposure predictions yet. The Veil predictor is in final review; its scores appear here once it ships."
+                  emptyText="No residual-exposure predictions yet. Copy a protected result in Veil to record one."
+                  showRule
                 />
               }
             />
@@ -471,6 +472,7 @@ function PredictiveSlice({
   bandsLabel = "Last 7 days by band",
   history,
   emptyText,
+  showRule = false,
 }: {
   title: string;
   question: string;
@@ -479,6 +481,8 @@ function PredictiveSlice({
   bandsLabel?: string;
   history: PredictionRecord[];
   emptyText: string;
+  /** Adds a column for the baseline rule's result, for residual-exposure runs. */
+  showRule?: boolean;
 }) {
   const recentRuns = [...history].reverse().slice(0, 5);
   return (
@@ -537,6 +541,11 @@ function PredictiveSlice({
                 <th scope="col" className="py-1 font-normal">
                   Band
                 </th>
+                {showRule && (
+                  <th scope="col" className="py-1 font-normal">
+                    Rule
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -545,6 +554,13 @@ function PredictiveSlice({
                   <td className="py-1">{formatWhen(run.at)}</td>
                   <td className="py-1 font-mono tabular-nums">{run.score}</td>
                   <td className={`py-1 capitalize ${toneText[RISK_TONE[run.band]]}`}>{run.band}</td>
+                  {showRule && (
+                    <td
+                      className={`py-1 ${run.ruleFlag ? toneText.revise : "text-muted-foreground"}`}
+                    >
+                      {run.ruleFlag === undefined ? "—" : run.ruleFlag ? "flagged" : "clear"}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

@@ -2,3 +2,6 @@
 # package's start.sh is executed on Linux and macOS, and a CR in the shebang line
 # makes it fail to start.
 *.sh text eol=lf
+
+# Training feature rows are checksummed byte-for-byte (ml/data/features.sha256): never rewrite line endings.
+ml/data/features/** -text

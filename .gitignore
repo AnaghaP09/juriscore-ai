@@ -36,3 +36,9 @@ dist-ssr
 
 # Scratch files
 tmp-*
+
+# ML training (dev-only): raw clones/downloads and the Python venv
+ml/data/raw/
+ml/.venv/
+ml/data/work/
+ml/**/__pycache__/

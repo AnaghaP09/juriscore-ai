@@ -1,0 +1,30 @@
+{
+  "modelId": "juriscore.drift-risk.local-logistic",
+  "modelVersion": "1.0.0-unpromoted",
+  "placeholder": false,
+  "note": "Fitted by ml/train_drift.py (L2 logistic regression, seed 7) on mined commits from permissively licensed repositories listed in ml/data/SOURCES.md; repository-level held-out evaluation in docs/PREDICTIVE_DRIFT_RISK.md.",
+  "featuresVersion": "drift-features.v1",
+  "maturity": "target",
+  "intercept": -0.852998,
+  "coefficients": {
+    "path_config_files": 0.018681,
+    "path_schema_files": -0.185582,
+    "path_api_files": -0.281039,
+    "path_source_files": -0.008004,
+    "path_test_files": 0.009156,
+    "numeric_literals_changed": -0.000472,
+    "string_literals_changed": 4.7e-05,
+    "public_symbol_changes": -0.000247,
+    "additions_log": -0.163328,
+    "deletions_log": -0.084516,
+    "code_files_log": 0.40807,
+    "subject_key_hits": 0.0,
+    "identifier_signal_hits": 0.005492,
+    "constant_default_changes": 0.001421,
+    "comment_only_ratio": -0.79868
+  },
+  "bands": {
+    "uncertain": 0.3231,
+    "high": 0.3454
+  }
+}
