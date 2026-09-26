@@ -117,13 +117,14 @@ function Gateway() {
     activePolicyIds,
     customPolicies,
     pushRun,
+    clearRecentRuns,
     recentRuns,
     recordReceipt,
     markGatewayLocked,
   } = useDemoStore();
-  const [prompt, setPrompt] = useState(
-    "Summarize the main risks of sending customer support tickets to an AI model.",
-  );
+  // The page starts empty on every visit: no prefilled prompt, no result. Recent runs
+  // live in memory only, so a reload clears them too, and Clear returns the page to zero.
+  const [prompt, setPrompt] = useState("");
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<GatewayResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -159,6 +160,16 @@ function Gateway() {
   else if (!status || !status.configured) sendBlockedReason = "The gateway is not configured.";
   else if (!connected) sendBlockedReason = "Test the connection to the active model first.";
   else if (!prompt.trim()) sendBlockedReason = "Enter a prompt.";
+
+  const clearPage = () => {
+    // A run still in flight is dropped when it answers, not shown on the cleared page.
+    sequencer.current.cancel();
+    setSending(false);
+    setPrompt("");
+    setResult(null);
+    setError(null);
+    clearRecentRuns();
+  };
 
   const send = async () => {
     if (sendBlockedReason || sending) return;
@@ -237,7 +248,7 @@ function Gateway() {
       )}
 
       <PageHeader
-        eyebrow="Beta"
+        eyebrow="LLM Gateway"
         icon={<Zap className="h-6 w-6" aria-hidden />}
         title="Send a prompt through JurisCore"
         description="Veil checks the prompt before it leaves, the connected model answers, and Veil checks the reply on the way back. Every run writes a receipt."
@@ -278,6 +289,7 @@ function Gateway() {
             rows={4}
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
+            placeholder="e.g. Summarize the main risks of sending customer support tickets to an AI model."
             className="font-mono text-sm"
           />
           <div className="flex flex-wrap items-center gap-3">
@@ -292,6 +304,13 @@ function Gateway() {
                   {sending ? "Sending…" : "Send through JurisCore"}
                 </>
               )}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={clearPage}
+              disabled={!prompt && !result && !error && recentRuns.length === 0 && !sending}
+            >
+              Clear
             </Button>
             {sendBlockedReason && (
               <span className="text-xs text-muted-foreground">{sendBlockedReason}</span>
@@ -399,7 +418,9 @@ function Gateway() {
                 )}
               </>
             ) : (
-              <p className="text-xs text-muted-foreground">No run yet.</p>
+              <p className="text-xs text-muted-foreground">
+                No runs yet. Type a prompt above and send it through JurisCore.
+              </p>
             )}
           </CardContent>
         </Card>
@@ -504,29 +525,6 @@ function Gateway() {
           </CardContent>
         </Card>
       )}
-
-      <Card id="setup">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Connect your own Anthropic account</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm text-muted-foreground">
-          <p>
-            The gateway calls Anthropic with an API key from your own Anthropic Console account. The
-            key is set on the server and never reaches this page. Claude Pro and Max subscriptions
-            do not include API access.
-          </p>
-          <ol className="list-decimal pl-5 space-y-1">
-            <li>
-              On the server (for local use, in <code>.env.local</code>), set your Anthropic API key,
-              turn the gateway on, and choose a gateway access token of 16 characters or more. The
-              variable names are in <code>docs/GATEWAY_SETUP.md</code>.
-            </li>
-            <li>Restart the server.</li>
-            <li>Unlock the gateway from the header with the access token.</li>
-            <li>Run Test connection. Connected appears only after that check succeeds.</li>
-          </ol>
-        </CardContent>
-      </Card>
     </div>
   );
 }

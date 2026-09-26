@@ -10,6 +10,7 @@ import {
 } from "react";
 import { DEFAULT_ACTIVE_POLICY_IDS, type PolicyDefinition } from "@/lib/juriscore/policies/catalog";
 import type {
+  DriftRiskBand,
   PersistedReceipt,
   ValidationModule,
   ValidationReceipt,
@@ -25,8 +26,11 @@ import { createSafeStorage } from "@/lib/juriscore/core/safe-storage";
 import { GatewayHttpError, gatewayClient, needsUnlock } from "@/lib/juriscore/gateway/client";
 import type { GatewayRunStatus, GatewayStatus } from "@/lib/juriscore/gateway/protocol";
 import {
+  addPrediction,
+  checkDayKey,
   emptyDay,
   mutateLedgerDay,
+  stampCheck,
   normalizeLedger,
   recordPlumbCheckInLedger,
   RISK_BANDS,
@@ -73,6 +77,9 @@ export interface VeilCheckRecord {
   redacted: number;
   tokenized: number;
   chars: number;
+  /** Advisory residual-exposure score (0 to 100) of the sanitized text, if it was scored. */
+  exposureScore?: number | null;
+  exposureBand?: DriftRiskBand | null;
 }
 
 export type { PlumbCheckRecord, LocalMetricsLedger };
@@ -83,6 +90,9 @@ export const SIMULATED_SEED = {
   veil: { checks: 126, occurrences: 1482, redacted: 1178, tokenized: 304, chars: 3_600_000 },
   plumb: { checks: 88, assertions: 412, matches: 354, drifted: 37, cannotDetermine: 21 },
   overall: { checks: 214, allow: 132, revise: 51, block: 31, receipts: 47 },
+  // Per-tool verdict splits; they sum to each tool's checks and to the overall split.
+  veilOutcomes: { allow: 70, revise: 36, block: 20 },
+  plumbOutcomes: { allow: 62, revise: 15, block: 11 },
   plumbRisk: {
     counts: { low: 52, uncertain: 24, high: 12 },
     latest: { score: 38, band: "uncertain" },
@@ -100,6 +110,7 @@ const seededLedger = (): LocalMetricsLedger => ({
   simulated: true,
   days: {},
   latestRisk: null,
+  recentPredictions: [],
 });
 
 const utcDayKey = () => new Date().toISOString().slice(0, 10);
@@ -188,6 +199,7 @@ interface DemoStore {
   setDriftMode: (m: DriftMode) => void;
   recentRuns: GatewayRun[];
   pushRun: (r: GatewayRun) => void;
+  clearRecentRuns: () => void;
   activePolicyIds: string[];
   setPolicyActive: (policyId: string, active: boolean) => void;
   customPolicies: PolicyDefinition[];
@@ -317,6 +329,8 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     setRecentRuns((prev) => [r, ...prev].slice(0, 20));
   }, []);
 
+  const clearRecentRuns = useCallback(() => setRecentRuns([]), []);
+
   const markGatewayLocked = useCallback((expired: boolean) => {
     setGateway({ phase: "locked", expired });
   }, []);
@@ -441,9 +455,11 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     setLocalMetrics((current) => mutateLedgerDay(current, utcDayKey(), mutate));
   }, []);
 
-  const recordVeilCheck = useCallback(
-    (record: VeilCheckRecord) => {
-      mutateToday((day) => {
+  const recordVeilCheck = useCallback((record: VeilCheckRecord) => {
+    // Stamped once, outside the state updater, so a replayed updater cannot re-stamp it.
+    const stamp = stampCheck();
+    setLocalMetrics((current) => {
+      const next = mutateLedgerDay(current, checkDayKey(stamp), (day) => {
         day.veil.checks += 1;
         day.veil[record.verdict] += 1;
         day.veil.occurrences += record.occurrences;
@@ -451,9 +467,16 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
         day.veil.tokenized += record.tokenized;
         day.veil.chars += record.chars;
       });
-    },
-    [mutateToday],
-  );
+      if (!record.exposureBand || typeof record.exposureScore !== "number") return next;
+      return addPrediction(next, {
+        kind: "residual-exposure",
+        score: record.exposureScore,
+        band: record.exposureBand,
+        at: stamp.checkedAt,
+        sequence: stamp.sequence,
+      });
+    });
+  }, []);
 
   // Dated by when the comparison completed, not by when its prediction arrived.
   const recordPlumbCheck = useCallback((record: StampedPlumbCheck) => {
@@ -510,6 +533,7 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       setDriftMode,
       recentRuns,
       pushRun,
+      clearRecentRuns,
       activePolicyIds,
       setPolicyActive,
       customPolicies,
@@ -548,6 +572,7 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       driftMode,
       recentRuns,
       pushRun,
+      clearRecentRuns,
       activePolicyIds,
       setPolicyActive,
       customPolicies,

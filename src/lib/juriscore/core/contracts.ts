@@ -174,6 +174,82 @@ export const driftRiskPredictionSchema = z
 
 export type DriftRiskPrediction = z.infer<typeof driftRiskPredictionSchema>;
 
+/**
+ * Version of the residual-exposure feature vector, with the same rule as drift risk:
+ * weights fitted to another version are refused at inference.
+ */
+export const EXPOSURE_FEATURES_VERSION = "exposure-features.v1";
+
+export const exposureSpanCategorySchema = z.enum([
+  "cloud_key",
+  "url_credentials",
+  "jwt",
+  "assigned_secret",
+  "hex_secret",
+  "base64_secret",
+  "high_entropy_token",
+  "card_number",
+  "ip_address",
+  "uuid",
+  "labelled_identifier",
+  "prompt_attack",
+]);
+
+export type ExposureSpanCategory = z.infer<typeof exposureSpanCategorySchema>;
+
+/** A place in sanitized text worth a second look: offsets and a category, never the text. */
+export const exposureSpanSchema = z
+  .object({
+    start: z.number().int().min(0),
+    end: z.number().int().min(1),
+    category: exposureSpanCategorySchema,
+    score: z.number().min(0).max(1),
+  })
+  .refine((span) => span.end > span.start, { message: "A span must not be empty." });
+
+export type ExposureSpan = z.infer<typeof exposureSpanSchema>;
+
+export const exposureContributionSchema = z.object({
+  feature: z.string().min(1),
+  /** Signed contribution of this feature to the logit: coefficient × feature value. */
+  weight: z.number().finite(),
+});
+
+export type ExposureContribution = z.infer<typeof exposureContributionSchema>;
+
+/**
+ * An advisory estimate that text Veil has already sanitized still holds sensitive data or
+ * a prompt attack its fixed detectors missed. Like drift risk, it has no bearing on
+ * Veil's allow / revise / block outcome: it may ask the user to confirm, nothing more.
+ */
+export const exposurePredictionSchema = z
+  .object({
+    tier: driftRiskTierSchema,
+    engine: z.enum(["local", "model"]),
+    modelId: z.string().min(1),
+    modelVersion: z.string().min(1),
+    placeholder: z.boolean(),
+    maturity: z.enum(["target", "synthetic", "benchmark"]),
+    featuresVersion: z.literal(EXPOSURE_FEATURES_VERSION),
+    score: z.number().min(0).max(1),
+    band: driftRiskBandSchema,
+    spans: z.array(exposureSpanSchema),
+    contributions: z.array(exposureContributionSchema).min(1),
+  })
+  .superRefine((prediction, context) => {
+    // The local engine is the free tier; a model-backed estimate is the paid one.
+    const expected = prediction.engine === "local" ? "free" : "paid";
+    if (prediction.tier !== expected) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["tier"],
+        message: `A ${prediction.engine} residual-exposure estimate belongs to the ${expected} tier.`,
+      });
+    }
+  });
+
+export type ExposurePrediction = z.infer<typeof exposurePredictionSchema>;
+
 export const validationReceiptSchema = z.object({
   id: z.string().min(1),
   module: validationModuleSchema,

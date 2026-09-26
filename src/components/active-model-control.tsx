@@ -1,5 +1,4 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
 import { KeyRound, Loader2, RefreshCw } from "lucide-react";
 import { useDemoStore } from "@/lib/juriscore/demo-store";
 import { gatewayModelLabel } from "@/lib/juriscore/gateway/models";
@@ -46,11 +45,9 @@ export function ActiveModelControl() {
   }, [gateway]);
 
   const notConfigured = (title: string) => (
-    <Link to="/dashboard/gateway" hash="setup" title={title}>
-      <Badge variant="outline" className={mutedBadge}>
-        Not configured
-      </Badge>
-    </Link>
+    <Badge variant="outline" className={mutedBadge} title={title}>
+      Not configured
+    </Badge>
   );
 
   let control: ReactNode;
@@ -69,8 +66,8 @@ export function ActiveModelControl() {
   } else if (gateway.phase === "unavailable") {
     control = notConfigured(
       gateway.reason === "disabled"
-        ? "The gateway is not enabled on this server. See setup."
-        : "The gateway is enabled without an access token. See setup.",
+        ? "The gateway is not enabled on this server."
+        : "The gateway is enabled without an access token.",
     );
   } else if (gateway.phase === "locked") {
     control = (
@@ -210,9 +207,8 @@ function UnlockGatewayDialog({
           <DialogHeader>
             <DialogTitle>Unlock gateway</DialogTitle>
             <DialogDescription>
-              Enter the JurisCore gateway token your administrator set as
-              <span className="font-mono"> JURISCORE_GATEWAY_TOKEN</span>. This is not your
-              Anthropic API key: the provider key stays on the server and never reaches this page.
+              Enter your JurisCore gateway token. This is not your Anthropic API key: the provider
+              key stays on the server and never reaches this page.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">

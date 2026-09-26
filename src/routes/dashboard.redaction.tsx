@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
   Check,
@@ -38,8 +38,15 @@ import { veilReportFileName, veilReportText } from "@/lib/juriscore/core/reports
 import { sharedReceiptRunFinalizer } from "@/lib/juriscore/core/run-finalizer";
 import { veilReceiptInput } from "@/lib/juriscore/veil/receipt";
 import { FolderWriteNote, ReceiptSummary } from "@/components/receipt-summary";
+import type { ValidationReceipt } from "@/lib/juriscore/core/contracts";
 import { policiesForFeature, veilScopesForPolicies } from "@/lib/juriscore/policies/catalog";
 import { protectText, type VeilStrategy } from "@/lib/juriscore/veil/engine";
+import { predictResidualExposure } from "@/lib/juriscore/predict/exposure-model";
+import type {
+  DriftRiskBand,
+  ExposureSpan,
+  ExposureSpanCategory,
+} from "@/lib/juriscore/core/contracts";
 import {
   ACCEPTED_DOCUMENT_TYPES,
   ACCEPTED_DOCUMENT_LABEL,
@@ -77,6 +84,87 @@ const verdictClass = {
   revise: "border-[color:var(--revise)]/40 text-[color:var(--revise)]",
   block: "border-[color:var(--block)]/40 text-[color:var(--block)]",
 };
+
+const exposureBandClass: Record<DriftRiskBand, string> = {
+  low: "border-[color:var(--allow)]/40 text-[color:var(--allow)]",
+  uncertain: "border-[color:var(--revise)]/40 text-[color:var(--revise)]",
+  high: "border-[color:var(--block)]/40 text-[color:var(--block)]",
+};
+
+const SPAN_CATEGORY_LABEL: Record<ExposureSpanCategory, string> = {
+  cloud_key: "Cloud or service key",
+  url_credentials: "Credentials in a URL",
+  jwt: "JSON web token",
+  assigned_secret: "Secret in an assignment",
+  hex_secret: "Long hex string",
+  base64_secret: "Base64 string",
+  high_entropy_token: "High-entropy token",
+  card_number: "Card-like number",
+  ip_address: "IP address",
+  uuid: "UUID",
+  labelled_identifier: "Labelled identifier",
+  prompt_attack: "Prompt-attack phrasing",
+};
+
+const FEATURE_LABEL: Record<string, string> = {
+  max_span_score: "Strongest suspicious span",
+  secret_shapes: "Secret-shaped tokens",
+  assigned_secrets: "Secrets in assignments",
+  high_entropy_tokens: "High-entropy tokens",
+  card_numbers: "Card-like numbers",
+  network_identifiers: "IP addresses and UUIDs",
+  labelled_identifiers: "Identifiers next to a label",
+  prompt_attacks: "Prompt-attack phrasing",
+  entropy_density: "Density of random-looking tokens",
+  redaction_density: "Density of redactions (context)",
+};
+
+const PROTECTION_TOKEN = /(\[(?:REDACTED_)?[A-Z_]+(?:_\d+)?\])/g;
+
+function renderProtectedText(text: string, keyPrefix: string) {
+  return text.split(PROTECTION_TOKEN).map((chunk, index) =>
+    /^\[/.test(chunk) ? (
+      <span
+        key={`${keyPrefix}-token-${index}`}
+        className="inline-block px-1 rounded bg-[color:var(--block)]/15 text-[color:var(--block)]"
+      >
+        {chunk}
+      </span>
+    ) : (
+      <span key={`${keyPrefix}-text-${index}`}>{chunk}</span>
+    ),
+  );
+}
+
+// A large document can hold tens of thousands of spans; only the first ones are marked
+// in the preview, and the panel says how many there are in all.
+const MAX_HIGHLIGHTED_SPANS = 200;
+
+/** The sanitized preview, with residual-exposure spans highlighted by category. */
+function renderSanitizedPreview(text: string, spans: ExposureSpan[]) {
+  const nodes: ReactNode[] = [];
+  let cursor = 0;
+  spans.slice(0, MAX_HIGHLIGHTED_SPANS).forEach((span, index) => {
+    if (span.start < cursor) return;
+    nodes.push(...renderProtectedText(text.slice(cursor, span.start), `before-${index}`));
+    const label = SPAN_CATEGORY_LABEL[span.category];
+    nodes.push(
+      <mark
+        key={`span-${span.start}-${span.end}`}
+        title={`Possible residual exposure: ${label}`}
+        className="rounded bg-[color:var(--revise)]/20 px-0.5 text-foreground underline decoration-[color:var(--revise)] decoration-dotted underline-offset-2"
+      >
+        {text.slice(span.start, span.end)}
+        <sup className="ml-0.5 font-sans text-[9px] uppercase tracking-wide text-[color:var(--revise)]">
+          {label}
+        </sup>
+      </mark>,
+    );
+    cursor = span.end;
+  });
+  nodes.push(...renderProtectedText(text.slice(cursor), "tail"));
+  return nodes;
+}
 
 type UploadedDocument = {
   fileName: string;
@@ -125,6 +213,28 @@ function VeilWorkbench() {
       }),
     [activeVeilPolicies, policyScopes, raw, strategy],
   );
+  // Advisory only: reads Veil's sanitized output and never feeds back into Veil's result.
+  const exposure = useMemo(
+    () =>
+      predictResidualExposure({
+        sanitizedText: result.sanitizedText,
+        profile: result.profile,
+        policyIds: result.policyIds,
+      }),
+    [result],
+  );
+  const [exposureConfirmed, setExposureConfirmed] = useState(false);
+  const [confirmingCopy, setConfirmingCopy] = useState(false);
+  const needsExposureConfirmation = exposure.band === "high" && !exposureConfirmed;
+  const exposureReasons = exposure.contributions
+    .filter((contribution) => contribution.weight > 0)
+    .slice(0, 4);
+  const exposureCategories = [...new Set(exposure.spans.map((span) => span.category))];
+
+  useEffect(() => {
+    setExposureConfirmed(false);
+    setConfirmingCopy(false);
+  }, [result.sanitizedText]);
 
   useEffect(
     () => () => {
@@ -229,6 +339,8 @@ function VeilWorkbench() {
       redacted: strategy === "redact" ? occurrences : 0,
       tokenized: strategy === "tokenize" ? occurrences : 0,
       chars: raw.length,
+      exposureScore: Math.round(exposure.score * 100),
+      exposureBand: exposure.band,
     });
   };
 
@@ -282,6 +394,22 @@ function VeilWorkbench() {
       veilReportText(result, strategy, recorded?.receipt ?? null),
       "text/plain;charset=utf-8",
     );
+  };
+
+  // A high residual-exposure band asks for one explicit confirmation before the text
+  // leaves the page. It never changes what Veil decided.
+  const requestCopy = () => {
+    if (needsExposureConfirmation) {
+      setConfirmingCopy(true);
+      return;
+    }
+    void copySanitized();
+  };
+
+  const confirmAndCopy = () => {
+    setExposureConfirmed(true);
+    setConfirmingCopy(false);
+    void copySanitized();
   };
 
   const generateReceipt = async () => {
@@ -560,7 +688,7 @@ function VeilWorkbench() {
                 <Badge variant="outline" className={verdictClass[result.sanitizedVerdict]}>
                   {result.sanitizedVerdict.toUpperCase()}
                 </Badge>
-                <Button size="sm" variant="outline" onClick={copySanitized}>
+                <Button size="sm" variant="outline" onClick={requestCopy}>
                   {copied ? (
                     <Check className="h-3.5 w-3.5 mr-1.5" />
                   ) : (
@@ -614,24 +742,34 @@ function VeilWorkbench() {
                 </div>
               )}
             </div>
+            {confirmingCopy && (
+              <div
+                role="alert"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[color:var(--block)]/30 bg-[color:var(--block)]/[0.04] px-3 py-2 text-xs"
+              >
+                <span className="flex items-start gap-2">
+                  <AlertTriangle
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[color:var(--block)]"
+                    aria-hidden
+                  />
+                  The residual-exposure estimate is high: the highlighted text may still hold
+                  sensitive data or a prompt attack. Review it before copying.
+                </span>
+                <span className="flex items-center gap-2">
+                  <Button size="sm" variant="ghost" onClick={() => setConfirmingCopy(false)}>
+                    Cancel
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={confirmAndCopy}>
+                    Copy anyway
+                  </Button>
+                </span>
+              </div>
+            )}
             <pre
               aria-label="Sanitized output"
               className="rounded-md border border-border bg-muted/20 p-3 font-mono text-xs whitespace-pre-wrap min-h-[24rem] overflow-auto"
             >
-              {result.sanitizedText
-                .split(/(\[(?:REDACTED_)?[A-Z_]+(?:_\d+)?\])/g)
-                .map((chunk, index) =>
-                  /^\[/.test(chunk) ? (
-                    <span
-                      key={`${chunk}-${index}`}
-                      className="inline-block px-1 rounded bg-[color:var(--block)]/15 text-[color:var(--block)]"
-                    >
-                      {chunk}
-                    </span>
-                  ) : (
-                    <span key={`text-${index}`}>{chunk}</span>
-                  ),
-                )}
+              {renderSanitizedPreview(result.sanitizedText, exposure.spans)}
             </pre>
             {result.requiresReview && (
               <p className="mt-3 text-xs text-muted-foreground">
@@ -642,6 +780,74 @@ function VeilWorkbench() {
           </CardContent>
         </Card>
       </div>
+
+      {raw.trim() && !progress && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex flex-wrap items-center justify-between gap-3 text-sm">
+              <span className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-[color:var(--revise)]" aria-hidden />
+                Residual exposure
+              </span>
+              <Badge variant="outline" className={exposureBandClass[exposure.band]}>
+                Residual exposure: {exposure.band}
+                {exposure.placeholder ? " (placeholder model)" : ""}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-xs">
+            <p className="text-muted-foreground">
+              An advisory estimate that the permitted model input still contains something
+              Veil&apos;s detectors did not catch, such as an unfamiliar key format or a new
+              prompt-attack phrasing. It never changes Veil&apos;s result; a high estimate only asks
+              you to confirm before copying.
+              {exposure.placeholder &&
+                " The model uses hand-set placeholder weights and has not been measured on real data."}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">Estimated probability</span>
+              <span className="font-mono">{Math.round(exposure.score * 100)}%</span>
+              <span className="text-muted-foreground">
+                · {exposure.spans.length} flagged {exposure.spans.length === 1 ? "span" : "spans"}
+                {exposure.spans.length > MAX_HIGHLIGHTED_SPANS &&
+                  ` (the first ${MAX_HIGHLIGHTED_SPANS} are highlighted in the preview)`}
+              </span>
+            </div>
+            {exposureCategories.length > 0 && (
+              <div className="flex flex-wrap gap-2" aria-label="Highlighted span categories">
+                {exposureCategories.map((category) => (
+                  <Badge key={category} variant="outline">
+                    {SPAN_CATEGORY_LABEL[category]}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            <div>
+              <div className="font-medium">Why</div>
+              {exposureReasons.length === 0 ? (
+                <p className="mt-1 text-muted-foreground">
+                  No signal beyond the baseline: nothing in the permitted input looks like a missed
+                  secret, identifier, or prompt attack.
+                </p>
+              ) : (
+                <ul className="mt-1 space-y-1">
+                  {exposureReasons.map((contribution) => (
+                    <li
+                      key={contribution.feature}
+                      className="flex items-center justify-between gap-3"
+                    >
+                      <span>{FEATURE_LABEL[contribution.feature] ?? contribution.feature}</span>
+                      <span className="font-mono text-muted-foreground">
+                        +{contribution.weight.toFixed(2)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="pb-3">

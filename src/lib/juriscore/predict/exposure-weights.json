@@ -1,0 +1,25 @@
+{
+  "modelId": "juriscore.residual-exposure.local-logistic",
+  "modelVersion": "0.0.0-placeholder",
+  "placeholder": true,
+  "note": "Hand-set placeholder coefficients. Not fitted to any data; replaced by ml/exposure output in Phase V-B.",
+  "featuresVersion": "exposure-features.v1",
+  "maturity": "target",
+  "intercept": -3.0,
+  "coefficients": {
+    "max_span_score": 3.0,
+    "secret_shapes": 1.5,
+    "assigned_secrets": 1.5,
+    "high_entropy_tokens": 0.6,
+    "card_numbers": 2.0,
+    "network_identifiers": 0.3,
+    "labelled_identifiers": 1.2,
+    "prompt_attacks": 2.5,
+    "entropy_density": 0.5,
+    "redaction_density": 0.2
+  },
+  "bands": {
+    "uncertain": 0.35,
+    "high": 0.65
+  }
+}
