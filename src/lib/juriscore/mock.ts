@@ -3,6 +3,16 @@
 
 export type Domain = "finance" | "healthcare";
 export type Verdict = "allow" | "block" | "revise";
+
+/**
+ * Synthetic model rows for the CISO demonstration view only. These are not the gateway's
+ * models: the real allowlist comes from the server (`/api/gateway/status`).
+ */
+export const DEMO_MODELS: ReadonlyArray<{ id: string; label: string }> = [
+  { id: "demo-model-a", label: "Demo model A" },
+  { id: "demo-model-b", label: "Demo model B" },
+  { id: "demo-model-c", label: "Demo model C" },
+];
 export type Stage = "input_guardrail" | "policy_retrieval" | "output_guardrail" | "citation";
 
 export interface PolicyClause {

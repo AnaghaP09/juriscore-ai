@@ -2,10 +2,14 @@
 
 ## Current prototype state
 
-- The dashboard model selector is a simulation control only.
-- No provider or model is currently connected.
-- **Copy** is the only live handoff from Veil to another model.
-- The UI must not imply that sanitized content has been sent anywhere.
+- The dashboard **Active model** selector lists the server's model allowlist and shows the
+  server-reported connection state for the selected model (see `docs/GATEWAY_SETUP.md`).
+- Anthropic is the one provider, through the customer's own account. The key is held by
+  the server.
+- The **LLM Gateway** page sends prompts through Veil to a connected model. On the Veil
+  workbench, **Copy** is still the handoff; its **Send to AI model** button stays
+  unavailable until that page is wired to the gateway.
+- The UI must not imply that sanitized content has been sent anywhere it was not.
 
 ## Product requirement
 
@@ -21,15 +25,18 @@ JurisCore must not try to guess which model is active. An administrator must con
 - [x] Show **Not connected** while no provider connection exists.
 - [x] Keep **Copy** as the manual handoff.
 - [x] Show **Send to AI model** as unavailable until a real connection exists.
-- [ ] Add a server-side provider connection flow.
-- [ ] Store provider credentials on the server, never in browser storage.
-- [ ] Add a connection test and show its last verified time.
-- [ ] Replace **Not connected** with **Connected - provider name** only after validation succeeds.
-- [ ] Enable **Send to configured model** only after a connection passes validation.
-- [ ] Run Veil before every model request.
-- [ ] Validate model responses before returning them.
-- [ ] Produce an audit receipt without retaining raw sensitive values.
+- [x] Add a server-side provider connection flow.
+- [x] Store provider credentials on the server, never in browser storage.
+- [x] Add a connection test and show its last verified time.
+- [x] Replace **Not connected** with **Connected - provider name** only after validation succeeds.
+- [x] Enable **Send to configured model** only after a connection passes validation (LLM
+      Gateway page; the Veil workbench button is not wired yet).
+- [x] Run Veil before every model request.
+- [x] Validate model responses before returning them (Veil over the reply).
+- [x] Produce an audit receipt without retaining raw sensitive values.
 - [ ] Support a gateway API so other products can call JurisCore without using this UI.
+      The routes exist but require the browser session cookie; a machine credential is
+      not built.
 
 ## Out of scope for this prototype pass
 
