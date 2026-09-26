@@ -18,7 +18,7 @@ Constraints from the spec and the V1 boundary:
 - receipts are browser-generated, downloaded JSON at maturity `synthetic`;
 - sensitive raw values must never appear in a serialized receipt (principle 3);
 - `bun run check:core` and `bun run build` must stay green at every migration step;
-- the Lovable-connected branch must keep working (no big-bang refactor).
+- `main` must keep working (no big-bang refactor). (Written while the repo was Lovable-connected; it no longer is.)
 
 Relevant current state, verified in source:
 

@@ -23,14 +23,11 @@ import { Route as DashboardDriftRouteImport } from './routes/dashboard.drift'
 import { Route as DashboardCisoRouteImport } from './routes/dashboard.ciso'
 import { Route as DashboardAuditRouteImport } from './routes/dashboard.audit'
 import { Route as DashboardAnalyticsRouteImport } from './routes/dashboard.analytics'
-import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
-import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as DashboardUseCasesKeyRouteImport } from './routes/dashboard.use-cases.$key'
 import { Route as ApiGatewayVerifyRouteImport } from './routes/api/gateway/verify'
 import { Route as ApiGatewayStatusRouteImport } from './routes/api/gateway/status'
 import { Route as ApiGatewaySessionRouteImport } from './routes/api/gateway/session'
 import { Route as ApiGatewayRunRouteImport } from './routes/api/gateway/run'
-import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
 
 const McpRoute = McpRouteImport.update({
   id: '/mcp',
@@ -102,18 +99,6 @@ const DashboardAnalyticsRoute = DashboardAnalyticsRouteImport.update({
   path: '/analytics',
   getParentRoute: () => DashboardRoute,
 } as any)
-const Char91DotwellKnownChar93OauthProtectedResourceRoute =
-  Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
-    id: '/.well-known/oauth-protected-resource',
-    path: '/.well-known/oauth-protected-resource',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const Char91DotmcpChar93ListToolsRoute =
-  Char91DotmcpChar93ListToolsRouteImport.update({
-    id: '/.mcp/list-tools',
-    path: '/.mcp/list-tools',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const DashboardUseCasesKeyRoute = DashboardUseCasesKeyRouteImport.update({
   id: '/$key',
   path: '/$key',
@@ -139,20 +124,12 @@ const ApiGatewayRunRoute = ApiGatewayRunRouteImport.update({
   path: '/api/gateway/run',
   getParentRoute: () => rootRouteImport,
 } as any)
-const Char91DotmcpChar93InvokeToolToolRoute =
-  Char91DotmcpChar93InvokeToolToolRouteImport.update({
-    id: '/.mcp/invoke-tool/$tool',
-    path: '/.mcp/invoke-tool/$tool',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/connect': typeof ConnectRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/mcp': typeof McpRoute
-  '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
-  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/audit': typeof DashboardAuditRoute
   '/dashboard/ciso': typeof DashboardCisoRoute
@@ -163,7 +140,6 @@ export interface FileRoutesByFullPath {
   '/dashboard/rulebooks': typeof DashboardRulebooksRoute
   '/dashboard/use-cases': typeof DashboardUseCasesRouteWithChildren
   '/dashboard/': typeof DashboardIndexRoute
-  '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/api/gateway/run': typeof ApiGatewayRunRoute
   '/api/gateway/session': typeof ApiGatewaySessionRoute
   '/api/gateway/status': typeof ApiGatewayStatusRoute
@@ -174,8 +150,6 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/connect': typeof ConnectRoute
   '/mcp': typeof McpRoute
-  '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
-  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/audit': typeof DashboardAuditRoute
   '/dashboard/ciso': typeof DashboardCisoRoute
@@ -186,7 +160,6 @@ export interface FileRoutesByTo {
   '/dashboard/rulebooks': typeof DashboardRulebooksRoute
   '/dashboard/use-cases': typeof DashboardUseCasesRouteWithChildren
   '/dashboard': typeof DashboardIndexRoute
-  '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/api/gateway/run': typeof ApiGatewayRunRoute
   '/api/gateway/session': typeof ApiGatewaySessionRoute
   '/api/gateway/status': typeof ApiGatewayStatusRoute
@@ -199,8 +172,6 @@ export interface FileRoutesById {
   '/connect': typeof ConnectRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/mcp': typeof McpRoute
-  '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
-  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/audit': typeof DashboardAuditRoute
   '/dashboard/ciso': typeof DashboardCisoRoute
@@ -211,7 +182,6 @@ export interface FileRoutesById {
   '/dashboard/rulebooks': typeof DashboardRulebooksRoute
   '/dashboard/use-cases': typeof DashboardUseCasesRouteWithChildren
   '/dashboard/': typeof DashboardIndexRoute
-  '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/api/gateway/run': typeof ApiGatewayRunRoute
   '/api/gateway/session': typeof ApiGatewaySessionRoute
   '/api/gateway/status': typeof ApiGatewayStatusRoute
@@ -225,8 +195,6 @@ export interface FileRouteTypes {
     | '/connect'
     | '/dashboard'
     | '/mcp'
-    | '/.mcp/list-tools'
-    | '/.well-known/oauth-protected-resource'
     | '/dashboard/analytics'
     | '/dashboard/audit'
     | '/dashboard/ciso'
@@ -237,7 +205,6 @@ export interface FileRouteTypes {
     | '/dashboard/rulebooks'
     | '/dashboard/use-cases'
     | '/dashboard/'
-    | '/.mcp/invoke-tool/$tool'
     | '/api/gateway/run'
     | '/api/gateway/session'
     | '/api/gateway/status'
@@ -248,8 +215,6 @@ export interface FileRouteTypes {
     | '/'
     | '/connect'
     | '/mcp'
-    | '/.mcp/list-tools'
-    | '/.well-known/oauth-protected-resource'
     | '/dashboard/analytics'
     | '/dashboard/audit'
     | '/dashboard/ciso'
@@ -260,7 +225,6 @@ export interface FileRouteTypes {
     | '/dashboard/rulebooks'
     | '/dashboard/use-cases'
     | '/dashboard'
-    | '/.mcp/invoke-tool/$tool'
     | '/api/gateway/run'
     | '/api/gateway/session'
     | '/api/gateway/status'
@@ -272,8 +236,6 @@ export interface FileRouteTypes {
     | '/connect'
     | '/dashboard'
     | '/mcp'
-    | '/.mcp/list-tools'
-    | '/.well-known/oauth-protected-resource'
     | '/dashboard/analytics'
     | '/dashboard/audit'
     | '/dashboard/ciso'
@@ -284,7 +246,6 @@ export interface FileRouteTypes {
     | '/dashboard/rulebooks'
     | '/dashboard/use-cases'
     | '/dashboard/'
-    | '/.mcp/invoke-tool/$tool'
     | '/api/gateway/run'
     | '/api/gateway/session'
     | '/api/gateway/status'
@@ -297,9 +258,6 @@ export interface RootRouteChildren {
   ConnectRoute: typeof ConnectRoute
   DashboardRoute: typeof DashboardRouteWithChildren
   McpRoute: typeof McpRoute
-  Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
-  Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
-  Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
   ApiGatewayRunRoute: typeof ApiGatewayRunRoute
   ApiGatewaySessionRoute: typeof ApiGatewaySessionRoute
   ApiGatewayStatusRoute: typeof ApiGatewayStatusRoute
@@ -406,20 +364,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardAnalyticsRouteImport
       parentRoute: typeof DashboardRoute
     }
-    '/.well-known/oauth-protected-resource': {
-      id: '/.well-known/oauth-protected-resource'
-      path: '/.well-known/oauth-protected-resource'
-      fullPath: '/.well-known/oauth-protected-resource'
-      preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/.mcp/list-tools': {
-      id: '/.mcp/list-tools'
-      path: '/.mcp/list-tools'
-      fullPath: '/.mcp/list-tools'
-      preLoaderRoute: typeof Char91DotmcpChar93ListToolsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/dashboard/use-cases/$key': {
       id: '/dashboard/use-cases/$key'
       path: '/$key'
@@ -453,13 +397,6 @@ declare module '@tanstack/react-router' {
       path: '/api/gateway/run'
       fullPath: '/api/gateway/run'
       preLoaderRoute: typeof ApiGatewayRunRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/.mcp/invoke-tool/$tool': {
-      id: '/.mcp/invoke-tool/$tool'
-      path: '/.mcp/invoke-tool/$tool'
-      fullPath: '/.mcp/invoke-tool/$tool'
-      preLoaderRoute: typeof Char91DotmcpChar93InvokeToolToolRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -511,10 +448,6 @@ const rootRouteChildren: RootRouteChildren = {
   ConnectRoute: ConnectRoute,
   DashboardRoute: DashboardRouteWithChildren,
   McpRoute: McpRoute,
-  Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
-  Char91DotwellKnownChar93OauthProtectedResourceRoute:
-    Char91DotwellKnownChar93OauthProtectedResourceRoute,
-  Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
   ApiGatewayRunRoute: ApiGatewayRunRoute,
   ApiGatewaySessionRoute: ApiGatewaySessionRoute,
   ApiGatewayStatusRoute: ApiGatewayStatusRoute,
