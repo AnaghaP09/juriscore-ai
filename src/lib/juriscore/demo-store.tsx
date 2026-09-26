@@ -11,9 +11,18 @@ import {
 import { DEFAULT_ACTIVE_POLICY_IDS, type PolicyDefinition } from "@/lib/juriscore/policies/catalog";
 import type {
   DriftRiskBand,
+  PersistedReceipt,
   ValidationModule,
+  ValidationReceipt,
   ValidatorVerdict,
 } from "@/lib/juriscore/core/contracts";
+import { receiptStore, storageNote } from "@/lib/juriscore/core/receipt-store";
+import {
+  getReceiptFolder,
+  writeReceiptToFolder,
+  type FolderWriteResult,
+} from "@/lib/juriscore/core/receipt-folder";
+import { createSafeStorage } from "@/lib/juriscore/core/safe-storage";
 import { GatewayHttpError, gatewayClient, needsUnlock } from "@/lib/juriscore/gateway/client";
 import type { GatewayRunStatus, GatewayStatus } from "@/lib/juriscore/gateway/protocol";
 import {
@@ -43,6 +52,13 @@ export interface GatewayRun {
   latencyMs: number;
 }
 
+export interface RecordedReceipt {
+  /** The stored, allowlisted record; downloads and folder writes use exactly this. */
+  receipt: PersistedReceipt;
+  /** Set when a receipt folder is chosen: where it was written, or why it was not. */
+  folder: FolderWriteResult | null;
+}
+
 /**
  * What the browser knows about the server-side gateway. Everything here comes from the
  * server; "Connected" is shown only when `status.connections[model].state` says so.
@@ -53,12 +69,7 @@ export type GatewayView =
   | { phase: "locked"; expired: boolean }
   | { phase: "ready"; status: GatewayStatus };
 
-export interface SessionReceiptEntry {
-  id: string;
-  module: string;
-  verdict: string;
-  createdAt: string;
-}
+const RECENT_RECEIPT_COUNT = 5;
 
 export interface VeilCheckRecord {
   verdict: ValidatorVerdict;
@@ -198,9 +209,15 @@ interface DemoStore {
   localMetrics: LocalMetricsLedger;
   recordVeilCheck: (record: VeilCheckRecord) => void;
   recordPlumbCheck: (record: StampedPlumbCheck) => void;
-  recordReceipt: (receipt: SessionReceiptEntry) => void;
+  /** Stores the receipt of a completed run in the browser history (and folder, if chosen). */
+  recordReceipt: (receipt: ValidationReceipt) => Promise<RecordedReceipt>;
   seedDemoMetrics: () => void;
-  sessionReceipts: SessionReceiptEntry[];
+  /** The latest receipts in the browser history, newest first. */
+  recentReceipts: PersistedReceipt[];
+  /** Oldest receipts dropped from history in this session to stay within the limit. */
+  receiptsTrimmed: number;
+  /** Non-null when browser storage failed and state is held in memory only. */
+  storageNote: string | null;
   connectedRepository: ConnectedRepository | null;
   setConnectedRepository: (repository: ConnectedRepository | null) => void;
   sourceDocuments: SourceDocument[];
@@ -222,15 +239,31 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
   const [activePolicyIds, setActivePolicyIds] = useState<string[]>(DEFAULT_ACTIVE_POLICY_IDS);
   const [customPolicies, setCustomPolicies] = useState<PolicyDefinition[]>([]);
   const [localMetrics, setLocalMetrics] = useState<LocalMetricsLedger>(seededLedger);
-  const [sessionReceipts, setSessionReceipts] = useState<SessionReceiptEntry[]>([]);
+  const [recentReceipts, setRecentReceipts] = useState<PersistedReceipt[]>([]);
+  const [receiptsTrimmed, setReceiptsTrimmed] = useState(0);
+  // Tracked separately so the one notice says what actually is and is not being saved.
+  const [settingsStorageFailed, setSettingsStorageFailed] = useState(false);
+  const [receiptStorageFailed, setReceiptStorageFailed] = useState(false);
+  const [receiptFolderActive, setReceiptFolderActive] = useState(false);
   const [connectedRepository, setConnectedRepository] = useState<ConnectedRepository | null>(null);
   const [sourceDocuments, setSourceDocuments] = useState<SourceDocument[]>([]);
 
+  // Every localStorage read and write goes through this; a failure keeps settings in
+  // memory and is reported in the single storage notice (see `storageNote`).
+  const storage = useMemo(
+    () =>
+      createSafeStorage(
+        () => window.localStorage,
+        () => setSettingsStorageFailed(true),
+      ),
+    [],
+  );
+
   useEffect(() => {
+    const savedActive = storage.get("juriscore.activePolicyIds");
+    const savedCustom = storage.get("juriscore.customPolicies");
+    const savedMetrics = storage.get(METRICS_STORAGE_KEY);
     try {
-      const savedActive = window.localStorage.getItem("juriscore.activePolicyIds");
-      const savedCustom = window.localStorage.getItem("juriscore.customPolicies");
-      const savedMetrics = window.localStorage.getItem(METRICS_STORAGE_KEY);
       if (savedActive) setActivePolicyIds(JSON.parse(savedActive) as string[]);
       if (savedCustom) setCustomPolicies(JSON.parse(savedCustom) as PolicyDefinition[]);
       if (savedMetrics) {
@@ -241,28 +274,47 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
         }
       }
     } catch {
-      // Keep the built-in defaults when browser storage is unavailable or malformed.
+      // Keep the built-in defaults when saved state is malformed.
     }
-  }, []);
+  }, [storage]);
 
   useEffect(() => {
-    window.localStorage.setItem("juriscore.activePolicyIds", JSON.stringify(activePolicyIds));
-  }, [activePolicyIds]);
+    storage.set("juriscore.activePolicyIds", JSON.stringify(activePolicyIds));
+  }, [storage, activePolicyIds]);
 
   useEffect(() => {
-    window.localStorage.setItem("juriscore.customPolicies", JSON.stringify(customPolicies));
-  }, [customPolicies]);
+    storage.set("juriscore.customPolicies", JSON.stringify(customPolicies));
+  }, [storage, customPolicies]);
 
   useEffect(() => {
-    window.localStorage.setItem(METRICS_STORAGE_KEY, JSON.stringify(localMetrics));
-  }, [localMetrics]);
+    storage.set(METRICS_STORAGE_KEY, JSON.stringify(localMetrics));
+  }, [storage, localMetrics]);
 
   useEffect(() => {
-    try {
-      for (const key of LEGACY_SOURCE_STORAGE_KEYS) window.localStorage.removeItem(key);
-    } catch {
-      // Storage unavailable: nothing was saved there to remove.
-    }
+    for (const key of LEGACY_SOURCE_STORAGE_KEYS) storage.remove(key);
+  }, [storage]);
+
+  // The Overview list reads the latest receipts from the browser history and follows
+  // changes from this tab and others.
+  useEffect(() => {
+    const store = receiptStore();
+    let cancelled = false;
+    const refresh = () => {
+      store
+        .listReceipts({ offset: 0, limit: RECENT_RECEIPT_COUNT })
+        .then((page) => {
+          if (cancelled) return;
+          setRecentReceipts(page.items);
+          if (!store.status().persistent) setReceiptStorageFailed(true);
+        })
+        .catch(() => undefined);
+    };
+    refresh();
+    const unsubscribe = store.onChange(refresh);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, []);
 
   const addSourceDocument = useCallback((document: SourceDocument) => {
@@ -432,11 +484,20 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const recordReceipt = useCallback(
-    (receipt: SessionReceiptEntry) => {
+    async (receipt: ValidationReceipt): Promise<RecordedReceipt> => {
+      const store = receiptStore();
+      // Rejects only for a receipt that does not validate; storage failures degrade to
+      // memory inside the store and never reach the check.
+      const added = await store.addReceipt(receipt);
       mutateToday((day) => {
         day.receipts += 1;
       });
-      setSessionReceipts((prev) => [receipt, ...prev].slice(0, 20));
+      if (added.trimmed > 0) setReceiptsTrimmed((count) => count + added.trimmed);
+      if (!store.status().persistent) setReceiptStorageFailed(true);
+      const handle = await getReceiptFolder(store);
+      const folder = handle ? await writeReceiptToFolder(added.receipt, { handle }) : null;
+      setReceiptFolderActive(folder?.ok === true);
+      return { receipt: added.receipt, folder };
     },
     [mutateToday],
   );
@@ -452,7 +513,6 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     setActivePolicyIds(DEFAULT_ACTIVE_POLICY_IDS);
     setCustomPolicies([]);
     setLocalMetrics(seededLedger());
-    setSessionReceipts([]);
     setConnectedRepository(null);
     setSourceDocuments([]);
   }, []);
@@ -485,7 +545,13 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       recordPlumbCheck,
       recordReceipt,
       seedDemoMetrics,
-      sessionReceipts,
+      recentReceipts,
+      receiptsTrimmed,
+      storageNote: storageNote({
+        receiptsFailed: receiptStorageFailed,
+        settingsFailed: settingsStorageFailed,
+        folderActive: receiptFolderActive,
+      }),
       connectedRepository,
       setConnectedRepository,
       sourceDocuments,
@@ -518,7 +584,11 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       recordPlumbCheck,
       recordReceipt,
       seedDemoMetrics,
-      sessionReceipts,
+      recentReceipts,
+      receiptsTrimmed,
+      settingsStorageFailed,
+      receiptStorageFailed,
+      receiptFolderActive,
       connectedRepository,
       sourceDocuments,
       addSourceDocument,

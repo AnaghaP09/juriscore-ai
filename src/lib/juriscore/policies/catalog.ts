@@ -19,6 +19,8 @@ export interface PolicyDefinition {
   veilScopes: VeilPolicyScope[];
   defaultActive: boolean;
   custom?: boolean;
+  /** Subject area shown on receipts. Built-ins set it; custom policies derive it. */
+  domain?: string;
   /** ISO time of the last create or edit; custom policies only. Absent on older saves. */
   updatedAt?: string;
   source: PolicySource;
@@ -36,6 +38,7 @@ export const BUILT_IN_POLICIES: PolicyDefinition[] = [
     features: ["veil", "plumb"],
     veilScopes: ["common", "secrets"],
     defaultActive: true,
+    domain: "Privacy",
     source: {
       title: "NIST Privacy Framework 1.0",
       publisher: "National Institute of Standards and Technology",
@@ -54,6 +57,7 @@ export const BUILT_IN_POLICIES: PolicyDefinition[] = [
     features: ["veil", "plumb"],
     veilScopes: ["common", "healthcare"],
     defaultActive: false,
+    domain: "Healthcare",
     source: {
       title: "The HIPAA Privacy Rule",
       publisher: "HHS Office for Civil Rights",
@@ -72,6 +76,7 @@ export const BUILT_IN_POLICIES: PolicyDefinition[] = [
     features: ["veil", "plumb"],
     veilScopes: ["common", "secrets"],
     defaultActive: true,
+    domain: "Security & compliance",
     source: {
       title: "2017 Trust Services Criteria, TSP Section 100",
       publisher: "American Institute of Certified Public Accountants",
@@ -90,6 +95,7 @@ export const BUILT_IN_POLICIES: PolicyDefinition[] = [
     features: ["veil", "plumb"],
     veilScopes: ["secrets", "prompt_security"],
     defaultActive: true,
+    domain: "AI security",
     source: {
       title: "MITRE ATLAS",
       publisher: "MITRE",
@@ -108,6 +114,7 @@ export const BUILT_IN_POLICIES: PolicyDefinition[] = [
     features: ["veil", "plumb"],
     veilScopes: ["common", "secrets", "prompt_security"],
     defaultActive: true,
+    domain: "AI governance",
     source: {
       title: "Artificial Intelligence Risk Management Framework: Generative AI Profile",
       publisher: "National Institute of Standards and Technology",
@@ -126,6 +133,7 @@ export const BUILT_IN_POLICIES: PolicyDefinition[] = [
     features: ["veil", "plumb"],
     veilScopes: ["secrets", "prompt_security"],
     defaultActive: false,
+    domain: "Cybersecurity",
     source: {
       title: "The NIST Cybersecurity Framework 2.0",
       publisher: "National Institute of Standards and Technology",
@@ -141,6 +149,12 @@ export const DEFAULT_ACTIVE_POLICY_IDS = BUILT_IN_POLICIES.filter(
 
 export function policyById(id: string, customPolicies: PolicyDefinition[] = []) {
   return [...BUILT_IN_POLICIES, ...customPolicies].find((policy) => policy.id === id);
+}
+
+/** Custom policies are grouped by the authority the user named. */
+export function policyDomain(policy: PolicyDefinition) {
+  if (policy.custom || !policy.domain) return `Custom · ${policy.authority}`;
+  return policy.domain;
 }
 
 export function policiesForFeature(

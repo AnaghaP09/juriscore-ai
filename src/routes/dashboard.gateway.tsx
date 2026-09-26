@@ -198,12 +198,8 @@ function Gateway() {
       // A late answer to an earlier request is discarded, never shown over a newer one.
       if (!sequencer.current.isCurrent(response.run.clientRequestId)) return;
       setResult({ run: response.run, output: response.display.output, receipt: response.receipt });
-      recordReceipt({
-        id: response.receipt.id,
-        module: response.receipt.module,
-        verdict: response.receipt.verdict,
-        createdAt: response.receipt.createdAt,
-      });
+      // Every completed gateway run stores its full, text-free receipt in the history.
+      void recordReceipt(response.receipt).catch(() => undefined);
       pushRun({
         receiptId: response.receipt.id,
         ts: response.receipt.createdAt,

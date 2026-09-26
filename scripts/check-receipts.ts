@@ -10,7 +10,7 @@ import {
 import { protectText } from "../src/lib/juriscore/veil/engine";
 import { veilReceiptInput } from "../src/lib/juriscore/veil/receipt";
 import { compareClaims, type PlumbClaim } from "../src/lib/juriscore/plumb/engine";
-import { plumbReceiptInput } from "../src/lib/juriscore/plumb/receipt";
+import { plumbReceiptInput, plumbSourceDigests } from "../src/lib/juriscore/plumb/receipt";
 import { SENSITIVE_FIXTURE_VALUES, SYNTHETIC_CLINICAL_NOTE } from "./fixtures/veil-fixtures";
 
 const CREATED_AT = "2026-08-01T00:00:00.000Z";
@@ -53,11 +53,15 @@ validationReceiptSchema.parse(veilReceipt);
 assert.equal(veilReceipt.module, "veil");
 assert.equal(veilReceipt.verdict, "block");
 assert.equal(veilReceipt.maturity, "synthetic");
+assert.equal(veilReceipt.digestVersion, "veil.raw-text.v1");
 assert.equal(
   veilReceipt.policyVersion,
   "hipaa-privacy@45 CFR Parts 160 and 164; pii-baseline@JurisCore 2026.07",
 );
-assert.equal(veilReceipt.id, `receipt.veil.${CREATED_AT}.${veilReceipt.inputDigest.slice(0, 8)}`);
+assert.ok(
+  veilReceipt.id.startsWith(`receipt.veil.${CREATED_AT}.${veilReceipt.inputDigest.slice(0, 8)}.`),
+);
+assert.match(veilReceipt.id, /\.[0-9a-f]{16}$/);
 assert.match(veilReceipt.inputDigest, /^[0-9a-f]{64}$/);
 
 const serializedVeilReceipt = serializeReceipt(veilReceipt);
@@ -84,7 +88,19 @@ assert.equal(noPolicyReceipt.policyVersion, "none");
 
 // Windows-safe receipt filenames: no colons or dots besides the extension.
 assert.equal(receiptFileName(veilReceipt).includes(":"), false);
-assert.match(receiptFileName(veilReceipt), /^juriscore-veil-receipt-[0-9TZ-]+\.json$/);
+assert.match(receiptFileName(veilReceipt), /^juriscore-veil-receipt-[0-9A-Za-z_-]+\.json$/);
+// The file name comes from the id: same-millisecond receipts get different names.
+const sameInstant = await createReceipt({
+  ...veilReceiptInput(veilRun, SYNTHETIC_CLINICAL_NOTE, veilPolicies),
+  createdAt: CREATED_AT,
+});
+assert.notEqual(sameInstant.id, veilReceipt.id);
+assert.notEqual(receiptFileName(sameInstant), receiptFileName(veilReceipt));
+// A legacy id (no nonce) still yields a Windows-safe name.
+assert.equal(
+  receiptFileName({ module: "veil", id: `receipt.veil.${CREATED_AT}.abcdef12` }),
+  "juriscore-veil-receipt-2026-08-01T00-00-00-000Z-abcdef12.json",
+);
 
 // Plumb drifted receipt: block verdict with excerpt-free evidence on both sides.
 const authority: PlumbClaim = {
@@ -108,19 +124,30 @@ const assertionClaim: PlumbClaim = {
     excerpt: "Fees remain capped at 1.0% of principal.",
   },
 };
+const plumbDigests = await plumbSourceDigests({
+  diff: "+  crossBorderFeeBps: 250,",
+  documents: [{ name: "sec-10k-excerpt", text: "Fees remain capped at 1.0% of principal." }],
+});
 const plumbRun = compareClaims([authority], [assertionClaim], { policyIds: ["soc2-tsc"] });
 const plumbReceipt = await createReceipt({
   ...plumbReceiptInput(
     plumbRun,
     { authorities: [authority], assertions: [assertionClaim] },
     [{ id: "soc2-tsc", version: "2017 TSC with March 2020 updates" }],
+    plumbDigests,
   ),
   createdAt: CREATED_AT,
 });
 validationReceiptSchema.parse(plumbReceipt);
 assert.equal(plumbReceipt.module, "plumb");
 assert.equal(plumbReceipt.verdict, "block");
+assert.equal(plumbReceipt.digestVersion, "plumb.sources.v2");
+assert.equal(plumbReceipt.sourceDigest, plumbDigests.sourceDigest);
 assert.equal(plumbReceipt.evidence.length, 2);
+// Evidence source versions are content digests, never load times.
+for (const reference of plumbReceipt.evidence) {
+  assert.match(reference.sourceVersion, /^[0-9a-f]{64}$/);
+}
 assert.equal(serializeReceipt(plumbReceipt).includes('"excerpt"'), false);
 assert.equal(serializeReceipt(plumbReceipt).includes(assertionClaim.statement), false);
 
@@ -140,6 +167,7 @@ const cannotDetermineReceipt = await createReceipt({
     cannotDetermineRun,
     { authorities: [], assertions: [orphanAssertion] },
     [{ id: "soc2-tsc", version: "2017 TSC with March 2020 updates" }],
+    plumbDigests,
   ),
   createdAt: CREATED_AT,
 });

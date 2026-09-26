@@ -16,6 +16,7 @@
     "check:veil": "bun scripts/check-veil.ts",
     "check:plumb": "bun scripts/check-plumb.ts",
     "check:receipts": "bun scripts/check-receipts.ts",
+    "check:receipt-store": "bun scripts/check-receipt-store.ts",
     "check:mcp": "bun scripts/check-mcp.ts",
     "check:predict": "bun scripts/check-predict.ts",
     "check:exposure": "bun scripts/check-exposure.ts",

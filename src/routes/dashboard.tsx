@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { useDemoStore } from "@/lib/juriscore/demo-store";
 import { Badge } from "@/components/ui/badge";
 import { ActiveModelControl } from "@/components/active-model-control";
+import { StorageNotice } from "@/components/storage-notice";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -155,6 +156,7 @@ function DashboardLayout() {
             </div>
           </div>
           <main id="dashboard-main" className="flex-1 min-w-0">
+            <StorageNotice />
             <Outlet />
           </main>
         </div>

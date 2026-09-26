@@ -16,15 +16,21 @@ import {
   HelpCircle,
   BookOpen,
   Upload,
+  FileText,
 } from "lucide-react";
-import { useDemoStore } from "@/lib/juriscore/demo-store";
+import { useDemoStore, type RecordedReceipt } from "@/lib/juriscore/demo-store";
 import { stampCheck } from "@/lib/juriscore/metrics-ledger";
 import { compareClaims, type PlumbClaim, type PlumbResult } from "@/lib/juriscore/plumb/engine";
 import { policiesForFeature } from "@/lib/juriscore/policies/catalog";
-import { createReceipt, downloadReceipt } from "@/lib/juriscore/core/receipts";
-import { plumbReceiptInput } from "@/lib/juriscore/plumb/receipt";
-import type { ValidationReceipt } from "@/lib/juriscore/core/contracts";
-import { ReceiptSummary } from "@/components/receipt-summary";
+import {
+  createReceipt,
+  downloadReceipt,
+  downloadText,
+  fileTimestamp,
+} from "@/lib/juriscore/core/receipts";
+import { plumbReportFileName, plumbReportMarkdown } from "@/lib/juriscore/core/reports";
+import { plumbReceiptInput, plumbSourceDigests } from "@/lib/juriscore/plumb/receipt";
+import { FolderWriteNote, ReceiptSummary } from "@/components/receipt-summary";
 import { PlumbSources } from "@/components/plumb-sources";
 import {
   BUILT_IN_SUBJECTS,
@@ -347,8 +353,12 @@ function DriftView() {
   const [doc, setDoc] = useState<string>("sec");
   const [ran, setRan] = useState(false);
   const [evaluation, setEvaluation] = useState<PlumbResult | null>(null);
-  const [receipt, setReceipt] = useState<ValidationReceipt | null>(null);
+  const [recorded, setRecorded] = useState<RecordedReceipt | null>(null);
   const [receiptError, setReceiptError] = useState<string | null>(null);
+  // Bumped whenever the run is reset, so a receipt finishing late for an older run is
+  // stored but never shown against the current one.
+  const runGeneration = useRef(0);
+  const receipt = recorded?.receipt ?? null;
   const [runWarning, setRunWarning] = useState<string | null>(null);
   const activePlumbPolicies = useMemo(
     () => policiesForFeature(activePolicyIds, "plumb", customPolicies),
@@ -498,7 +508,7 @@ function DriftView() {
       return;
     }
     setRunWarning(null);
-    setReceipt(null);
+    setRecorded(null);
     setReceiptError(null);
     const nextEvaluation = compareClaims(authorities, assertions, {
       policyIds: activePlumbPolicies.map((policy) => policy.id),
@@ -521,6 +531,32 @@ function DriftView() {
       { documents: riskDocuments, policyConfig: riskPolicyConfig },
       recordPlumbCheck,
     );
+    void storeReceipt(nextEvaluation);
+  };
+
+  /** Every completed check stores one receipt; Download reuses it rather than making another. */
+  const storeReceipt = async (nextEvaluation: PlumbResult) => {
+    const generation = ++runGeneration.current;
+    const sources = {
+      diff: connectedRepository?.diff ?? sampleDiffText(displayedDiffLines),
+      documents: selectedDoc ? [{ name: selectedDoc.name, text: selectedDoc.text }] : [],
+    };
+    const policies = activePlumbPolicies.map((policy) => ({
+      id: policy.id,
+      version: policy.version,
+    }));
+    try {
+      const digests = await plumbSourceDigests(sources);
+      const created = await createReceipt(
+        plumbReceiptInput(nextEvaluation, { authorities, assertions }, policies, digests),
+      );
+      const stored = await recordReceipt(created);
+      if (runGeneration.current === generation) setRecorded(stored);
+    } catch {
+      if (runGeneration.current === generation) {
+        setReceiptError("A valid receipt could not be produced for this run.");
+      }
+    }
   };
 
   const openDocumentPicker = useRef<(() => void) | null>(null);
@@ -529,39 +565,24 @@ function DriftView() {
   }, []);
 
   const resetRun = () => {
+    runGeneration.current += 1;
     setRunWarning(null);
     setRan(false);
     setEvaluation(null);
-    setReceipt(null);
+    setRecorded(null);
     setReceiptError(null);
     retireWorkbenchRisk(riskRefs);
     setAcceptedRisk(null);
     setRiskRun((run) => run + 1);
   };
 
-  const generateReceipt = async () => {
+  const saveReport = () => {
     if (!evaluation) return;
-    try {
-      const nextReceipt = await createReceipt(
-        plumbReceiptInput(
-          evaluation,
-          { authorities, assertions },
-          activePlumbPolicies.map((policy) => ({ id: policy.id, version: policy.version })),
-        ),
-      );
-      setReceipt(nextReceipt);
-      setReceiptError(null);
-      downloadReceipt(nextReceipt);
-      recordReceipt({
-        id: nextReceipt.id,
-        module: nextReceipt.module,
-        verdict: nextReceipt.verdict,
-        createdAt: nextReceipt.createdAt,
-      });
-    } catch {
-      setReceipt(null);
-      setReceiptError("A valid receipt could not be produced for this run.");
-    }
+    downloadText(
+      plumbReportFileName(fileTimestamp()),
+      plumbReportMarkdown(evaluation, receipt),
+      "text/markdown;charset=utf-8",
+    );
   };
 
   const driftFindings =
@@ -836,10 +857,21 @@ function DriftView() {
         <CardHeader className="pb-3">
           <CardTitle className="flex flex-wrap items-center justify-between gap-3 text-sm">
             <span>Audit report</span>
-            <Button size="sm" variant="outline" onClick={generateReceipt} disabled={!evaluation}>
-              <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-              Download receipt
-            </Button>
+            <span className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="outline" onClick={saveReport} disabled={!evaluation}>
+                <FileText className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                Save report
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => receipt && downloadReceipt(receipt)}
+                disabled={!receipt}
+              >
+                <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                Download receipt
+              </Button>
+            </span>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -1014,6 +1046,9 @@ function DriftView() {
                 {evaluation.policyIds.length === 1 ? "policy" : "policies"} applied.
               </div>
               <ReceiptSummary receipt={receipt} error={receiptError} className="basis-full" />
+              <div className="basis-full">
+                <FolderWriteNote result={recorded?.folder ?? null} />
+              </div>
             </div>
           )}
         </CardContent>

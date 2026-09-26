@@ -23,11 +23,22 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/page-header";
-import { useDemoStore } from "@/lib/juriscore/demo-store";
-import { createReceipt, downloadReceipt } from "@/lib/juriscore/core/receipts";
+import { useDemoStore, type RecordedReceipt } from "@/lib/juriscore/demo-store";
+import {
+  createReceipt,
+  downloadReceipt,
+  downloadText,
+  encodePolicyVersion,
+  fileTimestamp,
+  ReceiptError,
+  sha256Hex,
+} from "@/lib/juriscore/core/receipts";
+import { receiptStore } from "@/lib/juriscore/core/receipt-store";
+import { veilReportFileName, veilReportText } from "@/lib/juriscore/core/reports";
+import { sharedReceiptRunFinalizer } from "@/lib/juriscore/core/run-finalizer";
 import { veilReceiptInput } from "@/lib/juriscore/veil/receipt";
+import { FolderWriteNote, ReceiptSummary } from "@/components/receipt-summary";
 import type { ValidationReceipt } from "@/lib/juriscore/core/contracts";
-import { ReceiptSummary } from "@/components/receipt-summary";
 import { policiesForFeature, veilScopesForPolicies } from "@/lib/juriscore/policies/catalog";
 import { protectText, type VeilStrategy } from "@/lib/juriscore/veil/engine";
 import { predictResidualExposure } from "@/lib/juriscore/predict/exposure-model";
@@ -164,6 +175,8 @@ type UploadedDocument = {
   warnings: string[];
 };
 
+type FinalizedRun = { key: string; recorded: RecordedReceipt };
+
 const formatBytes = (bytes: number) => {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -176,7 +189,7 @@ function VeilWorkbench() {
   const [copied, setCopied] = useState(false);
   const [uploadedDocument, setUploadedDocument] = useState<UploadedDocument | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [receipt, setReceipt] = useState<ValidationReceipt | null>(null);
+  const [finalizedRun, setFinalizedRun] = useState<FinalizedRun | null>(null);
   const [receiptError, setReceiptError] = useState<string | null>(null);
   const [progress, setProgress] = useState<ExtractionProgress | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -249,10 +262,31 @@ function VeilWorkbench() {
     [],
   );
 
+  const policyRefs = useMemo(
+    () => activeVeilPolicies.map((policy) => ({ id: policy.id, version: policy.version })),
+    [activeVeilPolicies],
+  );
+  // A run is identified by its input, policy set, and strategy. Keystrokes change it but
+  // never create a receipt; the first Copy, Save report, or Download receipt finalizes it.
+  const runKey = useMemo(
+    () => JSON.stringify([strategy, encodePolicyVersion(policyRefs), raw]),
+    [strategy, policyRefs, raw],
+  );
+  const receipt = finalizedRun?.key === runKey ? finalizedRun.recorded.receipt : null;
+  const folderResult = finalizedRun?.key === runKey ? finalizedRun.recorded.folder : null;
+
   useEffect(() => {
-    setReceipt(null);
     setReceiptError(null);
-  }, [raw, strategy, activeVeilPolicies, policyScopes]);
+  }, [runKey]);
+
+  // A cleared history no longer holds the shown receipt; the next action records a new one.
+  useEffect(
+    () =>
+      receiptStore().onChange((event) => {
+        if (event.type === "cleared") setFinalizedRun(null);
+      }),
+    [],
+  );
 
   const releasePreview = () => {
     if (previewUrlRef.current) {
@@ -329,11 +363,56 @@ function VeilWorkbench() {
     });
   };
 
+  /**
+   * Builds and stores this run's receipt once. Later actions on the same run reuse it, so
+   * Copy followed by Download leaves exactly one receipt in the history — also after
+   * switching to another input or strategy and back, or leaving this page and returning.
+   * The tab-wide finalizer is keyed by strategy, policy version, and the input digest, so
+   * it never holds the input text; a receipt trimmed from or cleared out of the history is
+   * recorded again. Never rejects: any failure, including a missing Web Crypto digest,
+   * shows the receipt error and resolves null.
+   */
+  const finalizeRun = async (): Promise<RecordedReceipt | null> => {
+    const key = runKey;
+    const run = { result, raw, policyRefs, strategy };
+    let reason = "A valid receipt could not be produced for this run.";
+    try {
+      const inputDigest = await sha256Hex(run.raw);
+      const recorded = await sharedReceiptRunFinalizer<RecordedReceipt>("veil")(
+        JSON.stringify([run.strategy, encodePolicyVersion(run.policyRefs), inputDigest]),
+        async () => {
+          const input = veilReceiptInput(run.result, run.raw, run.policyRefs);
+          const created = await createReceipt(input);
+          const stored = await recordReceipt(created);
+          recordCurrentRun();
+          return stored;
+        },
+      );
+      if (recorded) {
+        setFinalizedRun({ key, recorded });
+        return recorded;
+      }
+    } catch (error) {
+      if (error instanceof ReceiptError) reason = error.message;
+    }
+    setReceiptError(reason);
+    return null;
+  };
+
   const copySanitized = async () => {
     await navigator.clipboard.writeText(result.sanitizedText);
-    if (raw.trim()) recordCurrentRun();
+    if (raw.trim()) void finalizeRun();
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1500);
+  };
+
+  const saveReport = async () => {
+    const recorded = raw.trim() ? await finalizeRun() : null;
+    downloadText(
+      veilReportFileName(fileTimestamp()),
+      veilReportText(result, strategy, recorded?.receipt ?? null),
+      "text/plain;charset=utf-8",
+    );
   };
 
   // A high residual-exposure band asks for one explicit confirmation before the text
@@ -353,28 +432,8 @@ function VeilWorkbench() {
   };
 
   const generateReceipt = async () => {
-    try {
-      const nextReceipt = await createReceipt(
-        veilReceiptInput(
-          result,
-          raw,
-          activeVeilPolicies.map((policy) => ({ id: policy.id, version: policy.version })),
-        ),
-      );
-      setReceipt(nextReceipt);
-      setReceiptError(null);
-      downloadReceipt(nextReceipt);
-      recordCurrentRun();
-      recordReceipt({
-        id: nextReceipt.id,
-        module: nextReceipt.module,
-        verdict: nextReceipt.verdict,
-        createdAt: nextReceipt.createdAt,
-      });
-    } catch {
-      setReceipt(null);
-      setReceiptError("A valid receipt could not be produced for this run.");
-    }
+    const recorded = await finalizeRun();
+    if (recorded) downloadReceipt(recorded.receipt);
   };
 
   return (
@@ -885,24 +944,38 @@ function VeilWorkbench() {
               <ReceiptText className="h-4 w-4 text-primary" aria-hidden />
               Audit receipt
             </span>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={generateReceipt}
-              disabled={!raw.trim() || Boolean(progress)}
-            >
-              <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-              Download receipt
-            </Button>
+            <span className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={saveReport}
+                disabled={!raw.trim() || Boolean(progress)}
+              >
+                <FileText className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                Save report
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={generateReceipt}
+                disabled={!raw.trim() || Boolean(progress)}
+              >
+                <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                Download receipt
+              </Button>
+            </span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
             The receipt records the verdict, finding identifiers, and active policy versions for
             this run. It carries a digest of the input — never the text itself — and is generated in
-            this browser.
+            this browser. Copying, saving a report, or downloading the receipt adds it to the
+            browser-local history on the Receipts tab, once per run. Save report downloads the
+            protected text with a findings summary; it is never stored.
           </p>
           <ReceiptSummary receipt={receipt} error={receiptError} verdictLabel="Raw input verdict" />
+          <FolderWriteNote result={folderResult} />
         </CardContent>
       </Card>
     </div>

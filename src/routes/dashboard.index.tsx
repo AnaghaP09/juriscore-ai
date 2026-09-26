@@ -43,7 +43,7 @@ function formatVolume(chars: number) {
 }
 
 function Overview() {
-  const { localMetrics, sessionReceipts, activePolicyIds, customPolicies, seedDemoMetrics } =
+  const { localMetrics, recentReceipts, activePolicyIds, customPolicies, seedDemoMetrics } =
     useDemoStore();
   const activePolicies = activePolicyIds
     .map((id) => policyById(id, customPolicies))
@@ -135,7 +135,7 @@ function Overview() {
               </dl>
               <SmallStat
                 value={overall.receipts.toLocaleString("en-US")}
-                label="Receipts downloaded"
+                label="Receipts recorded"
               />
             </MetricTile>
           </div>
@@ -273,7 +273,7 @@ function Overview() {
           <CardTitle className="flex flex-wrap items-center justify-between gap-3 text-sm">
             <span className="flex items-center gap-2">
               <ReceiptText className="h-4 w-4 text-primary" aria-hidden />
-              Receipts this session
+              Latest receipts
             </span>
             <Button asChild size="sm" variant="outline">
               <Link to="/dashboard/audit">View receipts</Link>
@@ -281,13 +281,14 @@ function Overview() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {sessionReceipts.length === 0 ? (
+          {recentReceipts.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Receipts appear here after you download one from a check.
+              Receipts appear here after a Plumb check, or when you copy, save, or download a Veil
+              result.
             </p>
           ) : (
             <ul className="divide-y divide-border/60">
-              {sessionReceipts.map((receipt) => (
+              {recentReceipts.map((receipt) => (
                 <li
                   key={receipt.id}
                   className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
