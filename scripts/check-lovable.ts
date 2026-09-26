@@ -42,19 +42,29 @@ for (const field of ["dependencies", "devDependencies", "optionalDependencies"])
 }
 
 const lock = readFileSync(join(ROOT, "bun.lock"), "utf8");
-if (/@lovable\.dev\//.test(lock)) findings.push("bun.lock still resolves an @lovable.dev package");
+// Every package name in the lockfile, direct or transitive.
+const lovablePackages = new Set(
+  [...lock.matchAll(/\["((?:@[^/"]+\/)?[^@"]+)@[^"]+",/g)]
+    .map((match) => match[1])
+    .filter((name) => /lovable/i.test(name)),
+);
+for (const name of lovablePackages) findings.push(`bun.lock resolves the package ${name}`);
 const mirrorUrls = lock.match(/https:\/\/[^"]*(lovable|pkg\.dev)[^"]*/g) ?? [];
 if (mirrorUrls.length > 0) {
   findings.push(`bun.lock downloads ${mirrorUrls.length} package(s) from Lovable's npm mirror`);
 }
 
 if (existsSync(join(ROOT, ".lovable"))) findings.push(".lovable/ directory is present");
-const bunfig = join(ROOT, "bunfig.toml");
-if (existsSync(bunfig) && /lovable/i.test(readFileSync(bunfig, "utf8"))) {
-  findings.push("bunfig.toml mentions Lovable packages");
+// Registry configuration: a Lovable mirror here would bring installs back to Lovable even
+// with a clean lockfile.
+for (const file of [".npmrc", "bunfig.toml", ".yarnrc.yml"]) {
+  const path = join(ROOT, file);
+  if (existsSync(path) && /lovable|pkg\.dev/i.test(readFileSync(path, "utf8"))) {
+    findings.push(`${file} points at a Lovable package or registry`);
+  }
 }
 
-const SOURCE_DIRS = ["src", "scripts", "public"];
+const SOURCE_DIRS = ["src", "scripts", "public", ".github"];
 const SOURCE_FILES = ["vite.config.ts", "tsconfig.json", "eslint.config.js", "index.html"];
 const SELF = relative(ROOT, fileURLToPath(import.meta.url));
 function* walk(dir: string): Generator<string> {
@@ -71,7 +81,11 @@ for (const dir of SOURCE_DIRS) {
 for (const file of SOURCE_FILES) if (existsSync(join(ROOT, file))) scanned.push(join(ROOT, file));
 for (const path of scanned) {
   const rel = relative(ROOT, path);
-  if (rel === SELF || !/\.(ts|tsx|js|mjs|cjs|json|html|css)$/.test(rel)) continue;
+  if (
+    rel === SELF ||
+    !/\.(ts|tsx|js|mjs|cjs|json|html|css|svg|xml|webmanifest|txt|ya?ml)$/.test(rel)
+  )
+    continue;
   const text = readFileSync(path, "utf8");
   if (/@lovable\.dev|lovable\.(app|dev|js)|__lovable|lovableproject\.com/i.test(text)) {
     findings.push(`${rel.replaceAll("\\", "/")} references Lovable`);
@@ -93,17 +107,29 @@ for (const dir of ["public", "src/assets"]) {
 }
 
 // --- Online: sync activity on GitHub (--sync) -----------------------------------------------
+// Every inspection must succeed: a failed request is a finding, never an empty result.
+
+/** Inspections that cannot run with this token; the result is then partial. */
+const partial: string[] = [];
 
 function run(command: string, args: string[]) {
   const result = spawnSync(command, args, { cwd: ROOT, encoding: "utf8" });
-  return { ok: result.status === 0, out: result.stdout ?? "", err: result.stderr ?? "" };
+  return { ok: result.status === 0, out: result.stdout ?? "", err: (result.stderr ?? "").trim() };
 }
 
-function gh<T>(path: string): T | null {
-  const result = run("gh", ["api", path]);
+/** `gh api` (optionally paginated), one line per `jq` result. Null when the request failed. */
+function ghLines(path: string, jq: string, paginate = true): string[] | null {
+  const result = run("gh", ["api", ...(paginate ? ["--paginate"] : []), path, "--jq", jq]);
   if (!result.ok) return null;
-  return JSON.parse(result.out) as T;
+  return result.out.split("\n").filter(Boolean);
 }
+
+function required(what: string, lines: string[] | null): string[] {
+  if (lines === null) findings.push(`could not inspect ${what} (GitHub request failed)`);
+  return lines ?? [];
+}
+
+const afterCutover = (date: string) => new Date(date) > new Date(CUTOVER);
 
 if (process.argv.includes("--sync")) {
   const repoView = run("gh", ["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"]);
@@ -113,12 +139,14 @@ if (process.argv.includes("--sync")) {
     const repo = repoView.out.trim();
 
     // 1. Commits by a Lovable identity on any remote branch.
-    run("git", ["fetch", "--quiet", "--prune", "origin"]);
+    const fetched = run("git", ["fetch", "--quiet", "--prune", "origin"]);
+    if (!fetched.ok) findings.push(`git fetch failed: ${fetched.err}`);
     const log = run("git", [
       "log",
       "--remotes=origin",
       "--format=%H%x09%cI%x09%an <%ae>%x09%cn <%ce>",
     ]);
+    if (!log.ok || !log.out.trim()) findings.push(`git log over origin failed: ${log.err}`);
     const lovableCommits = log.out
       .split("\n")
       .filter(Boolean)
@@ -128,54 +156,94 @@ if (process.argv.includes("--sync")) {
       .map(([sha, date]) => ({ sha, date }))
       .sort((a, b) => b.date.localeCompare(a.date))[0];
     if (latest) notes.push(`last Lovable commit: ${latest.sha.slice(0, 7)} on ${latest.date}`);
-    const recent = lovableCommits.filter(([, date]) => new Date(date) > new Date(CUTOVER));
-    for (const [sha, date, author] of recent) {
+    for (const [sha, date, author] of lovableCommits.filter(([, date]) => afterCutover(date))) {
       findings.push(`Lovable commit after cut-over: ${sha.slice(0, 7)} ${date} by ${author}`);
     }
 
-    // 2. Repository events (last 90 days, up to 300) by a Lovable actor.
-    const events: { type: string; created_at: string; actor: { login: string } }[] = [];
+    // 2. Repository events (GitHub keeps at most 300, from the last 90 days).
+    const events: { type: string; at: string; actor: string }[] = [];
     for (let page = 1; page <= 3; page++) {
-      const batch = gh<typeof events>(`repos/${repo}/events?per_page=100&page=${page}`);
-      if (!batch || batch.length === 0) break;
-      events.push(...batch);
+      const lines = required(
+        `repository events page ${page}`,
+        ghLines(
+          `repos/${repo}/events?per_page=100&page=${page}`,
+          ".[] | [.type, .created_at, .actor.login] | @tsv",
+          false,
+        ),
+      );
+      if (lines.length === 0) break;
+      for (const line of lines) {
+        const [type, at, actor] = line.split("\t");
+        events.push({ type, at, actor });
+      }
     }
-    for (const event of events.filter((e) => LOVABLE_ACTOR.test(e.actor.login))) {
-      findings.push(`GitHub event ${event.type} by ${event.actor.login} at ${event.created_at}`);
+    const lovableEvents = events.filter((event) => LOVABLE_ACTOR.test(event.actor));
+    const recentEvents = lovableEvents.filter((event) => afterCutover(event.at));
+    for (const event of recentEvents) {
+      findings.push(`GitHub event ${event.type} by ${event.actor} at ${event.at}`);
     }
-    notes.push(`GitHub events scanned: ${events.length}`);
+    const older = lovableEvents.length - recentEvents.length;
+    notes.push(
+      `GitHub events scanned: ${events.length}` +
+        (older > 0 ? ` (${older} Lovable event(s) from before the cut-over)` : ""),
+    );
 
     // 3. Check runs and statuses from a Lovable app on the default branch head.
-    const head = run("git", ["rev-parse", "origin/HEAD"]).out.trim() || "HEAD";
-    const checks = gh<{ check_runs: { name: string; app: { slug: string } | null }[] }>(
-      `repos/${repo}/commits/${head}/check-runs`,
-    );
-    for (const check of checks?.check_runs ?? []) {
-      if (LOVABLE_ACTOR.test(check.app?.slug ?? "")) {
-        findings.push(
-          `check run "${check.name}" from app ${check.app?.slug} on the default branch`,
-        );
+    const branch = required(
+      "the default branch",
+      ghLines(`repos/${repo}`, ".default_branch", false),
+    )[0];
+    const head = branch
+      ? required(
+          "the default-branch head",
+          ghLines(`repos/${repo}/commits/${branch}`, ".sha", false),
+        )[0]
+      : undefined;
+    if (head !== undefined && !/^[0-9a-f]{40}$/.test(head)) {
+      findings.push(`unexpected default-branch head "${head}"`);
+    } else if (head !== undefined) {
+      const checks = required(
+        "check runs",
+        ghLines(
+          `repos/${repo}/commits/${head}/check-runs?per_page=100`,
+          '.check_runs[] | [.name, (.app.slug // "")] | @tsv',
+        ),
+      );
+      for (const line of checks) {
+        const [name, slug] = line.split("\t");
+        if (LOVABLE_ACTOR.test(slug)) {
+          findings.push(`check run "${name}" from app ${slug} on ${branch}`);
+        }
       }
-    }
-    const statuses = gh<{ statuses: { context: string; creator: { login: string } | null }[] }>(
-      `repos/${repo}/commits/${head}/status`,
-    );
-    for (const status of statuses?.statuses ?? []) {
-      if (LOVABLE_ACTOR.test(`${status.context} ${status.creator?.login ?? ""}`)) {
-        findings.push(`commit status "${status.context}" from ${status.creator?.login}`);
+      const statuses = required(
+        "commit statuses",
+        ghLines(
+          `repos/${repo}/commits/${head}/statuses?per_page=100`,
+          '.[] | [.context, (.creator.login // "")] | @tsv',
+        ),
+      );
+      for (const line of statuses) {
+        const [context, creator] = line.split("\t");
+        if (LOVABLE_ACTOR.test(`${context} ${creator}`)) {
+          findings.push(`commit status "${context}" from ${creator} on ${branch}`);
+        }
       }
+      notes.push(
+        `${branch} @ ${head.slice(0, 7)}: ${checks.length} check run(s), ${statuses.length} status(es)`,
+      );
     }
 
-    // 4. Webhooks pointing at Lovable (needs admin rights; skipped otherwise).
-    const hooks = gh<{ config: { url?: string } }[]>(`repos/${repo}/hooks`);
-    if (hooks === null) notes.push("webhooks: not readable with this token (skipped)");
-    for (const hook of hooks ?? []) {
-      if (/lovable/i.test(hook.config.url ?? "")) findings.push(`webhook to ${hook.config.url}`);
+    // 4. Webhooks pointing at Lovable. Reading them needs admin rights, which the workflow
+    //    token does not have, so an unreadable list is reported as partial coverage.
+    const hooks = ghLines(`repos/${repo}/hooks?per_page=100`, '.[] | (.config.url // "")');
+    if (hooks === null) partial.push("webhooks (needs admin rights)");
+    for (const url of hooks ?? []) {
+      if (/lovable/i.test(url)) findings.push(`webhook to ${url}`);
     }
 
+    partial.push("the GitHub App installation (no token can list it from here)");
     notes.push(
-      `GitHub App installation can't be read with a user token: check ${INSTALLATIONS_URL} ` +
-        'for "Lovable" (or "GPT Engineer") and uninstall or remove this repository.',
+      `check ${INSTALLATIONS_URL} for "Lovable" (or "GPT Engineer") and uninstall it or remove this repository.`,
     );
   }
 }
@@ -188,8 +256,11 @@ if (findings.length > 0) {
   for (const finding of findings) console.error(`  ✗ ${finding}`);
   process.exit(1);
 }
-console.log(
-  process.argv.includes("--sync")
-    ? "JurisCore Lovable check passed: no Lovable dependency and no sync activity."
-    : "JurisCore Lovable check passed: no Lovable dependency (run with --sync to ask GitHub).",
-);
+if (!process.argv.includes("--sync")) {
+  console.log(
+    "JurisCore Lovable check passed: no Lovable dependency (run with --sync to ask GitHub).",
+  );
+} else {
+  console.log("JurisCore Lovable check passed: no Lovable dependency and no sync activity.");
+  if (partial.length > 0) console.log(`  Not inspected: ${partial.join("; ")}.`);
+}
