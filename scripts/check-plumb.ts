@@ -7,6 +7,7 @@ import {
   documentSentences,
   parseRepositoryInput,
   parseUnifiedDiff,
+  UNNAMED_DIFF_PATH,
 } from "../src/lib/juriscore/plumb/sources";
 
 const reference = (sourceId: string, locator: string) => ({
@@ -267,3 +268,22 @@ assert.equal(endToEnd.verdict, "block");
 assert.equal(endToEnd.counts.drifted, 2);
 
 console.log("JurisCore Plumb checks passed.");
+
+// A fragment copied out of a review has no file header. It is the most common way a
+// diff is pasted, so it must read as an unnamed file rather than be discarded.
+const bareHunk = `@@ -40,7 +40,7 @@
+ export const payments = {
+-  kycThreshold: 10_000,
++  kycThreshold: 25_000,
+ };`;
+const [fragment] = parseUnifiedDiff(bareHunk);
+assert.equal(fragment.path, UNNAMED_DIFF_PATH);
+assert.equal(fragment.additions, 1);
+assert.equal(fragment.deletions, 1);
+assert.equal(
+  claimsFromDiff(fragment, BUILT_IN_SUBJECTS, "pasted").find((c) => c.subject === "kyc_threshold")
+    ?.value,
+  25_000,
+);
+
+console.log("JurisCore Plumb source checks passed.");

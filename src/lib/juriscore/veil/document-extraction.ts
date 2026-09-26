@@ -1,7 +1,7 @@
-export const ACCEPTED_DOCUMENT_TYPES = ".pdf,.docx,.pptx,.md,.txt,.png";
+export const ACCEPTED_DOCUMENT_TYPES = ".pdf,.docx,.pptx,.md,.txt,.yaml,.yml,.json,.png";
 export const MAX_DOCUMENT_BYTES = 25 * 1024 * 1024;
 /** Human-readable list for UI copy, so the formats are named in exactly one place. */
-export const ACCEPTED_DOCUMENT_LABEL = "PDF, DOCX, PPTX, Markdown, TXT, or PNG";
+export const ACCEPTED_DOCUMENT_LABEL = "PDF, DOCX, PPTX, Markdown, text, YAML, JSON, or PNG";
 
 export type SupportedDocumentKind = "pdf" | "docx" | "pptx" | "text" | "png";
 
@@ -37,7 +37,11 @@ export function documentKindFor(file: File): SupportedDocumentKind | null {
   ) {
     return "pptx";
   }
-  if (extension === "md" || extension === "markdown" || extension === "txt") return "text";
+  // Configuration is a source of truth as much as prose is: a policy expressed in YAML
+  // or JSON is exactly the kind of claim Plumb compares against code.
+  if (["md", "markdown", "txt", "text", "yaml", "yml", "json"].includes(extension)) {
+    return "text";
+  }
   if (file.type === "image/png" || extension === "png") return "png";
   // A plain-text file dragged in without a recognised extension is still readable text.
   if (file.type.startsWith("text/")) return "text";

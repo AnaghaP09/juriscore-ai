@@ -104,9 +104,33 @@ export interface DiffFile {
   lines: DiffLine[];
   additions: number;
   deletions: number;
+  /**
+   * True when the content is a whole file rather than a change. Every line is then the
+   * current state of the source, so claims are read from all of them instead of only
+   * from the lines a diff added.
+   */
+  snapshot?: boolean;
+}
+
+/**
+ * Reads a whole source or configuration file as the current state of the truth. Not
+ * every check starts from a pull request: pointing Plumb at the file that holds the
+ * values is the simpler case, and it carries no additions to single out.
+ */
+export function parseSourceSnapshot(text: string, path: string): DiffFile {
+  const lines: DiffLine[] = text.split(/\r?\n/).map((line, index) => ({
+    n: index + 1,
+    kind: "ctx",
+    text: line,
+  }));
+
+  return { path, lines, additions: 0, deletions: 0, snapshot: true };
 }
 
 const HUNK_HEADER = /^@@\s+-(\d+)(?:,\d+)?\s+\+(\d+)(?:,\d+)?\s+@@/;
+
+/** Shown when a pasted fragment carries no file header to name. */
+export const UNNAMED_DIFF_PATH = "pasted fragment";
 
 /**
  * Parses a unified diff. Only the parts Plumb needs are kept: the file path and the
@@ -152,6 +176,13 @@ export function parseUnifiedDiff(text: string): DiffFile[] {
 
     const hunk = HUNK_HEADER.exec(rawLine);
     if (hunk) {
+      // A hunk with no file header in front of it is a fragment copied out of a review
+      // or a terminal. That is the most common way a diff is pasted, so it is read as
+      // an unnamed file rather than discarded.
+      if (!current) {
+        current = { path: UNNAMED_DIFF_PATH, lines: [], additions: 0, deletions: 0 };
+        files.push(current);
+      }
       oldLine = Number(hunk[1]);
       newLine = Number(hunk[2]);
       inHunk = true;
@@ -204,7 +235,10 @@ export function claimsFromDiff(
   const claims: PlumbClaim[] = [];
 
   for (const line of file.lines) {
-    if (line.kind !== "add") continue;
+    // A change is authoritative only where it adds; a whole file is authoritative
+    // everywhere.
+    if (!file.snapshot && line.kind !== "add") continue;
+    if (line.kind === "del") continue;
 
     const match = ASSIGNMENT.exec(line.text);
     if (!match) continue;
