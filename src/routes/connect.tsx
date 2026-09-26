@@ -113,7 +113,21 @@ function Connect() {
           </div>
         </header>
 
-        <main id="connect-main" className="mx-auto max-w-5xl px-6 py-12 sm:py-16 space-y-12">
+        <div className="mx-auto max-w-5xl px-6 pt-8">
+          <div
+            role="note"
+            className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground"
+          >
+            <span className="font-medium text-foreground">Not available yet.</span> MCP Connect is
+            coming soon. The guide below is shown for reference only.
+          </div>
+        </div>
+        {/* Greyed out and unreachable by keyboard or pointer until MCP Connect ships. */}
+        <main
+          id="connect-main"
+          inert
+          className="mx-auto max-w-5xl px-6 py-12 sm:py-16 space-y-12 opacity-50 grayscale select-none"
+        >
           <div>
             <Badge className="mb-4"><Plug className="mr-1 h-3 w-3" /> MCP Server · public</Badge>
             <h1 className="page-title text-4xl">Connect JurisCore to your assistant</h1>
