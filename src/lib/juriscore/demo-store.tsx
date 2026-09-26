@@ -123,8 +123,10 @@ export const SIMULATED_SEED = {
 } as const;
 
 const METRICS_STORAGE_KEY = "juriscore.localMetrics.v1";
-const REPOSITORY_STORAGE_KEY = "juriscore.plumbRepository.v1";
-const DOCUMENTS_STORAGE_KEY = "juriscore.plumbDocuments.v1";
+// Plumb sources (the diff and every document's extracted text) live in memory only, so a
+// reload always starts Plumb from zero and no document text is left in the browser. Earlier
+// builds saved them under these keys; they are deleted on load.
+const LEGACY_SOURCE_STORAGE_KEYS = ["juriscore.plumbRepository.v1", "juriscore.plumbDocuments.v1"];
 
 const seededLedger = (): LocalMetricsLedger => ({ version: 1, simulated: true, days: {} });
 
@@ -219,6 +221,8 @@ interface DemoStore {
   setPolicyActive: (policyId: string, active: boolean) => void;
   customPolicies: PolicyDefinition[];
   addCustomPolicy: (policy: PolicyDefinition) => void;
+  updateCustomPolicy: (policy: PolicyDefinition) => void;
+  removeCustomPolicy: (policyId: string) => void;
   localMetrics: LocalMetricsLedger;
   recordVeilCheck: (record: VeilCheckRecord) => void;
   recordPlumbCheck: (record: PlumbCheckRecord) => void;
@@ -252,14 +256,8 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       const savedActive = window.localStorage.getItem("juriscore.activePolicyIds");
       const savedCustom = window.localStorage.getItem("juriscore.customPolicies");
       const savedMetrics = window.localStorage.getItem(METRICS_STORAGE_KEY);
-      const savedRepository = window.localStorage.getItem(REPOSITORY_STORAGE_KEY);
-      const savedDocuments = window.localStorage.getItem(DOCUMENTS_STORAGE_KEY);
       if (savedActive) setActivePolicyIds(JSON.parse(savedActive) as string[]);
       if (savedCustom) setCustomPolicies(JSON.parse(savedCustom) as PolicyDefinition[]);
-      if (savedRepository) {
-        setConnectedRepository(JSON.parse(savedRepository) as ConnectedRepository);
-      }
-      if (savedDocuments) setSourceDocuments(JSON.parse(savedDocuments) as SourceDocument[]);
       if (savedMetrics) {
         const parsed = JSON.parse(savedMetrics) as LocalMetricsLedger;
         if (parsed.version === 1) {
@@ -283,28 +281,13 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     window.localStorage.setItem(METRICS_STORAGE_KEY, JSON.stringify(localMetrics));
   }, [localMetrics]);
 
-  // A diff and the extracted text of several documents can outgrow the storage quota.
-  // Failing to persist them is not worth losing the session over: the sources stay in
-  // memory and simply do not survive a reload.
   useEffect(() => {
     try {
-      if (connectedRepository) {
-        window.localStorage.setItem(REPOSITORY_STORAGE_KEY, JSON.stringify(connectedRepository));
-      } else {
-        window.localStorage.removeItem(REPOSITORY_STORAGE_KEY);
-      }
+      for (const key of LEGACY_SOURCE_STORAGE_KEYS) window.localStorage.removeItem(key);
     } catch {
-      // Quota exceeded or storage unavailable.
+      // Storage unavailable: nothing was saved there to remove.
     }
-  }, [connectedRepository]);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(DOCUMENTS_STORAGE_KEY, JSON.stringify(sourceDocuments));
-    } catch {
-      // Quota exceeded or storage unavailable.
-    }
-  }, [sourceDocuments]);
+  }, []);
 
   const addSourceDocument = useCallback((document: SourceDocument) => {
     setSourceDocuments((prev) => [...prev.filter((item) => item.id !== document.id), document]);
@@ -327,6 +310,19 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
   const addCustomPolicy = useCallback((policy: PolicyDefinition) => {
     setCustomPolicies((current) => [...current, policy]);
     setActivePolicyIds((current) => [...new Set([...current, policy.id])]);
+  }, []);
+
+  // An edit keeps the policy id, so activation and past receipts (which record id@version at
+  // check time) are unaffected; only later checks see the new definition.
+  const updateCustomPolicy = useCallback((policy: PolicyDefinition) => {
+    setCustomPolicies((current) =>
+      current.map((existing) => (existing.id === policy.id ? policy : existing)),
+    );
+  }, []);
+
+  const removeCustomPolicy = useCallback((policyId: string) => {
+    setCustomPolicies((current) => current.filter((policy) => policy.id !== policyId));
+    setActivePolicyIds((current) => current.filter((id) => id !== policyId));
   }, []);
 
   const mutateToday = useCallback((mutate: (day: LedgerDay) => void) => {
@@ -408,6 +404,8 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       setPolicyActive,
       customPolicies,
       addCustomPolicy,
+      updateCustomPolicy,
+      removeCustomPolicy,
       localMetrics,
       recordVeilCheck,
       recordPlumbCheck,
@@ -431,6 +429,8 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       setPolicyActive,
       customPolicies,
       addCustomPolicy,
+      updateCustomPolicy,
+      removeCustomPolicy,
       localMetrics,
       recordVeilCheck,
       recordPlumbCheck,
