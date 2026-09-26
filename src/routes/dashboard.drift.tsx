@@ -86,6 +86,26 @@ const CLEAN_DIFF_LINES: DiffLine[] = [
 ];
 
 /**
+ * The built-in sample change as a unified diff, so the drift-risk predictor can score it
+ * exactly as it scores a pasted diff. Sample scores are shown but never recorded.
+ */
+function sampleDiffText(lines: DiffLine[]) {
+  const oldCount = lines.filter((line) => line.kind !== "add").length;
+  const newCount = lines.filter((line) => line.kind !== "del").length;
+  const start = lines[0]?.n ?? 1;
+  const body = lines.map(
+    (line) => `${line.kind === "add" ? "+" : line.kind === "del" ? "-" : " "}${line.text}`,
+  );
+  return [
+    "diff --git a/payments.ts b/payments.ts",
+    "--- a/payments.ts",
+    "+++ b/payments.ts",
+    `@@ -${start},${oldCount} +${start},${newCount} @@`,
+    ...body,
+  ].join("\n");
+}
+
+/**
  * Sample documents the workbench can load on demand so it demonstrates itself with
  * nothing connected. They become ordinary uploaded documents once loaded — there is one
  * document model, so a sample and a real filing behave identically.
@@ -233,21 +253,20 @@ function DriftRiskPanel({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 text-sm" aria-live="polite">
-        {!hasConnectedChange ? (
-          showsSampleCode ? (
-            <div className="text-muted-foreground">
-              <Badge variant="outline" className="mr-2">
-                sample
-              </Badge>
-              The built-in sample change is not scored. Connect a pull request or paste a diff to
-              see how likely it is that its docs need updating.
-            </div>
-          ) : (
-            <p className="text-muted-foreground">
-              Connect a pull request or paste a diff to see how likely it is that its docs need
-              updating.
-            </p>
-          )
+        {!hasConnectedChange && showsSampleCode && (
+          <div className="text-xs text-muted-foreground">
+            <Badge variant="outline" className="mr-2">
+              sample · not recorded
+            </Badge>
+            Scored on the built-in sample change. Connect a pull request or paste a diff to score
+            your own change and add it to this device&apos;s history.
+          </div>
+        )}
+        {!hasConnectedChange && !showsSampleCode ? (
+          <p className="text-muted-foreground">
+            Connect a pull request or paste a diff to see how likely it is that its docs need
+            updating.
+          </p>
         ) : risk === null ? (
           <p className="text-muted-foreground">Scoring the connected change…</p>
         ) : risk.status === "failed" ? (
@@ -408,14 +427,27 @@ function DriftView() {
   );
   // Bumped by resetRun so a reset always starts a fresh scoring request.
   const [riskRun, setRiskRun] = useState(0);
+  // With nothing of the user's loaded, the sample change is scored too so the band is
+  // always visible; it is labelled as a sample and never enters the device history.
+  const scoredChange = useMemo(
+    () =>
+      connectedChange ??
+      (showsSampleCode
+        ? parseConnectedChange(
+            sampleDiffText(driftMode === "drift" ? DRIFT_DIFF_LINES : CLEAN_DIFF_LINES),
+            "payments.ts",
+          )
+        : null),
+    [connectedChange, showsSampleCode, driftMode],
+  );
   const riskInputs = useMemo<WorkbenchRiskInputs>(
     () => ({
-      change: connectedChange,
+      change: scoredChange,
       documents: riskDocuments,
       policyConfig: riskPolicyConfig,
       run: riskRun,
     }),
-    [connectedChange, riskDocuments, riskPolicyConfig, riskRun],
+    [scoredChange, riskDocuments, riskPolicyConfig, riskRun],
   );
   const [acceptedRisk, setAcceptedRisk] = useState<AcceptedWorkbenchRisk | null>(null);
   // Scoring is asynchronous, so a result is accepted only while the request that produced
