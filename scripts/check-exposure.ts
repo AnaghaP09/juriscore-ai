@@ -699,6 +699,70 @@ elapsed = performance.now() - started;
 assert.equal(largeRedactedPrediction.spans.length, LINES);
 assert.ok(elapsed < 5_000, `100k split spans took ${Math.round(elapsed)} ms`);
 
+// Assignment names are still found inside longer identifiers and after flag dashes.
+for (const assignment of [
+  "--password=hunter22",
+  "db.password: hunter22",
+  "my_api_key=hunter22",
+  "foo__token = hunter22",
+  "x-api-key: hunter22",
+  "_client_secret=hunter22",
+]) {
+  assert.ok(
+    exposureCandidates(assignment).some((span) => span.category === "assigned_secret"),
+    `assignment: ${assignment}`,
+  );
+}
+assert.ok(
+  exposureCandidates("see (https://admin:hunter22@db.internal/x)").some(
+    (span) => span.category === "url_credentials",
+  ),
+);
+
+// No rule backtracks super-linearly: each 1 MB input built to make some pattern retry
+// from many starts, or rescan a long run, finishes well under a second.
+const MEGABYTE = 1 << 20;
+const sized = (unit: string, prefix = "") =>
+  prefix + unit.repeat(Math.ceil((MEGABYTE - prefix.length) / unit.length));
+const adversarial: [string, string][] = [
+  ["identifier segments", sized("a_")],
+  ["dashed identifier segments", sized("a-")],
+  ["segments before a secret name", sized("a_", "x ") + "password"],
+  ["scheme run with dots", sized("a.")],
+  ["scheme run with pluses and dashes", sized("a+b-")],
+  ["scheme without credentials", sized("b:", "x://")],
+  ["secret name before spaces", sized(" ", "password")],
+  ["assignment with an open template", sized("a", "password={{")],
+  ["redaction-like brackets", sized("[A_1")],
+  ["unterminated placeholder", sized("1", "[A_")],
+  ["dotted segments", sized("aaaaaaaa.")],
+  ["hex run", sized("0a")],
+  ["base64 runs split by padding", sized("A=")],
+  ["spaced digits", sized("1 ")],
+  ["dotted digits", sized("1.")],
+  ["colon groups", sized("1:")],
+  ["labels before a two-digit token", sized("a", "card patient ssn 1a1")],
+  ["repeated labels", sized("card ")],
+  ["attack verbs", sized("ignore ")],
+  ["exfiltration verbs before whitespace", sized(" ", "send to to to to")],
+];
+// Wall-clock limits alone are flaky on a loaded machine, so each input is also timed at half
+// size: linear work roughly doubles, while quadratic backtracking roughly quadruples.
+const timed = (text: string) => {
+  const start = performance.now();
+  predict(text);
+  return performance.now() - start;
+};
+for (const [name, text] of adversarial) {
+  const half = timed(text.slice(0, Math.floor(text.length / 2)));
+  const full = timed(text);
+  assert.ok(full < 3_000, `${name}: 1 MB took ${Math.round(full)} ms`);
+  assert.ok(
+    full < Math.max(3 * half, 150),
+    `${name}: doubling the input took ${Math.round(half)} ms → ${Math.round(full)} ms (superlinear)`,
+  );
+}
+
 // The workbench marks only a bounded number of spans in its preview.
 assert.match(workbench, /spans\.slice\(0, MAX_HIGHLIGHTED_SPANS\)/);
 

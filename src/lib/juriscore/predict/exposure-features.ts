@@ -248,7 +248,9 @@ const SPAN_RULES: SpanRule[] = [
   { category: "cloud_key", pattern: CLOUD_KEY, score: () => 0.95 },
   {
     category: "url_credentials",
-    pattern: /\b[a-z][a-z0-9+.-]*:\/\/[^\s:/@]+:[^\s@/]+@[^\s/]+/gi,
+    // Starts only where a run of scheme characters starts. A `\b` start would retry
+    // after every `.`, `+`, or `-` in the run, which is quadratic on text like `a.a.a.`.
+    pattern: /(?<![a-z0-9+.-])[a-z][a-z0-9+.-]*:\/\/[^\s:/@]+:[^\s@/]+@[^\s/]+/gi,
     score: () => 0.9,
   },
   {
@@ -262,8 +264,12 @@ const SPAN_RULES: SpanRule[] = [
   },
   {
     category: "assigned_secret",
+    // Starts only where an identifier starts (leading `_` or `-` included, as in
+    // `--password`), and walks its `_`/`-` separated segments once. Starting after every
+    // separator would rescan the rest of the identifier each time, which is quadratic on
+    // a long identifier such as `a_a_a_…` that never names a secret.
     pattern: new RegExp(
-      `(?<![A-Za-z0-9])(?:[A-Za-z0-9]+[_-])*(?:${SECRET_NAMES})(?![A-Za-z0-9])["']?[ \\t]*[:=][ \\t]*["']?([^\\s"',;]{6,})`,
+      `(?<![A-Za-z0-9_-])[_-]*(?:[A-Za-z0-9]+[_-]+)*(?:${SECRET_NAMES})(?![A-Za-z0-9])["']?[ \\t]*[:=][ \\t]*["']?([^\\s"',;]{6,})`,
       "gi",
     ),
     valueGroup: 1,
