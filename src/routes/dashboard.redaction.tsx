@@ -230,6 +230,25 @@ function VeilWorkbench() {
     .filter((contribution) => contribution.weight > 0)
     .slice(0, 4);
   const exposureCategories = [...new Set(exposure.spans.map((span) => span.category))];
+  // Each recomputation (new upload, edit, strategy or policy change) is stamped and compared
+  // with the score before it, so a changed input visibly produces its own result.
+  const [exposureScoredAt, setExposureScoredAt] = useState<string | null>(null);
+  const [exposureDelta, setExposureDelta] = useState<number | null>(null);
+  const previousExposureScore = useRef<number | null>(null);
+  useEffect(() => {
+    const score = Math.round(exposure.score * 100);
+    setExposureDelta(
+      previousExposureScore.current === null ? null : score - previousExposureScore.current,
+    );
+    previousExposureScore.current = score;
+    setExposureScoredAt(
+      new Date().toLocaleTimeString(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      }),
+    );
+  }, [exposure]);
 
   useEffect(() => {
     setExposureConfirmed(false);
@@ -425,6 +444,94 @@ function VeilWorkbench() {
         title="Protect the prompt"
         description="Protect customer, operational, and security context before it reaches an AI model. Veil removes or tokenizes selected values while preserving the technical signal needed for support and engineering work."
       />
+
+      {raw.trim() && !progress && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex flex-wrap items-center justify-between gap-3 text-sm">
+              <span className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-[color:var(--revise)]" aria-hidden />
+                Residual exposure
+              </span>
+              <Badge variant="outline" className={exposureBandClass[exposure.band]}>
+                Residual exposure: {exposure.band}
+                {exposure.placeholder ? " (placeholder model)" : ""}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-xs">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <span className="font-mono text-3xl font-semibold">
+                {Math.round(exposure.score * 100)}%
+              </span>
+              {exposureDelta !== null && exposureDelta !== 0 && (
+                <span className="font-mono text-sm text-muted-foreground">
+                  {exposureDelta > 0 ? "▲ +" : "▼ "}
+                  {exposureDelta} vs previous
+                </span>
+              )}
+              <span className="text-muted-foreground">
+                Scored {uploadedDocument ? uploadedDocument.fileName : "pasted text"}
+                {exposureScoredAt ? ` · ${exposureScoredAt}` : ""}
+              </span>
+            </div>
+            {exposure.spans.length === 0 && (
+              <p className="text-muted-foreground">
+                0 flagged spans: Veil already caught everything it recognises in this text.
+              </p>
+            )}
+            <p className="text-muted-foreground">
+              An advisory estimate that the permitted model input still contains something
+              Veil&apos;s detectors did not catch, such as an unfamiliar key format or a new
+              prompt-attack phrasing. It never changes Veil&apos;s result; a high estimate only asks
+              you to confirm before copying.
+              {exposure.placeholder &&
+                " The model uses hand-set placeholder weights and has not been measured on real data."}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">Estimated probability</span>
+              <span className="font-mono">{Math.round(exposure.score * 100)}%</span>
+              <span className="text-muted-foreground">
+                · {exposure.spans.length} flagged {exposure.spans.length === 1 ? "span" : "spans"}
+                {exposure.spans.length > MAX_HIGHLIGHTED_SPANS &&
+                  ` (the first ${MAX_HIGHLIGHTED_SPANS} are highlighted in the preview)`}
+              </span>
+            </div>
+            {exposureCategories.length > 0 && (
+              <div className="flex flex-wrap gap-2" aria-label="Highlighted span categories">
+                {exposureCategories.map((category) => (
+                  <Badge key={category} variant="outline">
+                    {SPAN_CATEGORY_LABEL[category]}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            <div>
+              <div className="font-medium">Why</div>
+              {exposureReasons.length === 0 ? (
+                <p className="mt-1 text-muted-foreground">
+                  No signal beyond the baseline: nothing in the permitted input looks like a missed
+                  secret, identifier, or prompt attack.
+                </p>
+              ) : (
+                <ul className="mt-1 space-y-1">
+                  {exposureReasons.map((contribution) => (
+                    <li
+                      key={contribution.feature}
+                      className="flex items-center justify-between gap-3"
+                    >
+                      <span>{FEATURE_LABEL[contribution.feature] ?? contribution.feature}</span>
+                      <span className="font-mono text-muted-foreground">
+                        +{contribution.weight.toFixed(2)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
@@ -780,74 +887,6 @@ function VeilWorkbench() {
           </CardContent>
         </Card>
       </div>
-
-      {raw.trim() && !progress && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex flex-wrap items-center justify-between gap-3 text-sm">
-              <span className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-[color:var(--revise)]" aria-hidden />
-                Residual exposure
-              </span>
-              <Badge variant="outline" className={exposureBandClass[exposure.band]}>
-                Residual exposure: {exposure.band}
-                {exposure.placeholder ? " (placeholder model)" : ""}
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-xs">
-            <p className="text-muted-foreground">
-              An advisory estimate that the permitted model input still contains something
-              Veil&apos;s detectors did not catch, such as an unfamiliar key format or a new
-              prompt-attack phrasing. It never changes Veil&apos;s result; a high estimate only asks
-              you to confirm before copying.
-              {exposure.placeholder &&
-                " The model uses hand-set placeholder weights and has not been measured on real data."}
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-medium">Estimated probability</span>
-              <span className="font-mono">{Math.round(exposure.score * 100)}%</span>
-              <span className="text-muted-foreground">
-                · {exposure.spans.length} flagged {exposure.spans.length === 1 ? "span" : "spans"}
-                {exposure.spans.length > MAX_HIGHLIGHTED_SPANS &&
-                  ` (the first ${MAX_HIGHLIGHTED_SPANS} are highlighted in the preview)`}
-              </span>
-            </div>
-            {exposureCategories.length > 0 && (
-              <div className="flex flex-wrap gap-2" aria-label="Highlighted span categories">
-                {exposureCategories.map((category) => (
-                  <Badge key={category} variant="outline">
-                    {SPAN_CATEGORY_LABEL[category]}
-                  </Badge>
-                ))}
-              </div>
-            )}
-            <div>
-              <div className="font-medium">Why</div>
-              {exposureReasons.length === 0 ? (
-                <p className="mt-1 text-muted-foreground">
-                  No signal beyond the baseline: nothing in the permitted input looks like a missed
-                  secret, identifier, or prompt attack.
-                </p>
-              ) : (
-                <ul className="mt-1 space-y-1">
-                  {exposureReasons.map((contribution) => (
-                    <li
-                      key={contribution.feature}
-                      className="flex items-center justify-between gap-3"
-                    >
-                      <span>{FEATURE_LABEL[contribution.feature] ?? contribution.feature}</span>
-                      <span className="font-mono text-muted-foreground">
-                        +{contribution.weight.toFixed(2)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       <Card>
         <CardHeader className="pb-3">
