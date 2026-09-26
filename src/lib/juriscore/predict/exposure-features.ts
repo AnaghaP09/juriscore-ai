@@ -78,6 +78,7 @@ interface Range {
   end: number;
 }
 
+/** Every placeholder, sorted by offset and non-overlapping. */
 export function redactionTokenRanges(text: string): Range[] {
   return Array.from(text.matchAll(REDACTION_TOKEN), (match) => ({
     start: match.index ?? 0,
@@ -85,8 +86,61 @@ export function redactionTokenRanges(text: string): Range[] {
   }));
 }
 
-function overlaps(a: Range, b: Range) {
-  return a.start < b.end && b.start < a.end;
+/**
+ * Stands in for every character of a placeholder while rules run. It is not a word,
+ * token, digit, or separator character, so no value-shaped rule can match inside or
+ * across a placeholder, while prose-shaped rules (a prompt attack around a redacted
+ * address) still read past it. It is one UTF-16 unit per replaced character, so offsets
+ * in the masked text are offsets in the original.
+ */
+const MASK = String.fromCharCode(0xe000);
+
+function maskRedactionTokens(text: string, tokens: Range[]) {
+  if (tokens.length === 0) return text;
+  const parts: string[] = [];
+  let cursor = 0;
+  for (const token of tokens) {
+    parts.push(text.slice(cursor, token.start), MASK.repeat(token.end - token.start));
+    cursor = token.end;
+  }
+  parts.push(text.slice(cursor));
+  return parts.join("");
+}
+
+/** Index of the first range that ends after `offset`, by binary search. */
+function firstRangeEndingAfter(ranges: Range[], offset: number) {
+  let low = 0;
+  let high = ranges.length;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (ranges[middle].end <= offset) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
+
+/**
+ * The parts of a span outside every placeholder, trimmed of surrounding whitespace, so
+ * a placeholder inside an attack sentence is never itself highlighted.
+ */
+function withoutTokens(text: string, span: ExposureSpan, tokens: Range[]): ExposureSpan[] {
+  const pieces: ExposureSpan[] = [];
+  const keep = (start: number, end: number) => {
+    while (start < end && /\s/.test(text[start])) start += 1;
+    while (end > start && /\s/.test(text[end - 1])) end -= 1;
+    if (start < end) pieces.push({ ...span, start, end });
+  };
+  let cursor = span.start;
+  for (
+    let index = firstRangeEndingAfter(tokens, span.start);
+    index < tokens.length && tokens[index].start < span.end;
+    index += 1
+  ) {
+    keep(cursor, Math.min(tokens[index].start, span.end));
+    cursor = Math.max(cursor, tokens[index].end);
+  }
+  keep(cursor, span.end);
+  return pieces;
 }
 
 // ---------------------------------------------------------------------------
@@ -127,6 +181,26 @@ export function luhnValid(digits: string) {
   return sum % 10 === 0;
 }
 
+const IPV6_GROUP = /^[0-9A-Fa-f]{1,4}$/;
+
+/**
+ * An IPv6 address in full (eight groups) or compressed (one `::` standing for at least
+ * one zero group) form. At least one digit is required, so words such as `dead::beef`
+ * in prose or code are not taken for addresses.
+ */
+export function ipv6Valid(value: string) {
+  if (!/[0-9]/.test(value)) return false;
+  const halves = value.split("::");
+  if (halves.length > 2) return false;
+  const groups = (half: string) => (half === "" ? [] : half.split(":"));
+  if (halves.length === 1) {
+    const all = groups(value);
+    return all.length === 8 && all.every((group) => IPV6_GROUP.test(group));
+  }
+  const all = [...groups(halves[0]), ...groups(halves[1])];
+  return all.length <= 7 && all.every((group) => IPV6_GROUP.test(group));
+}
+
 function entropyScore(value: string, ceiling: number) {
   const entropy = shannonEntropy(value);
   if (entropy < 3.5) return null;
@@ -147,6 +221,11 @@ interface SpanRule {
   score: (value: string) => number | null;
   /** The span covers the last capture group (which must end the match). */
   valueGroup?: 1;
+  /**
+   * Prose rules may read across a placeholder. Every other rule describes a value, and
+   * a value that includes a placeholder is Veil's protection, not a miss.
+   */
+  crossesPlaceholders?: true;
 }
 
 const TOKEN_CHARS = "A-Za-z0-9+/=_\\-.~";
@@ -217,8 +296,15 @@ const SPAN_RULES: SpanRule[] = [
   {
     category: "ip_address",
     pattern:
-      /(?<![\d.])(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?![\d.])|(?<![0-9A-Fa-f:])(?:[0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}(?![0-9A-Fa-f:])/g,
+      /(?<![\d.])(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?![\d.])/g,
     score: () => 0.3,
+  },
+  {
+    category: "ip_address",
+    // Full and compressed IPv6. The shape is loose; `ipv6Valid` decides. A letter or
+    // underscore on either side rules out code such as `std::vector`.
+    pattern: /(?<![0-9A-Za-z_:.])(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{0,4}(?![0-9A-Za-z_:])/g,
+    score: (value) => (ipv6Valid(value) ? 0.3 : null),
   },
   {
     category: "uuid",
@@ -230,9 +316,10 @@ const SPAN_RULES: SpanRule[] = [
     category: "labelled_identifier",
     // A health, finance, or identity label followed closely by an identifier-like value
     // with at least three digits that no detector consumed. The gap may not cross a
-    // redaction token, so a label whose value was already protected stays quiet.
+    // redaction token (masked while rules run), so a label whose value was already
+    // protected stays quiet.
     pattern: new RegExp(
-      `\\b(?:${IDENTITY_LABELS})\\b[^\\n\\[\\]]{0,24}?(?<![A-Za-z0-9-])((?=[A-Za-z0-9-]*\\d[A-Za-z0-9-]*\\d[A-Za-z0-9-]*\\d)[A-Za-z0-9][A-Za-z0-9-]{3,})(?![A-Za-z0-9-])`,
+      `\\b(?:${IDENTITY_LABELS})\\b[^\\n\\[\\]${MASK}]{0,24}?(?<![A-Za-z0-9-])((?=[A-Za-z0-9-]*\\d[A-Za-z0-9-]*\\d[A-Za-z0-9-]*\\d)[A-Za-z0-9][A-Za-z0-9-]{3,})(?![A-Za-z0-9-])`,
       "gi",
     ),
     valueGroup: 1,
@@ -249,7 +336,14 @@ const SPAN_RULES: SpanRule[] = [
     /\b(?:reveal|print|show|dump|output|repeat|leak)\b[^.\n]{0,30}?\b(?:hidden|secret|internal|developer|initial|original)\s+(?:prompt|instructions|message|rules)\b/gi,
     // Encoded-instruction markers.
     /\b(?:base64|rot13|hex)[- ]?(?:decode|encoded|decoded)\b|\bdecode (?:this|the following)\b/gi,
-  ].map((pattern): SpanRule => ({ category: "prompt_attack", pattern, score: () => 0.8 })),
+  ].map(
+    (pattern): SpanRule => ({
+      category: "prompt_attack",
+      pattern,
+      score: () => 0.8,
+      crossesPlaceholders: true,
+    }),
+  ),
 ];
 
 const SECRET_SHAPES = new Set<ExposureSpanCategory>([
@@ -291,22 +385,26 @@ function byOffset(a: ExposureSpan, b: ExposureSpan) {
   return a.start - b.start || a.end - b.end || compareStrings(a.category, b.category);
 }
 
-/** Every candidate span, before overlaps are resolved. Redaction tokens are excluded. */
-export function exposureCandidates(text: string): ExposureSpan[] {
-  const tokens = redactionTokenRanges(text);
+/**
+ * Candidates over the text with placeholders masked. A candidate may run across a
+ * placeholder (an attack sentence around a redacted address); it is split around the
+ * placeholder only when spans are reported.
+ */
+function maskedCandidates(text: string, tokens: Range[]): ExposureSpan[] {
+  const masked = maskRedactionTokens(text, tokens);
   const unique = new Map<string, ExposureSpan>();
 
   for (const rule of SPAN_RULES) {
     const pattern = new RegExp(rule.pattern.source, rule.pattern.flags);
-    for (const match of text.matchAll(pattern)) {
+    for (const match of masked.matchAll(pattern)) {
       const value = rule.valueGroup ? match[rule.valueGroup] : match[0];
       if (!value) continue;
+      if (!rule.crossesPlaceholders && tokens.length > 0 && value.includes(MASK)) continue;
       const end = (match.index ?? 0) + match[0].length;
       const start = end - value.length;
       const score = rule.score(value);
       if (score === null || score <= 0) continue;
       const span: ExposureSpan = { start, end, category: rule.category, score: round(score) };
-      if (tokens.some((token) => overlaps(token, span))) continue;
       unique.set(spanKey(span), span);
     }
   }
@@ -314,13 +412,90 @@ export function exposureCandidates(text: string): ExposureSpan[] {
   return [...unique.values()].sort(byOffset);
 }
 
-/** Keeps the strongest candidate wherever candidates overlap. */
-function resolveOverlaps(candidates: ExposureSpan[]) {
-  const accepted: ExposureSpan[] = [];
-  for (const candidate of [...candidates].sort(byStrength)) {
-    if (!accepted.some((span) => overlaps(span, candidate))) accepted.push(candidate);
+function splitAroundTokens(text: string, spans: ExposureSpan[], tokens: Range[]) {
+  if (tokens.length === 0) return spans;
+  return spans.flatMap((span) => withoutTokens(text, span, tokens));
+}
+
+/**
+ * Every candidate span, before overlaps are resolved. No candidate covers any part of a
+ * redaction token.
+ */
+export function exposureCandidates(text: string): ExposureSpan[] {
+  const tokens = redactionTokenRanges(text);
+  return splitAroundTokens(text, maskedCandidates(text, tokens), tokens).sort(byOffset);
+}
+
+// A Fenwick tree over the sorted distinct start offsets of the candidates, holding for
+// the accepted spans both a count and the largest end offset. Each query and update is
+// logarithmic.
+class AcceptedSpans {
+  private readonly starts: number[];
+  private readonly count: Int32Array;
+  private readonly maxEnd: Float64Array;
+
+  constructor(starts: number[]) {
+    this.starts = starts;
+    this.count = new Int32Array(starts.length + 1);
+    this.maxEnd = new Float64Array(starts.length + 1).fill(-1);
   }
-  return accepted.sort(byOffset);
+
+  /** How many distinct candidate starts lie before `offset`. */
+  private rank(offset: number) {
+    let low = 0;
+    let high = this.starts.length;
+    while (low < high) {
+      const middle = (low + high) >>> 1;
+      if (this.starts[middle] < offset) low = middle + 1;
+      else high = middle;
+    }
+    return low;
+  }
+
+  private prefix(rank: number) {
+    let count = 0;
+    let maxEnd = -1;
+    for (let index = rank; index > 0; index -= index & -index) {
+      count += this.count[index];
+      if (this.maxEnd[index] > maxEnd) maxEnd = this.maxEnd[index];
+    }
+    return { count, maxEnd };
+  }
+
+  /**
+   * Accepted spans never overlap one another, so a span overlaps one of them exactly
+   * when an accepted span starts inside it, or the accepted spans starting before it
+   * reach past its start.
+   */
+  overlaps(span: ExposureSpan) {
+    const before = this.prefix(this.rank(span.start));
+    if (before.maxEnd > span.start) return true;
+    return this.prefix(this.rank(span.end)).count > before.count;
+  }
+
+  add(span: ExposureSpan) {
+    const size = this.starts.length;
+    for (let index = this.rank(span.start) + 1; index <= size; index += index & -index) {
+      this.count[index] += 1;
+      if (span.end > this.maxEnd[index]) this.maxEnd[index] = span.end;
+    }
+  }
+}
+
+/**
+ * Keeps the strongest candidate wherever candidates overlap: a sort by strength, then
+ * one pass with logarithmic overlap queries, so O(n log n) in the number of candidates.
+ */
+export function resolveOverlaps(candidates: ExposureSpan[]) {
+  const starts = [...new Set(candidates.map((span) => span.start))].sort((a, b) => a - b);
+  const accepted = new AcceptedSpans(starts);
+  const kept: ExposureSpan[] = [];
+  for (const candidate of [...candidates].sort(byStrength)) {
+    if (accepted.overlaps(candidate)) continue;
+    accepted.add(candidate);
+    kept.push(candidate);
+  }
+  return kept.sort(byOffset);
 }
 
 function countLog(candidates: ExposureSpan[], include: (span: ExposureSpan) => boolean) {
@@ -329,7 +504,9 @@ function countLog(candidates: ExposureSpan[], include: (span: ExposureSpan) => b
 
 export function extractExposureFeatures(input: ExposureInput): ExposureFeatureExtraction {
   const text = input.sanitizedText;
-  const candidates = exposureCandidates(text);
+  const tokens = redactionTokenRanges(text);
+  // Counted before splitting, so a placeholder inside a span does not count it twice.
+  const candidates = maskedCandidates(text, tokens);
   const perThousand = text.length === 0 ? 0 : 1000 / text.length;
   const is = (category: ExposureSpanCategory) => (span: ExposureSpan) => span.category === category;
 
@@ -352,12 +529,12 @@ export function extractExposureFeatures(input: ExposureInput): ExposureFeatureEx
       ),
     ),
     // Context only: heavy redaction says the text was sensitive, not that more remains.
-    redaction_density: round(Math.min(1, (redactionTokenRanges(text).length * perThousand) / 20)),
+    redaction_density: round(Math.min(1, (tokens.length * perThousand) / 20)),
   };
 
   return {
     featuresVersion: EXPOSURE_FEATURES_VERSION,
     vector,
-    spans: resolveOverlaps(candidates),
+    spans: splitAroundTokens(text, resolveOverlaps(candidates), tokens),
   };
 }

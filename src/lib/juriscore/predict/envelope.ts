@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   driftRiskPredictionSchema,
   exposurePredictionSchema,
@@ -247,13 +248,17 @@ export async function buildExposureRequest(
 }
 
 function inferKind(request: AnyPredictionRequestRecord): PredictionKind {
-  return "sanitizedTextDigest" in request ? "residual-exposure" : "drift-risk";
+  return typeof request === "object" && request !== null && "sanitizedTextDigest" in request
+    ? "residual-exposure"
+    : "drift-risk";
 }
 
 /**
  * The digest a version 2 envelope carries: canonical JSON of the kind together with the
  * allowlisted request, so a drift and an exposure request can never collide. Pass the
  * kind whenever it is known; it is inferred from the request's shape only as a fallback.
+ * A request that is not complete for its kind is refused rather than digested, so a
+ * digest always binds every input.
  */
 export async function requestDigest(
   request: AnyPredictionRequestRecord,
@@ -272,6 +277,58 @@ export async function legacyRequestDigest(request: PredictionRequestRecord) {
 }
 
 // ---------------------------------------------------------------------------
+// Request schemas
+// ---------------------------------------------------------------------------
+
+// Every field of a request record is a digest, a version, an enum, or a model reference.
+// Each is validated in full before projection: a missing field, or an object where a
+// scalar belongs, is refused rather than dropped, since canonical JSON omits missing
+// keys and would otherwise bind a digest to less than the whole request.
+
+const sha256Schema = z.string().regex(/^[0-9a-f]{64}$/, "Expected a SHA-256 digest.");
+
+const modelRefSchema = z.object({
+  provider: z.string().min(1).max(64),
+  modelId: z.string().min(1).max(128),
+  params: z.record(z.union([z.string().max(256), z.number().finite(), z.boolean()])),
+});
+
+const driftRequestSchema = z.object({
+  sourceKind: z.enum(["diff", "snapshot"]),
+  diffDigest: sha256Schema,
+  documents: z.array(z.object({ id: z.string().min(1).max(512), contentDigest: sha256Schema })),
+  policyConfigDigest: sha256Schema,
+  featuresVersion: z.literal(FEATURES_VERSION),
+  weightsDigest: sha256Schema,
+  model: modelRefSchema.nullable(),
+});
+
+const exposureRequestSchema = z.object({
+  sanitizedTextDigest: sha256Schema,
+  profile: z.enum(["saas_operations", "healthcare", "all_sensitive"]),
+  policyConfigDigest: sha256Schema,
+  featuresVersion: z.literal(EXPOSURE_FEATURES_VERSION),
+  weightsDigest: sha256Schema,
+  model: modelRefSchema.nullable(),
+});
+
+// A reason is a short code such as `no-baseline`, never prose.
+const unavailableSchema = z.object({
+  status: z.literal("unavailable"),
+  reason: z.string().regex(/^[a-z0-9-]{1,64}$/, "Expected a reason code."),
+});
+
+type Schema<T> = z.ZodType<T, z.ZodTypeDef, unknown>;
+
+function parsed<T>(schema: Schema<T>, value: unknown, what: string): T {
+  const result = schema.safeParse(value);
+  if (!result.success) {
+    throw new EnvelopeError(`${what}: ${result.error.issues[0]?.message ?? "invalid"}`);
+  }
+  return result.data;
+}
+
+// ---------------------------------------------------------------------------
 // Allowlist
 // ---------------------------------------------------------------------------
 
@@ -285,7 +342,8 @@ function pickModelRef(model: PredictionModelRef): PredictionModelRef {
   return { provider: model.provider, modelId: model.modelId, params };
 }
 
-function pickRequest(request: PredictionRequestRecord): PredictionRequestRecord {
+function pickRequest(raw: PredictionRequestRecord): PredictionRequestRecord {
+  const request = parsed(driftRequestSchema, raw, "A drift-risk request is incomplete");
   return {
     sourceKind: request.sourceKind,
     diffDigest: request.diffDigest,
@@ -300,7 +358,8 @@ function pickRequest(request: PredictionRequestRecord): PredictionRequestRecord 
   };
 }
 
-function pickExposureRequest(request: ExposureRequestRecord): ExposureRequestRecord {
+function pickExposureRequest(raw: ExposureRequestRecord): ExposureRequestRecord {
+  const request = parsed(exposureRequestSchema, raw, "A residual-exposure request is incomplete");
   return {
     sanitizedTextDigest: request.sanitizedTextDigest,
     profile: request.profile,
@@ -315,10 +374,15 @@ function isUnavailable(prediction: object): prediction is PredictionUnavailableR
   return "status" in prediction && prediction.status === "unavailable";
 }
 
+function pickUnavailable(raw: PredictionUnavailableRecord): PredictionUnavailableRecord {
+  const record = parsed(unavailableSchema, raw, "An unavailable prediction is malformed");
+  return { status: "unavailable", reason: record.reason };
+}
+
 function pickExposurePrediction(
   prediction: ExposurePrediction | PredictionUnavailableRecord,
 ): ExposurePrediction | PredictionUnavailableRecord {
-  if (isUnavailable(prediction)) return { status: "unavailable", reason: prediction.reason };
+  if (isUnavailable(prediction)) return pickUnavailable(prediction);
   // Spans keep offsets, a category, and a score. Whatever text a span covered is not
   // part of the contract and cannot ride along.
   const parsed = exposurePredictionSchema.parse(prediction);
@@ -348,7 +412,7 @@ function pickExposurePrediction(
 function pickPrediction(
   prediction: DriftRiskPrediction | PredictionUnavailableRecord,
 ): DriftRiskPrediction | PredictionUnavailableRecord {
-  if (isUnavailable(prediction)) return { status: "unavailable", reason: prediction.reason };
+  if (isUnavailable(prediction)) return pickUnavailable(prediction);
   // Parsing strips every key the contract does not declare; the fields are then copied
   // by name so nothing else can ride along.
   const parsed = driftRiskPredictionSchema.parse(prediction);
@@ -382,10 +446,12 @@ export function pickEnvelope(envelope: ResidualExposureEnvelope): ResidualExposu
 export function pickEnvelope(envelope: LegacyDriftRiskEnvelope): LegacyDriftRiskEnvelope;
 export function pickEnvelope(envelope: AnyPredictionEnvelope): AnyPredictionEnvelope;
 export function pickEnvelope(envelope: AnyPredictionEnvelope): AnyPredictionEnvelope {
+  const digest = parsed(sha256Schema, envelope.requestDigest, "An envelope's digest is malformed");
   if (envelope.envelopeVersion === LEGACY_ENVELOPE_VERSION) {
+    // Version 1 has its own reader: the drift request schema, with no kind.
     return {
       envelopeVersion: LEGACY_ENVELOPE_VERSION,
-      requestDigest: envelope.requestDigest,
+      requestDigest: digest,
       request: pickRequest(envelope.request),
       prediction: pickPrediction(envelope.prediction),
     };
@@ -398,7 +464,7 @@ export function pickEnvelope(envelope: AnyPredictionEnvelope): AnyPredictionEnve
       return {
         envelopeVersion: ENVELOPE_VERSION,
         kind: "drift-risk",
-        requestDigest: envelope.requestDigest,
+        requestDigest: digest,
         request: pickRequest(envelope.request),
         prediction: pickPrediction(envelope.prediction),
       };
@@ -406,7 +472,7 @@ export function pickEnvelope(envelope: AnyPredictionEnvelope): AnyPredictionEnve
       return {
         envelopeVersion: ENVELOPE_VERSION,
         kind: "residual-exposure",
-        requestDigest: envelope.requestDigest,
+        requestDigest: digest,
         request: pickExposureRequest(envelope.request),
         prediction: pickExposurePrediction(envelope.prediction),
       };
@@ -469,13 +535,21 @@ export function serializePredictionEnvelope(envelope: AnyPredictionEnvelope) {
   return canonicalJson(pickEnvelope(envelope));
 }
 
-/** True when the envelope's digest still matches the request it carries. */
+/**
+ * True when the envelope's digest still matches the request it carries. A request that
+ * is incomplete for its kind never verifies.
+ */
 export async function verifyEnvelopeDigest(envelope: AnyPredictionEnvelope) {
-  if (envelope.envelopeVersion === LEGACY_ENVELOPE_VERSION) {
-    return envelope.requestDigest === (await legacyRequestDigest(envelope.request));
+  try {
+    if (envelope.envelopeVersion === LEGACY_ENVELOPE_VERSION) {
+      return envelope.requestDigest === (await legacyRequestDigest(envelope.request));
+    }
+    if (envelope.kind !== "drift-risk" && envelope.kind !== "residual-exposure") return false;
+    return envelope.requestDigest === (await requestDigest(envelope.request, envelope.kind));
+  } catch (error) {
+    if (error instanceof EnvelopeError) return false;
+    throw error;
   }
-  if (envelope.kind !== "drift-risk" && envelope.kind !== "residual-exposure") return false;
-  return envelope.requestDigest === (await requestDigest(envelope.request, envelope.kind));
 }
 
 // ---------------------------------------------------------------------------

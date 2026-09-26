@@ -125,11 +125,15 @@ function renderProtectedText(text: string, keyPrefix: string) {
   );
 }
 
+// A large document can hold tens of thousands of spans; only the first ones are marked
+// in the preview, and the panel says how many there are in all.
+const MAX_HIGHLIGHTED_SPANS = 200;
+
 /** The sanitized preview, with residual-exposure spans highlighted by category. */
 function renderSanitizedPreview(text: string, spans: ExposureSpan[]) {
   const nodes: ReactNode[] = [];
   let cursor = 0;
-  spans.forEach((span, index) => {
+  spans.slice(0, MAX_HIGHLIGHTED_SPANS).forEach((span, index) => {
     if (span.start < cursor) return;
     nodes.push(...renderProtectedText(text.slice(cursor, span.start), `before-${index}`));
     const label = SPAN_CATEGORY_LABEL[span.category];
@@ -743,8 +747,9 @@ function VeilWorkbench() {
               <span className="font-medium">Estimated probability</span>
               <span className="font-mono">{Math.round(exposure.score * 100)}%</span>
               <span className="text-muted-foreground">
-                · {exposure.spans.length} highlighted{" "}
-                {exposure.spans.length === 1 ? "span" : "spans"}
+                · {exposure.spans.length} flagged {exposure.spans.length === 1 ? "span" : "spans"}
+                {exposure.spans.length > MAX_HIGHLIGHTED_SPANS &&
+                  ` (the first ${MAX_HIGHLIGHTED_SPANS} are highlighted in the preview)`}
               </span>
             </div>
             {exposureCategories.length > 0 && (
