@@ -138,9 +138,23 @@ if (process.argv.includes("--sync")) {
   } else {
     const repo = repoView.out.trim();
 
-    // 1. Commits by a Lovable identity on any remote branch.
-    const fetched = run("git", ["fetch", "--quiet", "--prune", "origin"]);
-    if (!fetched.ok) findings.push(`git fetch failed: ${fetched.err}`);
+    // 1. Commits by a Lovable identity on any remote branch. Fetch every branch explicitly
+    //    (a single-branch clone's refspec would skip the rest) with full history (a shallow
+    //    clone would hide older commits); if either is impossible, the scan is incomplete.
+    const shallow = run("git", ["rev-parse", "--is-shallow-repository"]);
+    const fetched = run("git", [
+      "fetch",
+      "--quiet",
+      "--prune",
+      ...(shallow.out.trim() === "true" ? ["--unshallow"] : []),
+      "origin",
+      "+refs/heads/*:refs/remotes/origin/*",
+    ]);
+    if (!shallow.ok || !fetched.ok) {
+      findings.push(`could not fetch every origin branch with full history: ${fetched.err}`);
+    } else if (run("git", ["rev-parse", "--is-shallow-repository"]).out.trim() !== "false") {
+      findings.push("the clone is still shallow; commit history is incomplete");
+    }
     const log = run("git", [
       "log",
       "--remotes=origin",
