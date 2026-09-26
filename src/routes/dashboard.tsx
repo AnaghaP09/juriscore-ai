@@ -11,7 +11,6 @@ import {
   EyeOff,
   ShieldAlert,
   Activity,
-  RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MODELS, useDemoStore, type ModelId } from "@/lib/juriscore/demo-store";
@@ -22,7 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 export const Route = createFileRoute("/dashboard")({
@@ -63,7 +61,7 @@ const groups: Array<{
 
 function DashboardLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { activeModel, setActiveModel, killSwitch, resetDemo } = useDemoStore();
+  const { activeModel, setActiveModel, killSwitch } = useDemoStore();
 
   return (
     <div className="min-h-dvh p-0 md:p-4 lg:p-6" style={{ background: "var(--app-bg)" }}>
@@ -187,9 +185,6 @@ function DashboardLayout() {
                   LOCKDOWN
                 </Badge>
               )}
-              <Button size="sm" variant="ghost" onClick={resetDemo} className="gap-1.5">
-                <RotateCcw className="h-3.5 w-3.5" /> Reset demo
-              </Button>
             </div>
           </div>
           <main id="dashboard-main" className="flex-1 min-w-0">
