@@ -216,8 +216,15 @@ function DriftView() {
   const selectedDoc =
     sourceDocuments.find((document) => document.id === doc) ?? sourceDocuments[0] ?? null;
 
+  // The built-in sample change only stands in while the workbench is demonstrating itself.
+  // Once the user supplies a document of their own, comparing it against invented code
+  // would report findings about a pull request that does not exist, so the code side
+  // stays empty until they connect a real change.
+  const hasUserDocuments = sourceDocuments.some((document) => document.kind !== "sample");
+  const showsSampleCode = !connectedRepository && !hasUserDocuments;
+
   const authorities = useMemo(() => {
-    if (!parsedDiff || !connectedRepository) return codeClaims(driftMode);
+    if (!parsedDiff || !connectedRepository) return showsSampleCode ? codeClaims(driftMode) : [];
     return claimsFromDiff(
       parsedDiff,
       BUILT_IN_SUBJECTS,
@@ -225,7 +232,7 @@ function DriftView() {
         ? `pr-${connectedRepository.pullNumber}`
         : connectedRepository.loadedAt,
     );
-  }, [parsedDiff, connectedRepository, driftMode]);
+  }, [parsedDiff, connectedRepository, driftMode, showsSampleCode]);
 
   const selectedSentences = useMemo(
     () => (selectedDoc ? documentSentences(selectedDoc.text) : []),
@@ -324,12 +331,15 @@ function DriftView() {
   );
 
   const displayedDiffLines: DiffLine[] =
-    parsedDiff?.lines ?? (driftMode === "drift" ? DRIFT_DIFF_LINES : CLEAN_DIFF_LINES);
+    parsedDiff?.lines ??
+    (showsSampleCode ? (driftMode === "drift" ? DRIFT_DIFF_LINES : CLEAN_DIFF_LINES) : []);
   const additions = displayedDiffLines.filter((line) => line.kind === "add").length;
   const deletions = displayedDiffLines.filter((line) => line.kind === "del").length;
-  const diffPath = parsedDiff?.path ?? "payments.ts";
+  const diffPath = parsedDiff?.path ?? (showsSampleCode ? "payments.ts" : "No change connected");
   const diffLabel = !connectedRepository
-    ? "PR #2431"
+    ? showsSampleCode
+      ? "sample PR #2431"
+      : "connect a pull request or paste a diff above"
     : connectedRepository.owner && connectedRepository.repo
       ? `${connectedRepository.owner}/${connectedRepository.repo}${
           connectedRepository.pullNumber ? ` · PR #${connectedRepository.pullNumber}` : ""
@@ -345,7 +355,7 @@ function DriftView() {
         description="When your code changes but the docs, marketing decks, or filings don't, Plumb flags the mismatch — with the exact line — before the pull request is merged."
         actions={
           <>
-            {!connectedRepository && (
+            {showsSampleCode && (
               <div className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2">
                 <Switch
                   id="pr-toggle"
@@ -360,7 +370,15 @@ function DriftView() {
                 </label>
               </div>
             )}
-            <Button onClick={runJudge} disabled={killSwitch || !selectedDoc}>
+            <Button
+              onClick={runJudge}
+              disabled={killSwitch || !selectedDoc || authorities.length === 0}
+              title={
+                authorities.length === 0
+                  ? "Connect a pull request or paste a diff to compare against"
+                  : undefined
+              }
+            >
               {killSwitch ? (
                 <>
                   <Lock className="h-4 w-4 mr-2" /> Blocked
@@ -409,13 +427,19 @@ function DriftView() {
         }}
         documents={sourceDocuments}
         onDocumentAdd={(document) => {
+          // A real document replaces the sample set rather than sitting beside it.
+          if (document.kind !== "sample") {
+            for (const sample of sourceDocuments) {
+              if (sample.kind === "sample") removeSourceDocument(sample.id);
+            }
+          }
           addSourceDocument(document);
           setDoc(document.id);
           resetRun();
         }}
         onDocumentRemove={(id) => {
           removeSourceDocument(id);
-          if (doc === id) setDoc("sec");
+          if (doc === id) setDoc("");
           resetRun();
         }}
         policies={activePlumbPolicies}
@@ -440,6 +464,12 @@ function DriftView() {
               className="text-xs font-mono overflow-x-auto"
               aria-label={`Git diff of ${diffPath}`}
             >
+              {displayedDiffLines.length === 0 && (
+                <div className="px-4 py-6 font-sans text-sm text-muted-foreground whitespace-normal">
+                  No code change yet. Connect a pull request or paste a diff above, and Plumb
+                  compares your documents against it.
+                </div>
+              )}
               {displayedDiffLines.map((l, index) => {
                 const hit = ran && l.kind === "add" && driftedCodeLocators.has(`line ${l.n}`);
                 const bg = l.kind === "add" ? "diff-add" : l.kind === "del" ? "diff-del" : "";
