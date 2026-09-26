@@ -1,4 +1,4 @@
-import { defineMcp } from "@lovable.dev/mcp-js";
+import { defineMcp } from "./define";
 import checkPrompt from "./tools/check-prompt";
 import retrievePolicy from "./tools/retrieve-policy";
 import compareClaims from "./tools/compare-claims";

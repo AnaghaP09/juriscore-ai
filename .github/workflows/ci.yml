@@ -45,6 +45,10 @@ jobs:
       - name: Deterministic checks
         run: bun run check:core
 
+      # No Lovable package, import, config, registry URL or prototype asset.
+      - name: Lovable independence
+        run: bun run check:lovable
+
       - name: Types
         run: bunx tsc --noEmit
 
