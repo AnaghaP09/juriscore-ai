@@ -41,6 +41,23 @@ import {
   type PredictionInput,
 } from "../src/lib/juriscore/predict/features";
 import {
+  assessWorkbenchRisk,
+  buildWorkbenchRequest,
+  docsTouchedBy,
+  parseConnectedChange,
+  riskScorePercent,
+  topContributions,
+  type ConnectedChange,
+} from "../src/lib/juriscore/predict/workbench";
+import { SIMULATED_SEED, summarizeTrailingWeek } from "../src/lib/juriscore/demo-store";
+import {
+  addPlumbCheck,
+  latestRiskAfter,
+  normalizeLedger,
+  type LocalMetricsLedger,
+} from "../src/lib/juriscore/metrics-ledger";
+import {
+  bandFor,
   LOCAL_WEIGHTS,
   loadLocalWeights,
   predictDriftRisk,
@@ -767,5 +784,249 @@ assert.equal(capabilityState("free", "model-backed-prediction"), "not-in-tier");
 assert.equal(capabilityState("team", "model-backed-prediction"), "roadmap");
 assert.equal(capabilityState("team", "self-hosted-model"), "not-in-tier");
 assert.equal(capabilityState("enterprise", "self-hosted-model"), "roadmap");
+
+// ---------------------------------------------------------------------------
+// Phase C: the workbench drift-risk band
+// ---------------------------------------------------------------------------
+
+// The workbench reads every parsed file, and the parser that accepted the text decides
+// the source kind.
+const workbenchChange = parseConnectedChange(`${harmless}\n${publicLimit}\n${pureRename}`);
+assert.equal(workbenchChange.sourceKind, "diff");
+assert.equal(workbenchChange.files.length, 3, "metadata-only files are part of the change");
+const pastedFile = parseConnectedChange("export const MAX_UPLOAD_LIMIT_MB = 50;\n", "limits.ts");
+assert.equal(pastedFile.sourceKind, "snapshot");
+assert.equal(pastedFile.files[0].path, "limits.ts");
+
+async function workbenchRiskFor(change: ConnectedChange, documents = [] as DocumentInput[]) {
+  const { request, requestDigest: digest } = await buildWorkbenchRequest(change, {
+    documents,
+    policyConfig,
+  });
+  const result = await assessWorkbenchRisk(change, request);
+  assert.equal(result.envelope.requestDigest, digest, "the envelope answers its own request");
+  return result;
+}
+type DocumentInput = { id: string; content: string };
+
+// The risky file comes second and still drives the score.
+const workbenchCombined = await workbenchRiskFor(
+  parseConnectedChange(`${harmless}\n${publicLimit}`),
+);
+assert.equal(workbenchCombined.risk.status, "scored");
+if (workbenchCombined.risk.status === "scored") {
+  assert.equal(workbenchCombined.risk.score, riskScorePercent(withLimit.score));
+  assert.equal(workbenchCombined.risk.band, withLimit.band);
+  assert.equal(workbenchCombined.risk.placeholder, true);
+  assert.equal(workbenchCombined.risk.maturity, "target");
+  assert.ok(workbenchCombined.risk.score >= 0 && workbenchCombined.risk.score <= 100);
+  const top = topContributions(workbenchCombined.risk.contributions);
+  assert.ok(top.length > 0 && top.length <= 3);
+  for (const contribution of top) assert.ok(contribution.contribution > 0);
+}
+const workbenchHarmless = await workbenchRiskFor(parseConnectedChange(harmless));
+assert.ok(
+  workbenchHarmless.risk.status === "scored" &&
+    workbenchCombined.risk.status === "scored" &&
+    workbenchCombined.risk.score > workbenchHarmless.risk.score,
+);
+
+// A pasted whole file has no baseline; a docs-only change has no code to score.
+const workbenchSnapshot = await workbenchRiskFor(pastedFile);
+assert.deepEqual(workbenchSnapshot.risk, {
+  status: "unavailable",
+  reason: "no-baseline",
+  docsTouched: [],
+});
+assert.deepEqual(workbenchSnapshot.envelope.prediction, {
+  status: "unavailable",
+  reason: "no-baseline",
+});
+const workbenchDocsOnly = await workbenchRiskFor(parseConnectedChange(docEdit));
+assert.deepEqual(workbenchDocsOnly.risk, {
+  status: "unavailable",
+  reason: "no-code-files",
+  docsTouched: ["docs/limits.md"],
+});
+
+// Docs already touched are reported as a fact and do not move the score.
+const workbenchWithDoc = await workbenchRiskFor(parseConnectedChange(`${publicLimit}\n${docEdit}`));
+const workbenchWithoutDoc = await workbenchRiskFor(parseConnectedChange(publicLimit));
+const bothScored =
+  workbenchWithDoc.risk.status === "scored" && workbenchWithoutDoc.risk.status === "scored";
+assert.ok(bothScored);
+if (workbenchWithDoc.risk.status === "scored" && workbenchWithoutDoc.risk.status === "scored") {
+  assert.deepEqual(workbenchWithDoc.risk.docsTouched, ["docs/limits.md"]);
+  assert.deepEqual(workbenchWithoutDoc.risk.docsTouched, []);
+  assert.equal(workbenchWithDoc.risk.score, workbenchWithoutDoc.risk.score);
+}
+assert.deepEqual(docsTouchedBy(pastedFile), []);
+
+// The envelope the workbench builds carries digests only, never the change or documents.
+const workbenchSecret = await workbenchRiskFor({ sourceKind: "diff", files: secretChange }, [
+  { id: "doc-1", content: DOC_SECRET },
+]);
+const workbenchSerialized = serializePredictionEnvelope(workbenchSecret.envelope);
+assert.equal(workbenchSerialized.includes(DOC_SECRET), false);
+assert.equal(workbenchSerialized.includes(CODE_SECRET), false);
+
+// Verdict independence: the workbench compares the same claims with or without the band.
+const workbenchKyc = parseConnectedChange(`diff --git a/src/payments.ts b/src/payments.ts
+--- a/src/payments.ts
++++ b/src/payments.ts
+@@ -1,1 +1,1 @@
+-  kycThreshold: 10_000,
++  kycThreshold: 25_000,`);
+const workbenchAuthorities = claimsFor(workbenchKyc.files);
+const compareWorkbench = () =>
+  compareClaims(workbenchAuthorities, docClaims, { policyIds: ["pii-baseline"] });
+const withoutBand = compareWorkbench();
+const workbenchBand = await workbenchRiskFor(workbenchKyc, [{ id: "kyc", content: "kyc" }]);
+const withBand = compareWorkbench();
+assert.deepEqual(withBand, withoutBand);
+assert.equal(withoutBand.verdict, "block");
+assert.equal("verdict" in workbenchBand.risk, false);
+
+// The stale-result guard, as the workbench runs it: a result is committed only if its
+// generation and digest are still the active ones once scoring finishes.
+async function runWorkbenchScoring(
+  change: ConnectedChange,
+  state: { generation: number; active: ActivePredictionRequest | null },
+  duringScoring: () => void,
+) {
+  const generation = ++state.generation;
+  state.active = null;
+  const { request, requestDigest: digest } = await buildWorkbenchRequest(change, {
+    documents: [],
+    policyConfig,
+  });
+  if (state.generation !== generation) return null;
+  state.active = { generation, requestDigest: digest };
+  const pending = assessWorkbenchRisk(change, request);
+  duringScoring();
+  const result = await pending;
+  const current = await isCurrentPredictionResult(() => state.active, {
+    generation,
+    envelope: result.envelope,
+  });
+  return current ? result.risk : null;
+}
+const scoringState = { generation: 0, active: null as ActivePredictionRequest | null };
+const changeA = parseConnectedChange(publicLimit);
+assert.notEqual(await runWorkbenchScoring(changeA, scoringState, () => undefined), null);
+// Source switched to B while A was scoring: A's result is dropped.
+assert.equal(
+  await runWorkbenchScoring(changeA, scoringState, () => {
+    scoringState.generation += 1;
+    scoringState.active = null;
+  }),
+  null,
+);
+// A reset or unmount retires the request the same way.
+assert.equal(
+  await runWorkbenchScoring(changeA, scoringState, () => {
+    scoringState.generation += 1;
+    scoringState.active = null;
+  }),
+  null,
+);
+// Two requests for the same input: only the latest generation is shown, even though
+// both carry the same digest.
+assert.equal(
+  await runWorkbenchScoring(changeA, scoringState, () => {
+    const digest = scoringState.active?.requestDigest ?? "";
+    scoringState.generation += 1;
+    scoringState.active = { generation: scoringState.generation, requestDigest: digest };
+  }),
+  null,
+);
+
+// ---------------------------------------------------------------------------
+// Phase C: the local metrics ledger records bands and scores only
+// ---------------------------------------------------------------------------
+
+const today = new Date().toISOString().slice(0, 10);
+const legacyDay = {
+  veil: {
+    checks: 1,
+    allow: 1,
+    revise: 0,
+    block: 0,
+    occurrences: 2,
+    redacted: 2,
+    tokenized: 0,
+    chars: 10,
+  },
+  plumb: {
+    checks: 2,
+    allow: 1,
+    revise: 1,
+    block: 0,
+    assertions: 3,
+    matches: 2,
+    drifted: 0,
+    cannotDetermine: 1,
+  },
+  receipts: 1,
+};
+const noRisk = { low: 0, uncertain: 0, high: 0 };
+const someRisk = { low: 0, uncertain: 1, high: 1 };
+// A ledger saved before drift risk existed loads with zero risk counts and no latest score.
+const legacyLedger = normalizeLedger({
+  version: 1,
+  simulated: false,
+  days: { [today]: legacyDay },
+} as unknown as LocalMetricsLedger);
+assert.deepEqual(legacyLedger.days[today].plumb.risk, noRisk);
+assert.equal(legacyLedger.latestRisk, null);
+assert.equal(legacyLedger.days[today].plumb.checks, 2);
+assert.deepEqual(summarizeTrailingWeek(legacyLedger).plumb.risk, noRisk);
+assert.equal(summarizeTrailingWeek(legacyLedger).plumb.checks, 2);
+
+const ledgerDay = legacyLedger.days[today];
+const baseRecord = {
+  verdict: "allow" as const,
+  assertions: 1,
+  matches: 1,
+  drifted: 0,
+  cannotDetermine: 0,
+};
+addPlumbCheck(ledgerDay, { ...baseRecord, riskBand: "high", riskScore: 81 });
+addPlumbCheck(ledgerDay, { ...baseRecord, riskBand: "uncertain", riskScore: 40 });
+addPlumbCheck(ledgerDay, { ...baseRecord, riskBand: null, riskScore: null });
+addPlumbCheck(ledgerDay, baseRecord);
+assert.deepEqual(ledgerDay.plumb.risk, someRisk);
+assert.equal(ledgerDay.plumb.checks, 6);
+assert.deepEqual(summarizeTrailingWeek(legacyLedger).plumb.risk, someRisk);
+
+const recordedAt = "2026-09-26T00:00:00.000Z";
+const unscored = { ...baseRecord, riskBand: null, riskScore: null };
+const latestScore = latestRiskAfter(
+  null,
+  { ...baseRecord, riskBand: "high", riskScore: 81 },
+  recordedAt,
+);
+assert.deepEqual(latestScore, { score: 81, band: "high", at: recordedAt });
+// A check without a score (the sample, a snapshot) keeps the previous latest score.
+assert.deepEqual(latestRiskAfter(latestScore, unscored, recordedAt), latestScore);
+assert.deepEqual(latestRiskAfter(latestScore, baseRecord, recordedAt), latestScore);
+
+// A round trip through storage keeps the new fields and nothing else.
+const persisted = normalizeLedger(
+  JSON.parse(JSON.stringify({ ...legacyLedger, latestRisk: latestScore })) as LocalMetricsLedger,
+);
+assert.deepEqual(persisted.latestRisk, latestScore);
+assert.deepEqual(persisted.days[today].plumb.risk, someRisk);
+const riskKeys = Object.keys(persisted.days[today].plumb.risk).sort();
+assert.deepEqual(riskKeys, ["high", "low", "uncertain"]);
+assert.deepEqual(Object.keys(persisted.latestRisk ?? {}).sort(), ["at", "band", "score"]);
+
+// The simulated seed is internally consistent with the Plumb tile and the shipped bands.
+const seedRisk = SIMULATED_SEED.plumbRisk;
+assert.equal(
+  seedRisk.counts.low + seedRisk.counts.uncertain + seedRisk.counts.high,
+  SIMULATED_SEED.plumb.checks,
+);
+assert.equal(bandFor(seedRisk.latest.score / 100), seedRisk.latest.band);
 
 console.log("JurisCore predictive drift-risk checks passed.");
