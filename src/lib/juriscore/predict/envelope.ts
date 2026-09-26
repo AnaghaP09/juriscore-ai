@@ -1,6 +1,14 @@
-import { driftRiskPredictionSchema, type DriftRiskPrediction } from "../core/contracts";
+import {
+  driftRiskPredictionSchema,
+  exposurePredictionSchema,
+  type DriftRiskPrediction,
+  type ExposurePrediction,
+} from "../core/contracts";
 import { sha256Hex } from "../core/receipts";
 import type { DiffFile } from "../plumb/sources";
+import type { VeilProfile } from "../veil/engine";
+import { EXPOSURE_FEATURES_VERSION } from "./exposure-features";
+import { EXPOSURE_WEIGHTS, loadExposureWeights, type ExposureWeights } from "./exposure-model";
 import { FEATURES_VERSION, type PredictionSourceKind } from "./features";
 import { LOCAL_WEIGHTS, loadLocalWeights, type LocalWeights } from "./model";
 
@@ -10,10 +18,18 @@ import { LOCAL_WEIGHTS, loadLocalWeights, type LocalWeights } from "./model";
  * The existing receipt digest covers only extracted claims, so two unrelated changes
  * that yield no claims would share one. A prediction therefore gets its own envelope,
  * bound to a digest of everything that produced it. The envelope holds digests,
- * versions, and numbers only: no document text, code text, rationale, or excerpt.
+ * versions, numbers, and (for residual exposure) span offsets and categories only: no
+ * document text, code text, sanitized text, rationale, or excerpt.
+ *
+ * Version 2 carries a `kind`, either drift risk or residual exposure, and the digest
+ * covers that kind, so two kinds of prediction can never share a digest. Version 1
+ * envelopes (drift risk only, digest without a kind) are still read and verified.
  */
 
-export const ENVELOPE_VERSION = 1;
+export const ENVELOPE_VERSION = 2;
+export const LEGACY_ENVELOPE_VERSION = 1;
+
+export type PredictionKind = "drift-risk" | "residual-exposure";
 
 export interface PredictionModelRef {
   provider: string;
@@ -41,12 +57,48 @@ export interface PredictionUnavailableRecord {
   reason: string;
 }
 
-export interface PredictionEnvelope {
+/**
+ * What a residual-exposure estimate was computed from. The sanitized text is recorded
+ * only as a digest.
+ */
+export interface ExposureRequestRecord {
+  sanitizedTextDigest: string;
+  profile: VeilProfile;
+  policyConfigDigest: string;
+  featuresVersion: string;
+  weightsDigest: string;
+  model: PredictionModelRef | null;
+}
+
+export type AnyPredictionRequestRecord = PredictionRequestRecord | ExposureRequestRecord;
+
+export interface DriftRiskEnvelope {
   envelopeVersion: typeof ENVELOPE_VERSION;
+  kind: "drift-risk";
   requestDigest: string;
   request: PredictionRequestRecord;
   prediction: DriftRiskPrediction | PredictionUnavailableRecord;
 }
+
+export interface ResidualExposureEnvelope {
+  envelopeVersion: typeof ENVELOPE_VERSION;
+  kind: "residual-exposure";
+  requestDigest: string;
+  request: ExposureRequestRecord;
+  prediction: ExposurePrediction | PredictionUnavailableRecord;
+}
+
+export type PredictionEnvelope = DriftRiskEnvelope | ResidualExposureEnvelope;
+
+/** A Phase A drift-risk envelope: no kind, and a digest over the request alone. */
+export interface LegacyDriftRiskEnvelope {
+  envelopeVersion: typeof LEGACY_ENVELOPE_VERSION;
+  requestDigest: string;
+  request: PredictionRequestRecord;
+  prediction: DriftRiskPrediction | PredictionUnavailableRecord;
+}
+
+export type AnyPredictionEnvelope = PredictionEnvelope | LegacyDriftRiskEnvelope;
 
 export class EnvelopeError extends Error {}
 
@@ -167,7 +219,55 @@ export async function buildPredictionRequest(
   };
 }
 
-export async function requestDigest(request: PredictionRequestRecord) {
+export async function exposureWeightsDigest(weights: ExposureWeights = EXPOSURE_WEIGHTS) {
+  return sha256Hex(canonicalJson(loadExposureWeights(weights)));
+}
+
+export interface ExposureRequestInput {
+  /** Veil's sanitized output. Only its digest is recorded. */
+  sanitizedText: string;
+  profile: VeilProfile;
+  /** The active policy configuration. Only its digest is recorded. */
+  policyConfig: unknown;
+  model?: PredictionModelRef | null;
+  weights?: ExposureWeights;
+}
+
+export async function buildExposureRequest(
+  input: ExposureRequestInput,
+): Promise<ExposureRequestRecord> {
+  return {
+    sanitizedTextDigest: await sha256Hex(input.sanitizedText),
+    profile: input.profile,
+    policyConfigDigest: await sha256Hex(canonicalJson(input.policyConfig ?? null)),
+    featuresVersion: EXPOSURE_FEATURES_VERSION,
+    weightsDigest: await exposureWeightsDigest(input.weights),
+    model: input.model ? pickModelRef(input.model) : null,
+  };
+}
+
+function inferKind(request: AnyPredictionRequestRecord): PredictionKind {
+  return "sanitizedTextDigest" in request ? "residual-exposure" : "drift-risk";
+}
+
+/**
+ * The digest a version 2 envelope carries: canonical JSON of the kind together with the
+ * allowlisted request, so a drift and an exposure request can never collide. Pass the
+ * kind whenever it is known; it is inferred from the request's shape only as a fallback.
+ */
+export async function requestDigest(
+  request: AnyPredictionRequestRecord,
+  kind: PredictionKind = inferKind(request),
+) {
+  const picked =
+    kind === "drift-risk"
+      ? pickRequest(request as PredictionRequestRecord)
+      : pickExposureRequest(request as ExposureRequestRecord);
+  return sha256Hex(canonicalJson({ kind, request: picked }));
+}
+
+/** The digest a version 1 (Phase A) drift envelope carries: the request alone. */
+export async function legacyRequestDigest(request: PredictionRequestRecord) {
   return sha256Hex(canonicalJson(pickRequest(request)));
 }
 
@@ -200,12 +300,55 @@ function pickRequest(request: PredictionRequestRecord): PredictionRequestRecord 
   };
 }
 
+function pickExposureRequest(request: ExposureRequestRecord): ExposureRequestRecord {
+  return {
+    sanitizedTextDigest: request.sanitizedTextDigest,
+    profile: request.profile,
+    policyConfigDigest: request.policyConfigDigest,
+    featuresVersion: request.featuresVersion,
+    weightsDigest: request.weightsDigest,
+    model: request.model ? pickModelRef(request.model) : null,
+  };
+}
+
+function isUnavailable(prediction: object): prediction is PredictionUnavailableRecord {
+  return "status" in prediction && prediction.status === "unavailable";
+}
+
+function pickExposurePrediction(
+  prediction: ExposurePrediction | PredictionUnavailableRecord,
+): ExposurePrediction | PredictionUnavailableRecord {
+  if (isUnavailable(prediction)) return { status: "unavailable", reason: prediction.reason };
+  // Spans keep offsets, a category, and a score. Whatever text a span covered is not
+  // part of the contract and cannot ride along.
+  const parsed = exposurePredictionSchema.parse(prediction);
+  return {
+    tier: parsed.tier,
+    engine: parsed.engine,
+    modelId: parsed.modelId,
+    modelVersion: parsed.modelVersion,
+    placeholder: parsed.placeholder,
+    maturity: parsed.maturity,
+    featuresVersion: parsed.featuresVersion,
+    score: parsed.score,
+    band: parsed.band,
+    spans: parsed.spans.map((span) => ({
+      start: span.start,
+      end: span.end,
+      category: span.category,
+      score: span.score,
+    })),
+    contributions: parsed.contributions.map((contribution) => ({
+      feature: contribution.feature,
+      weight: contribution.weight,
+    })),
+  };
+}
+
 function pickPrediction(
   prediction: DriftRiskPrediction | PredictionUnavailableRecord,
 ): DriftRiskPrediction | PredictionUnavailableRecord {
-  if ("status" in prediction && prediction.status === "unavailable") {
-    return { status: "unavailable", reason: prediction.reason };
-  }
+  if (isUnavailable(prediction)) return { status: "unavailable", reason: prediction.reason };
   // Parsing strips every key the contract does not declare; the fields are then copied
   // by name so nothing else can ride along.
   const parsed = driftRiskPredictionSchema.parse(prediction);
@@ -230,38 +373,109 @@ function pickPrediction(
 
 /**
  * Rebuilds an envelope from its allowed fields only. Anything else attached along the
- * way (a rationale, an excerpt, a candidate claim) is dropped here, which is why every
- * export path goes through this function.
+ * way (a rationale, an excerpt, a candidate claim, span text) is dropped here, which is
+ * why every export path goes through this function. The allowlist is chosen by version
+ * and kind; an envelope of any other version or kind is refused.
  */
-export function pickEnvelope(envelope: PredictionEnvelope): PredictionEnvelope {
-  return {
-    envelopeVersion: ENVELOPE_VERSION,
-    requestDigest: envelope.requestDigest,
-    request: pickRequest(envelope.request),
-    prediction: pickPrediction(envelope.prediction),
-  };
+export function pickEnvelope(envelope: DriftRiskEnvelope): DriftRiskEnvelope;
+export function pickEnvelope(envelope: ResidualExposureEnvelope): ResidualExposureEnvelope;
+export function pickEnvelope(envelope: LegacyDriftRiskEnvelope): LegacyDriftRiskEnvelope;
+export function pickEnvelope(envelope: AnyPredictionEnvelope): AnyPredictionEnvelope;
+export function pickEnvelope(envelope: AnyPredictionEnvelope): AnyPredictionEnvelope {
+  if (envelope.envelopeVersion === LEGACY_ENVELOPE_VERSION) {
+    return {
+      envelopeVersion: LEGACY_ENVELOPE_VERSION,
+      requestDigest: envelope.requestDigest,
+      request: pickRequest(envelope.request),
+      prediction: pickPrediction(envelope.prediction),
+    };
+  }
+  if (envelope.envelopeVersion !== ENVELOPE_VERSION) {
+    throw new EnvelopeError("Unknown envelope version.");
+  }
+  switch (envelope.kind) {
+    case "drift-risk":
+      return {
+        envelopeVersion: ENVELOPE_VERSION,
+        kind: "drift-risk",
+        requestDigest: envelope.requestDigest,
+        request: pickRequest(envelope.request),
+        prediction: pickPrediction(envelope.prediction),
+      };
+    case "residual-exposure":
+      return {
+        envelopeVersion: ENVELOPE_VERSION,
+        kind: "residual-exposure",
+        requestDigest: envelope.requestDigest,
+        request: pickExposureRequest(envelope.request),
+        prediction: pickExposurePrediction(envelope.prediction),
+      };
+    default:
+      throw new EnvelopeError("Unknown prediction kind.");
+  }
 }
 
 export async function buildPredictionEnvelope(
   request: PredictionRequestRecord,
   prediction: DriftRiskPrediction | PredictionUnavailableRecord,
-): Promise<PredictionEnvelope> {
+): Promise<DriftRiskEnvelope> {
   return pickEnvelope({
     envelopeVersion: ENVELOPE_VERSION,
-    requestDigest: await requestDigest(request),
+    kind: "drift-risk",
+    requestDigest: await requestDigest(request, "drift-risk"),
     request,
     prediction,
   });
 }
 
+export async function buildExposureEnvelope(
+  request: ExposureRequestRecord,
+  prediction: ExposurePrediction | PredictionUnavailableRecord,
+): Promise<ResidualExposureEnvelope> {
+  return pickEnvelope({
+    envelopeVersion: ENVELOPE_VERSION,
+    kind: "residual-exposure",
+    requestDigest: await requestDigest(request, "residual-exposure"),
+    request,
+    prediction,
+  });
+}
+
+/**
+ * Reads an envelope from outside (a file, storage) through the allowlist: a version 2
+ * envelope of either kind, or a version 1 drift envelope. Anything else is refused.
+ */
+export function readPredictionEnvelope(raw: unknown): AnyPredictionEnvelope {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    throw new EnvelopeError("An envelope must be an object.");
+  }
+  const candidate = raw as Partial<AnyPredictionEnvelope>;
+  if (typeof candidate.requestDigest !== "string" || typeof candidate.request !== "object") {
+    throw new EnvelopeError("An envelope needs a request and its digest.");
+  }
+  if (typeof candidate.prediction !== "object" || candidate.prediction === null) {
+    throw new EnvelopeError("An envelope needs a prediction.");
+  }
+  try {
+    return pickEnvelope(candidate as AnyPredictionEnvelope);
+  } catch (error) {
+    if (error instanceof EnvelopeError) throw error;
+    throw new EnvelopeError("The envelope's prediction does not match its contract.");
+  }
+}
+
 /** The only serialization for receipts, downloads, logs, and persisted state. */
-export function serializePredictionEnvelope(envelope: PredictionEnvelope) {
+export function serializePredictionEnvelope(envelope: AnyPredictionEnvelope) {
   return canonicalJson(pickEnvelope(envelope));
 }
 
 /** True when the envelope's digest still matches the request it carries. */
-export async function verifyEnvelopeDigest(envelope: PredictionEnvelope) {
-  return envelope.requestDigest === (await requestDigest(envelope.request));
+export async function verifyEnvelopeDigest(envelope: AnyPredictionEnvelope) {
+  if (envelope.envelopeVersion === LEGACY_ENVELOPE_VERSION) {
+    return envelope.requestDigest === (await legacyRequestDigest(envelope.request));
+  }
+  if (envelope.kind !== "drift-risk" && envelope.kind !== "residual-exposure") return false;
+  return envelope.requestDigest === (await requestDigest(envelope.request, envelope.kind));
 }
 
 // ---------------------------------------------------------------------------
@@ -276,7 +490,7 @@ export interface ActivePredictionRequest {
 
 export interface PendingPredictionResult {
   generation: number;
-  envelope: PredictionEnvelope;
+  envelope: AnyPredictionEnvelope;
 }
 
 /**

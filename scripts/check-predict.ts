@@ -378,8 +378,10 @@ for (const exported of [
     assert.equal(exported.includes(forbidden), false, `envelope must not carry ${forbidden}`);
   }
 }
+// Envelope v2 (PLAN-2 P2-005) adds the prediction kind at the top level.
 assert.deepEqual(Object.keys(envelope).sort(), [
   "envelopeVersion",
+  "kind",
   "prediction",
   "request",
   "requestDigest",
