@@ -367,15 +367,29 @@ function DriftView() {
 
   // A connected pull request replaces the built-in sample on the code side; the sample
   // stays available so the workbench still demonstrates itself with nothing connected.
-  const parsedDiff = useMemo(() => {
-    if (!connectedRepository) return null;
-    // Anything that is not a diff is read as the current state of a source file, so
-    // pasting or pointing at the file that holds the values works as well as a change.
-    return (
-      parseUnifiedDiff(connectedRepository.diff)[0] ??
-      parseSourceSnapshot(connectedRepository.diff, connectedRepository.sourcePath ?? "source")
-    );
+  // Every file of the change is read for claims: a pull request often touches the audited
+  // value in a file other than its first. Anything that is not a diff is read as the
+  // current state of a source file, so pasting the file that holds the values works too.
+  const parsedFiles = useMemo(() => {
+    if (!connectedRepository) return [];
+    const files = parseUnifiedDiff(connectedRepository.diff);
+    return files.length > 0
+      ? files
+      : [parseSourceSnapshot(connectedRepository.diff, connectedRepository.sourcePath ?? "source")];
   }, [connectedRepository]);
+  const changeVersion = connectedRepository?.pullNumber
+    ? `pr-${connectedRepository.pullNumber}`
+    : (connectedRepository?.loadedAt ?? "");
+  const claimsByFile = useMemo(
+    () => parsedFiles.map((file) => claimsFromDiff(file, BUILT_IN_SUBJECTS, changeVersion)),
+    [parsedFiles, changeVersion],
+  );
+  // The diff panel shows the first file that carries a recognised value, else the first file.
+  const parsedDiff = useMemo(() => {
+    if (parsedFiles.length === 0) return null;
+    const withClaims = claimsByFile.findIndex((claims) => claims.length > 0);
+    return parsedFiles[withClaims >= 0 ? withClaims : 0];
+  }, [parsedFiles, claimsByFile]);
 
   // The document side is entirely what the user supplied. With nothing uploaded there
   // are no tabs to show rather than stale samples standing in for real documents.
@@ -394,14 +408,8 @@ function DriftView() {
 
   const authorities = useMemo(() => {
     if (!parsedDiff || !connectedRepository) return showsSampleCode ? codeClaims(driftMode) : [];
-    return claimsFromDiff(
-      parsedDiff,
-      BUILT_IN_SUBJECTS,
-      connectedRepository.pullNumber
-        ? `pr-${connectedRepository.pullNumber}`
-        : connectedRepository.loadedAt,
-    );
-  }, [parsedDiff, connectedRepository, driftMode, showsSampleCode]);
+    return claimsByFile.flat();
+  }, [parsedDiff, connectedRepository, driftMode, showsSampleCode, claimsByFile]);
 
   const selectedSentences = useMemo(
     () => (selectedDoc ? documentSentences(selectedDoc.text) : []),
