@@ -172,7 +172,7 @@ function Overview() {
         <p className="text-xs text-muted-foreground">
           {simulated
             ? "Simulated demonstration data — not measurements. The first real check replaces it with live counts."
-            : "Counts from checks run on this device in the last 7 days. Cleared by Reset demo."}
+            : "Counts from checks run on this device in the last 7 days."}
         </p>
       </section>
 
