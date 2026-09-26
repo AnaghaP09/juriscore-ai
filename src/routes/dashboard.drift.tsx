@@ -194,6 +194,7 @@ function DriftView() {
   const [evaluation, setEvaluation] = useState<PlumbResult | null>(null);
   const [receipt, setReceipt] = useState<ValidationReceipt | null>(null);
   const [receiptError, setReceiptError] = useState<string | null>(null);
+  const [runWarning, setRunWarning] = useState<string | null>(null);
   const activePlumbPolicies = useMemo(
     () => policiesForFeature(activePolicyIds, "plumb", customPolicies),
     [activePolicyIds, customPolicies],
@@ -267,6 +268,19 @@ function DriftView() {
 
   const runJudge = () => {
     if (killSwitch) return;
+    // The button stays clickable so the user learns what is missing instead of facing a
+    // silently greyed-out control.
+    if (!selectedDoc || !hasCodeSource) {
+      setRunWarning(
+        !selectedDoc && !hasCodeSource
+          ? "Nothing to compare yet. Connect a pull request or paste a diff, and upload a document that makes claims about it."
+          : !selectedDoc
+            ? "Upload a document to check. Plumb compares what your documents say against the connected change."
+            : "Connect a pull request or paste a diff. Plumb needs a code change to compare your documents against.",
+      );
+      return;
+    }
+    setRunWarning(null);
     setReceipt(null);
     setReceiptError(null);
     const nextEvaluation = compareClaims(authorities, assertions, {
@@ -289,6 +303,7 @@ function DriftView() {
   }, []);
 
   const resetRun = () => {
+    setRunWarning(null);
     setRan(false);
     setEvaluation(null);
     setReceipt(null);
@@ -373,17 +388,7 @@ function DriftView() {
                 </label>
               </div>
             )}
-            <Button
-              onClick={runJudge}
-              disabled={killSwitch || !selectedDoc || !hasCodeSource}
-              title={
-                !selectedDoc
-                  ? "Upload a document to check"
-                  : !hasCodeSource
-                    ? "Connect a pull request or paste a diff to compare against"
-                    : undefined
-              }
-            >
+            <Button onClick={runJudge} disabled={killSwitch}>
               {killSwitch ? (
                 <>
                   <Lock className="h-4 w-4 mr-2" /> Blocked
@@ -397,6 +402,19 @@ function DriftView() {
           </>
         }
       />
+
+      {runWarning && (
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded-lg border border-[color:var(--revise)]/40 bg-[color:var(--revise)]/[0.06] px-4 py-3 text-sm"
+        >
+          <AlertOctagon
+            className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--revise)]"
+            aria-hidden
+          />
+          <span>{runWarning}</span>
+        </div>
+      )}
 
       <Card>
         <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
