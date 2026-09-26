@@ -632,6 +632,12 @@ function DriftView() {
         }
       />
 
+      <DriftRiskPanel
+        risk={risk}
+        hasConnectedChange={Boolean(connectedChange)}
+        showsSampleCode={showsSampleCode}
+      />
+
       {runWarning && (
         <div
           role="alert"
@@ -697,12 +703,6 @@ function DriftView() {
         policies={activePlumbPolicies}
         parsedDiff={parsedDiff}
         registerUploadTrigger={registerUploadTrigger}
-      />
-
-      <DriftRiskPanel
-        risk={risk}
-        hasConnectedChange={Boolean(connectedChange)}
-        showsSampleCode={showsSampleCode}
       />
 
       <div className="grid lg:grid-cols-2 gap-4">
