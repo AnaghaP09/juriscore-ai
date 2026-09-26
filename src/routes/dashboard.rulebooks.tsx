@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { BookOpen, ExternalLink, FilePlus2, ShieldCheck } from "lucide-react";
+import { BookOpen, ExternalLink, FilePlus2, Pencil, ShieldCheck, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +11,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,10 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/page-header";
 import { useDemoStore } from "@/lib/juriscore/demo-store";
-import {
-  BUILT_IN_POLICIES,
-  type PolicyDefinition,
-} from "@/lib/juriscore/policies/catalog";
+import { BUILT_IN_POLICIES, type PolicyDefinition } from "@/lib/juriscore/policies/catalog";
 
 export const Route = createFileRoute("/dashboard/rulebooks")({
   head: () => ({
@@ -51,15 +47,58 @@ function PolicyLibrary() {
     setPolicyActive,
     customPolicies,
     addCustomPolicy,
+    updateCustomPolicy,
+    removeCustomPolicy,
   } = useDemoStore();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
-  const policies = useMemo(
-    () => [...BUILT_IN_POLICIES, ...customPolicies],
-    [customPolicies],
-  );
+  // null while adding; the id of the custom policy being edited otherwise.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  const createPolicy = () => {
+  const openAdd = () => {
+    setEditingId(null);
+    setForm(emptyForm);
+    setDialogOpen(true);
+  };
+
+  const openEdit = (policy: PolicyDefinition) => {
+    setEditingId(policy.id);
+    setForm({
+      name: policy.name,
+      authority: policy.authority,
+      version: policy.version,
+      url: policy.source.url === "about:blank" ? "" : policy.source.url,
+      description: policy.description,
+    });
+    setDialogOpen(true);
+  };
+  const policies = useMemo(() => [...BUILT_IN_POLICIES, ...customPolicies], [customPolicies]);
+
+  const savePolicy = () => {
+    const now = new Date().toISOString();
+    const existing = editingId ? customPolicies.find((policy) => policy.id === editingId) : null;
+    if (existing) {
+      updateCustomPolicy({
+        ...existing,
+        name: form.name.trim(),
+        shortName: form.name.trim(),
+        version: form.version.trim() || existing.version,
+        authority: form.authority.trim() || "Your organization",
+        description: form.description.trim(),
+        updatedAt: now,
+        source: {
+          ...existing.source,
+          title: form.name.trim(),
+          publisher: form.authority.trim() || "Your organization",
+          url: form.url.trim() || "about:blank",
+        },
+      });
+      setEditingId(null);
+      setForm(emptyForm);
+      setDialogOpen(false);
+      return;
+    }
     const id = `custom.${form.name
       .trim()
       .toLowerCase()
@@ -76,6 +115,7 @@ function PolicyLibrary() {
       veilScopes: ["common", "secrets"],
       defaultActive: true,
       custom: true,
+      updatedAt: now,
       source: {
         title: form.name.trim(),
         publisher: form.authority.trim() || "Your organization",
@@ -96,15 +136,21 @@ function PolicyLibrary() {
         title="Policy Library"
         description="Choose the policy references JurisCore applies across Veil and Plumb. Add internal rules beside the built-in packs."
         actions={
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <FilePlus2 className="mr-2 h-4 w-4" aria-hidden /> Add custom policy
-              </Button>
-            </DialogTrigger>
+          <Dialog
+            open={dialogOpen}
+            onOpenChange={(open) => {
+              setDialogOpen(open);
+              if (!open) setEditingId(null);
+            }}
+          >
+            <Button onClick={openAdd}>
+              <FilePlus2 className="mr-2 h-4 w-4" aria-hidden /> Add custom policy
+            </Button>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Add an organizational policy</DialogTitle>
+                <DialogTitle>
+                  {editingId ? "Edit organizational policy" : "Add an organizational policy"}
+                </DialogTitle>
                 <DialogDescription>
                   Custom policies are stored in this browser for the prototype and activated for
                   both Veil and Plumb.
@@ -162,10 +208,10 @@ function PolicyLibrary() {
               </div>
               <DialogFooter>
                 <Button
-                  onClick={createPolicy}
+                  onClick={savePolicy}
                   disabled={!form.name.trim() || !form.description.trim()}
                 >
-                  Save and activate
+                  {editingId ? "Save changes" : "Save and activate"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -204,7 +250,11 @@ function PolicyLibrary() {
                   />
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {policy.custom ? <Badge>Custom</Badge> : <Badge variant="secondary">Built in</Badge>}
+                  {policy.custom ? (
+                    <Badge>Custom</Badge>
+                  ) : (
+                    <Badge variant="secondary">Built in</Badge>
+                  )}
                   {policy.features.map((feature) => (
                     <Badge key={feature} variant="outline" className="capitalize">
                       {feature}
@@ -215,6 +265,13 @@ function PolicyLibrary() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-sm text-muted-foreground">{policy.description}</p>
+                {policy.custom && (
+                  <p className="text-xs text-muted-foreground">
+                    {policy.updatedAt
+                      ? `Last changed ${new Date(policy.updatedAt).toLocaleString()}`
+                      : "Last change not recorded"}
+                  </p>
+                )}
                 {policy.source.url === "about:blank" ? (
                   <span className="text-xs text-muted-foreground">No source URL supplied</span>
                 ) : (
@@ -228,6 +285,50 @@ function PolicyLibrary() {
                     <ExternalLink className="h-3 w-3" aria-hidden />
                   </a>
                 )}
+                {policy.custom &&
+                  (confirmDeleteId === policy.id ? (
+                    <div
+                      role="alert"
+                      className="space-y-2 rounded-md border border-[color:var(--block)]/40 bg-[color:var(--block)]/[0.06] p-3 text-xs"
+                    >
+                      <p>
+                        Delete “{policy.name}”? It is switched off everywhere. Receipts you already
+                        have keep recording the version they were checked under.
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => {
+                            removeCustomPolicy(policy.id);
+                            setConfirmDeleteId(null);
+                          }}
+                        >
+                          Delete policy
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setConfirmDeleteId(null)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => openEdit(policy)}>
+                        <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden /> Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setConfirmDeleteId(policy.id)}
+                      >
+                        <Trash2 className="mr-1.5 h-3.5 w-3.5" aria-hidden /> Delete
+                      </Button>
+                    </div>
+                  ))}
               </CardContent>
             </Card>
           );

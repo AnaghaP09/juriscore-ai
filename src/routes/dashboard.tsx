@@ -120,12 +120,14 @@ function DashboardLayout() {
             ))}
           </nav>
           <div className="hidden md:block p-3 border-t border-border/60 space-y-1">
-            <Link
-              to="/connect"
-              className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50"
+            <span
+              aria-disabled="true"
+              title="MCP Connect is coming soon"
+              className="flex cursor-not-allowed items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground/50"
             >
               <Plug aria-hidden="true" className="h-4 w-4" /> MCP Connect
-            </Link>
+              <span className="ml-auto text-[10px] uppercase tracking-wider">Soon</span>
+            </span>
             <Link
               to="/"
               className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50"

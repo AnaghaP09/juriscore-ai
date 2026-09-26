@@ -12,6 +12,17 @@ import { DEFAULT_ACTIVE_POLICY_IDS, type PolicyDefinition } from "@/lib/juriscor
 import type { ValidationModule, ValidatorVerdict } from "@/lib/juriscore/core/contracts";
 import { GatewayHttpError, gatewayClient, needsUnlock } from "@/lib/juriscore/gateway/client";
 import type { GatewayRunStatus, GatewayStatus } from "@/lib/juriscore/gateway/protocol";
+import {
+  emptyDay,
+  mutateLedgerDay,
+  normalizeLedger,
+  recordPlumbCheckInLedger,
+  RISK_BANDS,
+  type LedgerDay,
+  type LocalMetricsLedger,
+  type PlumbCheckRecord,
+  type StampedPlumbCheck,
+} from "@/lib/juriscore/metrics-ledger";
 
 export type DriftMode = "clean" | "drift";
 
@@ -50,43 +61,7 @@ export interface VeilCheckRecord {
   chars: number;
 }
 
-export interface PlumbCheckRecord {
-  verdict: ValidatorVerdict;
-  assertions: number;
-  matches: number;
-  drifted: number;
-  cannotDetermine: number;
-}
-
-interface LedgerDay {
-  veil: {
-    checks: number;
-    allow: number;
-    revise: number;
-    block: number;
-    occurrences: number;
-    redacted: number;
-    tokenized: number;
-    chars: number;
-  };
-  plumb: {
-    checks: number;
-    allow: number;
-    revise: number;
-    block: number;
-    assertions: number;
-    matches: number;
-    drifted: number;
-    cannotDetermine: number;
-  };
-  receipts: number;
-}
-
-export interface LocalMetricsLedger {
-  version: 1;
-  simulated: boolean;
-  days: Record<string, LedgerDay>;
-}
+export type { PlumbCheckRecord, LocalMetricsLedger };
 
 // Fixed simulated seed (SPEC_OVERVIEW): internally consistent weekly numbers,
 // present by default, evicted by the first real check.
@@ -94,6 +69,10 @@ export const SIMULATED_SEED = {
   veil: { checks: 126, occurrences: 1482, redacted: 1178, tokenized: 304, chars: 3_600_000 },
   plumb: { checks: 88, assertions: 412, matches: 354, drifted: 37, cannotDetermine: 21 },
   overall: { checks: 214, allow: 132, revise: 51, block: 31, receipts: 47 },
+  plumbRisk: {
+    counts: { low: 52, uncertain: 24, high: 12 },
+    latest: { score: 38, band: "uncertain" },
+  },
 } as const;
 
 const METRICS_STORAGE_KEY = "juriscore.localMetrics.v1";
@@ -102,30 +81,11 @@ const METRICS_STORAGE_KEY = "juriscore.localMetrics.v1";
 // builds saved them under these keys; they are deleted on load.
 const LEGACY_SOURCE_STORAGE_KEYS = ["juriscore.plumbRepository.v1", "juriscore.plumbDocuments.v1"];
 
-const seededLedger = (): LocalMetricsLedger => ({ version: 1, simulated: true, days: {} });
-
-const emptyDay = (): LedgerDay => ({
-  veil: {
-    checks: 0,
-    allow: 0,
-    revise: 0,
-    block: 0,
-    occurrences: 0,
-    redacted: 0,
-    tokenized: 0,
-    chars: 0,
-  },
-  plumb: {
-    checks: 0,
-    allow: 0,
-    revise: 0,
-    block: 0,
-    assertions: 0,
-    matches: 0,
-    drifted: 0,
-    cannotDetermine: 0,
-  },
-  receipts: 0,
+const seededLedger = (): LocalMetricsLedger => ({
+  version: 1,
+  simulated: true,
+  days: {},
+  latestRisk: null,
 });
 
 const utcDayKey = () => new Date().toISOString().slice(0, 10);
@@ -135,17 +95,30 @@ function pruneDays(days: Record<string, LedgerDay>): Record<string, LedgerDay> {
   return Object.fromEntries(Object.entries(days).filter(([key]) => key >= cutoff));
 }
 
-export function summarizeTrailingWeek(ledger: LocalMetricsLedger) {
-  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+/**
+ * The "Last 7 days" window: seven UTC calendar days, today and the six dates before it.
+ * Dates after today are excluded.
+ */
+export function trailingWeekRange(now = new Date()) {
+  const newest = now.toISOString().slice(0, 10);
+  const sixDaysMs = 6 * 24 * 60 * 60 * 1000;
+  const oldest = new Date(Date.parse(newest) - sixDaysMs).toISOString().slice(0, 10);
+  return { oldest, newest };
+}
+
+export function summarizeTrailingWeek(ledger: LocalMetricsLedger, now = new Date()) {
+  const { oldest, newest } = trailingWeekRange(now);
   const summary = emptyDay();
   for (const [key, day] of Object.entries(ledger.days)) {
-    if (key < cutoff) continue;
+    if (key < oldest || key > newest) continue;
     for (const field of Object.keys(summary.veil) as Array<keyof LedgerDay["veil"]>) {
       summary.veil[field] += day.veil[field];
     }
     for (const field of Object.keys(summary.plumb) as Array<keyof LedgerDay["plumb"]>) {
+      if (field === "risk") continue;
       summary.plumb[field] += day.plumb[field];
     }
+    for (const band of RISK_BANDS) summary.plumb.risk[band] += day.plumb.risk?.[band] ?? 0;
     summary.receipts += day.receipts;
   }
   return summary;
@@ -205,9 +178,11 @@ interface DemoStore {
   setPolicyActive: (policyId: string, active: boolean) => void;
   customPolicies: PolicyDefinition[];
   addCustomPolicy: (policy: PolicyDefinition) => void;
+  updateCustomPolicy: (policy: PolicyDefinition) => void;
+  removeCustomPolicy: (policyId: string) => void;
   localMetrics: LocalMetricsLedger;
   recordVeilCheck: (record: VeilCheckRecord) => void;
-  recordPlumbCheck: (record: PlumbCheckRecord) => void;
+  recordPlumbCheck: (record: StampedPlumbCheck) => void;
   recordReceipt: (receipt: SessionReceiptEntry) => void;
   seedDemoMetrics: () => void;
   sessionReceipts: SessionReceiptEntry[];
@@ -246,7 +221,8 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       if (savedMetrics) {
         const parsed = JSON.parse(savedMetrics) as LocalMetricsLedger;
         if (parsed.version === 1) {
-          setLocalMetrics({ ...parsed, days: pruneDays(parsed.days) });
+          const normalized = normalizeLedger(parsed);
+          setLocalMetrics({ ...normalized, days: pruneDays(normalized.days) });
         }
       }
     } catch {
@@ -393,15 +369,21 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     setActivePolicyIds((current) => [...new Set([...current, policy.id])]);
   }, []);
 
+  // An edit keeps the policy id, so activation and past receipts (which record id@version at
+  // check time) are unaffected; only later checks see the new definition.
+  const updateCustomPolicy = useCallback((policy: PolicyDefinition) => {
+    setCustomPolicies((current) =>
+      current.map((existing) => (existing.id === policy.id ? policy : existing)),
+    );
+  }, []);
+
+  const removeCustomPolicy = useCallback((policyId: string) => {
+    setCustomPolicies((current) => current.filter((policy) => policy.id !== policyId));
+    setActivePolicyIds((current) => current.filter((id) => id !== policyId));
+  }, []);
+
   const mutateToday = useCallback((mutate: (day: LedgerDay) => void) => {
-    setLocalMetrics((current) => {
-      // The first real record evicts the simulated seed entirely.
-      const days = current.simulated ? {} : { ...current.days };
-      const key = utcDayKey();
-      const day = structuredClone(days[key] ?? emptyDay());
-      mutate(day);
-      return { version: 1, simulated: false, days: { ...days, [key]: day } };
-    });
+    setLocalMetrics((current) => mutateLedgerDay(current, utcDayKey(), mutate));
   }, []);
 
   const recordVeilCheck = useCallback(
@@ -418,19 +400,10 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     [mutateToday],
   );
 
-  const recordPlumbCheck = useCallback(
-    (record: PlumbCheckRecord) => {
-      mutateToday((day) => {
-        day.plumb.checks += 1;
-        day.plumb[record.verdict] += 1;
-        day.plumb.assertions += record.assertions;
-        day.plumb.matches += record.matches;
-        day.plumb.drifted += record.drifted;
-        day.plumb.cannotDetermine += record.cannotDetermine;
-      });
-    },
-    [mutateToday],
-  );
+  // Dated by when the comparison completed, not by when its prediction arrived.
+  const recordPlumbCheck = useCallback((record: StampedPlumbCheck) => {
+    setLocalMetrics((current) => recordPlumbCheckInLedger(current, record));
+  }, []);
 
   const recordReceipt = useCallback(
     (receipt: SessionReceiptEntry) => {
@@ -478,6 +451,8 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       setPolicyActive,
       customPolicies,
       addCustomPolicy,
+      updateCustomPolicy,
+      removeCustomPolicy,
       localMetrics,
       recordVeilCheck,
       recordPlumbCheck,
@@ -508,6 +483,8 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       setPolicyActive,
       customPolicies,
       addCustomPolicy,
+      updateCustomPolicy,
+      removeCustomPolicy,
       localMetrics,
       recordVeilCheck,
       recordPlumbCheck,
