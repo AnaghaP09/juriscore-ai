@@ -98,6 +98,69 @@ export const evaluationMaturitySchema = z.enum([
 
 export type EvaluationMaturity = z.infer<typeof evaluationMaturitySchema>;
 
+/**
+ * Version of the drift-risk feature vector. Weights record the version they were fitted
+ * against, and a prediction carrying any other version is rejected rather than scored
+ * against coefficients that mean something else.
+ */
+export const DRIFT_FEATURES_VERSION = "drift-features.v1";
+
+export const driftRiskTierSchema = z.enum(["free", "paid"]);
+
+export type DriftRiskTier = z.infer<typeof driftRiskTierSchema>;
+
+export const driftRiskEngineSchema = z.enum(["local-logistic", "provider-model"]);
+
+export type DriftRiskEngine = z.infer<typeof driftRiskEngineSchema>;
+
+export const driftRiskBandSchema = z.enum(["low", "uncertain", "high"]);
+
+export type DriftRiskBand = z.infer<typeof driftRiskBandSchema>;
+
+export const driftRiskContributionSchema = z.object({
+  feature: z.string().min(1),
+  value: z.number().finite(),
+  weight: z.number().finite(),
+  contribution: z.number().finite(),
+});
+
+export type DriftRiskContribution = z.infer<typeof driftRiskContributionSchema>;
+
+/**
+ * An advisory estimate that a code change needs a documentation update. It carries no
+ * verdict and cannot produce one: allow / revise / block come only from Plumb's
+ * comparison of claims.
+ */
+export const driftRiskPredictionSchema = z
+  .object({
+    tier: driftRiskTierSchema,
+    engine: driftRiskEngineSchema,
+    modelId: z.string().min(1),
+    modelVersion: z.string().min(1),
+    featuresVersion: z.literal(DRIFT_FEATURES_VERSION),
+    score: z.number().min(0).max(1),
+    band: driftRiskBandSchema,
+    contributions: z.array(driftRiskContributionSchema).min(1),
+    maturity: evaluationMaturitySchema,
+    deterministic: z.boolean(),
+  })
+  .superRefine((prediction, context) => {
+    // The local engine is a fixed dot product; a model-backed one is not reproducible
+    // and must never be presented as if it were.
+    const expected = prediction.engine === "local-logistic";
+    if (prediction.deterministic !== expected) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["deterministic"],
+        message: expected
+          ? "The local predictor is deterministic."
+          : "A model-backed prediction is not reproducible and must be marked non-deterministic.",
+      });
+    }
+  });
+
+export type DriftRiskPrediction = z.infer<typeof driftRiskPredictionSchema>;
+
 export const validationReceiptSchema = z.object({
   id: z.string().min(1),
   module: validationModuleSchema,

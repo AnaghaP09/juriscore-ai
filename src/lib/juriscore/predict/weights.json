@@ -1,0 +1,30 @@
+{
+  "modelId": "juriscore.drift-risk.local-logistic",
+  "modelVersion": "0.0.0-placeholder",
+  "placeholder": true,
+  "note": "Hand-set placeholder coefficients. Not fitted to any data; replaced by ml/train.py output in Phase B.",
+  "featuresVersion": "drift-features.v1",
+  "maturity": "target",
+  "intercept": -1.5,
+  "coefficients": {
+    "path_config_files": 0.6,
+    "path_schema_files": 0.5,
+    "path_api_files": 0.5,
+    "path_source_files": 0.1,
+    "path_test_files": -0.3,
+    "numeric_literals_changed": 0.15,
+    "string_literals_changed": 0.05,
+    "public_symbol_changes": 0.25,
+    "additions_log": 0.2,
+    "deletions_log": 0.1,
+    "code_files_log": 0.2,
+    "subject_key_hits": 0.8,
+    "identifier_signal_hits": 0.35,
+    "constant_default_changes": 0.3,
+    "comment_only_ratio": -1.0
+  },
+  "bands": {
+    "uncertain": 0.35,
+    "high": 0.65
+  }
+}
