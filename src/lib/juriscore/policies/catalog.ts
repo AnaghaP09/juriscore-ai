@@ -21,6 +21,8 @@ export interface PolicyDefinition {
   custom?: boolean;
   /** Subject area shown on receipts. Built-ins set it; custom policies derive it. */
   domain?: string;
+  /** ISO time of the last create or edit; custom policies only. Absent on older saves. */
+  updatedAt?: string;
   source: PolicySource;
 }
 

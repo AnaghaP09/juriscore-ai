@@ -4,7 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/page-header";
-import { BookOpen, EyeOff, GitPullRequest, LayoutDashboard, ReceiptText } from "lucide-react";
+import {
+  BookOpen,
+  EyeOff,
+  Gauge,
+  GitPullRequest,
+  LayoutDashboard,
+  ReceiptText,
+} from "lucide-react";
 import { SIMULATED_SEED, summarizeTrailingWeek, useDemoStore } from "@/lib/juriscore/demo-store";
 import { policyById, type PolicyDefinition } from "@/lib/juriscore/policies/catalog";
 
@@ -26,6 +33,8 @@ const verdictColor = {
   revise: "text-[color:var(--revise)] border-[color:var(--revise)]/40",
   block: "text-[color:var(--block)] border-[color:var(--block)]/40",
 };
+
+const RISK_TONE = { low: "allow", uncertain: "revise", high: "block" } as const;
 
 const toneText = {
   allow: "text-[color:var(--allow)]",
@@ -60,6 +69,8 @@ function Overview() {
       };
   const veil = simulated ? SIMULATED_SEED.veil : live.veil;
   const plumb = simulated ? SIMULATED_SEED.plumb : live.plumb;
+  const plumbRisk = simulated ? SIMULATED_SEED.plumbRisk.counts : live.plumb.risk;
+  const latestRisk = simulated ? SIMULATED_SEED.plumbRisk.latest : localMetrics.latestRisk;
   const isEmpty = !simulated && overall.checks === 0 && overall.receipts === 0;
 
   return (
@@ -113,7 +124,7 @@ function Overview() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <MetricTile title="Overall" simulated={simulated}>
               <BigStat value={overall.checks} label="Checks run" />
               <dl className="flex gap-4 text-sm">
@@ -154,6 +165,40 @@ function Overview() {
                 <VerdictCell label="Drifted" value={plumb.drifted} tone="block" />
                 <VerdictCell label="Cannot determine" value={plumb.cannotDetermine} tone="revise" />
               </dl>
+            </MetricTile>
+
+            <MetricTile
+              title="Plumb drift risk"
+              icon={<Gauge className="h-4 w-4 text-primary" aria-hidden />}
+              simulated={simulated}
+            >
+              {latestRisk ? (
+                <div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-mono text-4xl font-semibold">{latestRisk.score}</span>
+                    <span className="text-xs text-muted-foreground">/ 100</span>
+                    <Badge
+                      variant="outline"
+                      className={`capitalize ${verdictColor[RISK_TONE[latestRisk.band]]}`}
+                    >
+                      {latestRisk.band}
+                    </Badge>
+                  </div>
+                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                    Latest risk score
+                  </div>
+                </div>
+              ) : (
+                <SmallStat value="—" label="No scored change yet" />
+              )}
+              <dl className="flex gap-4 text-sm">
+                <VerdictCell label="Low" value={plumbRisk.low} tone="allow" />
+                <VerdictCell label="Uncertain" value={plumbRisk.uncertain} tone="revise" />
+                <VerdictCell label="High" value={plumbRisk.high} tone="block" />
+              </dl>
+              <p className="text-[11px] text-muted-foreground">
+                Advisory · placeholder weights — not a measurement.
+              </p>
             </MetricTile>
           </div>
         )}

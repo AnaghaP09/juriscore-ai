@@ -19,13 +19,16 @@
     "check:receipt-store": "bun scripts/check-receipt-store.ts",
     "check:mcp": "bun scripts/check-mcp.ts",
     "check:predict": "bun scripts/check-predict.ts",
+    "check:gateway": "bun scripts/check-gateway.ts",
     "check:core": "bun scripts/check-core.ts",
+    "check:bundle": "bun scripts/check-bundle.ts",
     "package:release": "bun scripts/package-release.mjs",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
     "@hookform/resolvers": "^5.2.2",
     "@lovable.dev/mcp-js": "^0.23.0",
     "@radix-ui/react-accordion": "^1.2.12",

@@ -9,7 +9,10 @@ export const Route = createFileRoute("/connect")({
   head: () => ({
     meta: [
       { title: "Connect via MCP — JurisCore AI" },
-      { name: "description", content: "Plug JurisCore into ChatGPT, Claude, Cursor, or any MCP-aware assistant." },
+      {
+        name: "description",
+        content: "Plug JurisCore into ChatGPT, Claude, Cursor, or any MCP-aware assistant.",
+      },
     ],
   }),
   component: Connect,
@@ -99,29 +102,59 @@ function Connect() {
 
   return (
     <div className="min-h-dvh p-0 md:p-4 lg:p-6" style={{ background: "var(--app-bg)" }}>
-      <a href="#connect-main" className="skip-link">Skip to main content</a>
+      <a href="#connect-main" className="skip-link">
+        Skip to main content
+      </a>
       <div className="bg-card md:rounded-2xl md:shadow-[0_20px_60px_-20px_oklch(0.2_0.05_285/0.35)] overflow-hidden">
         <header className="border-b border-border/60 bg-card/90 backdrop-blur">
           <div className="mx-auto max-w-5xl px-6 h-16 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
-            <Link to="/" aria-label="JurisCore AI — home" className="flex min-w-0 items-center gap-2 font-semibold">
-              <span aria-hidden="true" className="inline-block h-6 w-6 shrink-0 rounded-sm bg-primary" />
-              <span className="truncate">JurisCore <span className="text-primary">AI</span></span>
+            <Link
+              to="/"
+              aria-label="JurisCore AI — home"
+              className="flex min-w-0 items-center gap-2 font-semibold"
+            >
+              <span
+                aria-hidden="true"
+                className="inline-block h-6 w-6 shrink-0 rounded-sm bg-primary"
+              />
+              <span className="truncate">
+                JurisCore <span className="text-primary">AI</span>
+              </span>
             </Link>
             <Button asChild variant="ghost" size="sm">
-              <Link to="/dashboard"><ArrowLeft aria-hidden="true" className="mr-2 h-4 w-4" /> Dashboard</Link>
+              <Link to="/dashboard">
+                <ArrowLeft aria-hidden="true" className="mr-2 h-4 w-4" /> Dashboard
+              </Link>
             </Button>
           </div>
         </header>
 
-        <main id="connect-main" className="mx-auto max-w-5xl px-6 py-12 sm:py-16 space-y-12">
+        <div className="mx-auto max-w-5xl px-6 pt-8">
+          <div
+            role="note"
+            className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground"
+          >
+            <span className="font-medium text-foreground">Not available yet.</span> MCP Connect is
+            coming soon. The guide below is shown for reference only.
+          </div>
+        </div>
+        {/* Greyed out and unreachable by keyboard or pointer until MCP Connect ships. */}
+        <main
+          id="connect-main"
+          inert
+          className="mx-auto max-w-5xl px-6 py-12 sm:py-16 space-y-12 opacity-50 grayscale select-none"
+        >
           <div>
-            <Badge className="mb-4"><Plug className="mr-1 h-3 w-3" /> MCP Server · public</Badge>
+            <Badge className="mb-4">
+              <Plug className="mr-1 h-3 w-3" /> MCP Server · public
+            </Badge>
             <h1 className="page-title text-4xl">Connect JurisCore to your assistant</h1>
             <p className="page-sub">
-              JurisCore exposes the Veil and Plumb engines as a Model Context Protocol server at
-              {" "}<code className="font-mono text-primary">/mcp</code> on whichever origin serves this instance.
-              Any MCP-aware assistant can call the tools below. Evaluation runs locally: no tool makes an
-              external call, and no tool returns a detected value or the text you submitted.
+              JurisCore exposes the Veil and Plumb engines as a Model Context Protocol server at{" "}
+              <code className="font-mono text-primary">/mcp</code> on whichever origin serves this
+              instance. Any MCP-aware assistant can call the tools below. Evaluation runs locally:
+              no tool makes an external call, and no tool returns a detected value or the text you
+              submitted.
             </p>
           </div>
 
@@ -129,11 +162,16 @@ function Connect() {
             <div className="eyebrow mb-3">Available tools</div>
             <div className="grid md:grid-cols-2 gap-3">
               {tools.map((t) => (
-                <div key={t.name} className="rounded-2xl border border-border bg-card p-4 card-shadow">
+                <div
+                  key={t.name}
+                  className="rounded-2xl border border-border bg-card p-4 card-shadow"
+                >
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-sm text-primary">{t.name}</span>
                     {t.status === "unavailable" && (
-                      <Badge variant="secondary" className="text-[10px]">Not implemented</Badge>
+                      <Badge variant="secondary" className="text-[10px]">
+                        Not implemented
+                      </Badge>
                     )}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">{t.desc}</div>
@@ -146,15 +184,24 @@ function Connect() {
             <div className="eyebrow mb-3">Model connections — roadmap</div>
             <div className="rounded-2xl border border-border bg-card p-4 card-shadow">
               <p className="text-sm text-muted-foreground">
-                The JurisCore gateway will route checked context to approved proprietary providers through Veil,
-                with server-side credentials and a receipt for every exchange. No connection is simulated: these
-                remain disabled until a real gateway connection exists.
+                The JurisCore gateway will route checked context to approved proprietary providers
+                through Veil, with server-side credentials and a receipt for every exchange. No
+                connection is simulated: these remain disabled until a real gateway connection
+                exists.
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 {upcomingProviders.map((p) => (
-                  <Button key={p.name} variant="outline" size="sm" disabled title={`${p.detail} — coming soon`}>
+                  <Button
+                    key={p.name}
+                    variant="outline"
+                    size="sm"
+                    disabled
+                    title={`${p.detail} — coming soon`}
+                  >
                     {p.name}
-                    <Badge variant="secondary" className="ml-2 text-[10px]">Coming soon</Badge>
+                    <Badge variant="secondary" className="ml-2 text-[10px]">
+                      Coming soon
+                    </Badge>
                   </Button>
                 ))}
               </div>
@@ -166,25 +213,30 @@ function Connect() {
             <div className="grid md:grid-cols-3 gap-3">
               {clients.map((c) => (
                 <Card key={c.name}>
-                  <CardHeader><CardTitle className="text-sm">{c.name}</CardTitle></CardHeader>
+                  <CardHeader>
+                    <CardTitle className="text-sm">{c.name}</CardTitle>
+                  </CardHeader>
                   <CardContent>
-                    <pre className="font-mono text-xs overflow-x-auto whitespace-pre-wrap leading-5 text-foreground/85">{c.config}</pre>
+                    <pre className="font-mono text-xs overflow-x-auto whitespace-pre-wrap leading-5 text-foreground/85">
+                      {c.config}
+                    </pre>
                   </CardContent>
                 </Card>
               ))}
             </div>
             <p className="mt-4 text-xs text-muted-foreground">
-              The endpoint is <code className="font-mono">/mcp</code> on the origin serving this JurisCore
-              instance — <code className="font-mono">{origin}/mcp</code> here. On a self-hosted install that is
-              your own host; substitute it wherever the snippets show
-              {" "}<code className="font-mono">{ORIGIN_PLACEHOLDER}</code>.
+              The endpoint is <code className="font-mono">/mcp</code> on the origin serving this
+              JurisCore instance — <code className="font-mono">{origin}/mcp</code> here. On a
+              self-hosted install that is your own host; substitute it wherever the snippets show{" "}
+              <code className="font-mono">{ORIGIN_PLACEHOLDER}</code>.
             </p>
             <p className="mt-2 text-xs text-muted-foreground">
-              <strong className="text-foreground">This server has no authentication.</strong> None is implemented
-              in this build, so anyone who can reach the URL can call every live tool. Bind it to a network you
-              control. The tools run the real Veil and Plumb engines and return verdicts, finding categories, and
-              counts — never a detected value, the sanitized text, or the text you submitted — but the calls
-              themselves are unauthenticated and unmetered.
+              <strong className="text-foreground">This server has no authentication.</strong> None
+              is implemented in this build, so anyone who can reach the URL can call every live
+              tool. Bind it to a network you control. The tools run the real Veil and Plumb engines
+              and return verdicts, finding categories, and counts — never a detected value, the
+              sanitized text, or the text you submitted — but the calls themselves are
+              unauthenticated and unmetered.
             </p>
           </section>
         </main>

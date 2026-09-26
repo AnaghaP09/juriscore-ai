@@ -133,6 +133,7 @@ export function toPersistedReceipt(receipt: unknown): PersistedReceipt {
   };
   if (parsed.digestVersion !== undefined) projected.digestVersion = parsed.digestVersion;
   if (parsed.sourceDigest !== undefined) projected.sourceDigest = parsed.sourceDigest;
+  if (parsed.outboundDigest !== undefined) projected.outboundDigest = parsed.outboundDigest;
   return persistedReceiptSchema.parse(projected);
 }
 

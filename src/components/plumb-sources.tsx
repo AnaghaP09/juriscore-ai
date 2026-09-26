@@ -21,8 +21,6 @@ import {
   validateDocument,
 } from "@/lib/juriscore/veil/document-extraction";
 
-type RepositoryMode = "paste" | "fetch";
-
 /**
  * Documents are extracted in the browser and their text is kept in local storage, so a
  * batch is bounded rather than unlimited. Five covers the realistic review — a filing, a
@@ -59,7 +57,6 @@ export function PlumbSources({
   const [repoInput, setRepoInput] = useState(
     repository ? `${repository.owner}/${repository.repo}` : "",
   );
-  const [mode, setMode] = useState<RepositoryMode>("paste");
   const [pullNumber, setPullNumber] = useState(repository?.pullNumber?.toString() ?? "");
   const [pastedDiff, setPastedDiff] = useState("");
   const [repoError, setRepoError] = useState<string | null>(null);
@@ -224,7 +221,7 @@ export function PlumbSources({
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="plumb-repo" className="text-xs">
-                    Repository {mode === "paste" ? "(optional)" : ""}
+                    Repository <span className="text-muted-foreground">(for GitHub fetch)</span>
                   </Label>
                   <Input
                     id="plumb-repo"
@@ -235,7 +232,8 @@ export function PlumbSources({
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="plumb-pr" className="text-xs">
-                    Pull request number {mode === "paste" ? "(optional)" : ""}
+                    Pull request number{" "}
+                    <span className="text-muted-foreground">(for GitHub fetch)</span>
                   </Label>
                   <Input
                     id="plumb-pr"
@@ -247,58 +245,49 @@ export function PlumbSources({
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Diff source">
-                {(["paste", "fetch"] as RepositoryMode[]).map((option) => (
-                  <Button
-                    key={option}
-                    size="sm"
-                    role="radio"
-                    aria-checked={mode === option}
-                    variant={mode === option ? "default" : "outline"}
-                    onClick={() => setMode(option)}
-                  >
-                    {option === "paste" ? "Paste a diff" : "Fetch from GitHub"}
-                  </Button>
-                ))}
-              </div>
-
-              {mode === "paste" ? (
-                <div className="space-y-2">
-                  <Textarea
-                    aria-label="Diff or source file"
-                    className="font-mono text-xs min-h-32"
-                    placeholder={
-                      "@@ -40,7 +40,7 @@\n-  kycThreshold: 10_000,\n+  kycThreshold: 25_000,"
-                    }
-                    value={pastedDiff}
-                    onChange={(event) => setPastedDiff(event.target.value)}
-                  />
-                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Lock className="h-3 w-3" aria-hidden />
-                    Parsed in this browser. Nothing is uploaded and no network request is made.
-                  </p>
+              <div className="space-y-2">
+                <Textarea
+                  aria-label="Diff or source file"
+                  className="font-mono text-xs min-h-32"
+                  placeholder={
+                    "@@ -40,7 +40,7 @@\n-  kycThreshold: 10_000,\n+  kycThreshold: 25_000,"
+                  }
+                  value={pastedDiff}
+                  onChange={(event) => setPastedDiff(event.target.value)}
+                />
+                <div className="flex flex-wrap items-center gap-2">
                   <Button size="sm" onClick={connectPastedDiff}>
                     Use this diff
                   </Button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <p className="flex items-start gap-1.5 rounded-md border border-[color:var(--revise)]/40 bg-[color:var(--revise)]/10 px-3 py-2 text-xs">
-                    <AlertTriangle
-                      className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[color:var(--revise)]"
-                      aria-hidden
-                    />
-                    <span>
-                      This is the one action in JurisCore that leaves your machine. It requests the
-                      diff from api.github.com. Public repositories only, and the diff is not sent
-                      anywhere afterwards.
-                    </span>
-                  </p>
-                  <Button size="sm" onClick={fetchPullRequest} disabled={fetching}>
-                    {fetching ? "Fetching…" : "Fetch pull request"}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={fetchPullRequest}
+                    disabled={fetching}
+                  >
+                    {fetching ? "Fetching…" : "Fetch from GitHub"}
                   </Button>
                 </div>
-              )}
+                <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                  <Lock className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
+                  <span>
+                    <strong className="font-medium text-foreground">Use this diff</strong> parses
+                    the text above in this browser; nothing leaves your machine.
+                  </span>
+                </p>
+                <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                  <AlertTriangle
+                    className="mt-0.5 h-3 w-3 shrink-0 text-[color:var(--revise)]"
+                    aria-hidden
+                  />
+                  <span>
+                    <strong className="font-medium text-foreground">Fetch from GitHub</strong> is
+                    the one action that leaves your machine: it requests the pull request&apos;s
+                    diff from api.github.com using the repository and number above. Public
+                    repositories only, and the diff is not sent anywhere afterwards.
+                  </span>
+                </p>
+              </div>
             </div>
           )}
 

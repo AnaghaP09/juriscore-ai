@@ -5,5 +5,6 @@ import "./check-receipts";
 import "./check-receipt-store";
 import "./check-mcp";
 import "./check-predict";
+import "./check-gateway";
 
 console.log("All JurisCore core checks passed.");

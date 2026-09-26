@@ -4,12 +4,14 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import { DEFAULT_ACTIVE_POLICY_IDS, type PolicyDefinition } from "@/lib/juriscore/policies/catalog";
 import type {
   PersistedReceipt,
+  ValidationModule,
   ValidationReceipt,
   ValidatorVerdict,
 } from "@/lib/juriscore/core/contracts";
@@ -20,56 +22,30 @@ import {
   type FolderWriteResult,
 } from "@/lib/juriscore/core/receipt-folder";
 import { createSafeStorage } from "@/lib/juriscore/core/safe-storage";
+import { GatewayHttpError, gatewayClient, needsUnlock } from "@/lib/juriscore/gateway/client";
+import type { GatewayRunStatus, GatewayStatus } from "@/lib/juriscore/gateway/protocol";
+import {
+  emptyDay,
+  mutateLedgerDay,
+  normalizeLedger,
+  recordPlumbCheckInLedger,
+  RISK_BANDS,
+  type LedgerDay,
+  type LocalMetricsLedger,
+  type PlumbCheckRecord,
+  type StampedPlumbCheck,
+} from "@/lib/juriscore/metrics-ledger";
 
-export type ModelId = "gemini-1.5-pro" | "claude-3.5-sonnet" | "gpt-4o";
 export type DriftMode = "clean" | "drift";
 
-export interface ModelMeta {
-  id: ModelId;
-  label: string;
-  vendor: "Google" | "Anthropic" | "OpenAI";
-  ctx: string;
-  costPer1K: string;
-  accent: string; // css color var
-}
-
-export const MODELS: ModelMeta[] = [
-  {
-    id: "gemini-1.5-pro",
-    label: "Gemini 1.5 Pro",
-    vendor: "Google",
-    ctx: "2M ctx",
-    costPer1K: "$0.0035",
-    accent: "var(--chart-4)",
-  },
-  {
-    id: "claude-3.5-sonnet",
-    label: "Claude 3.5 Sonnet",
-    vendor: "Anthropic",
-    ctx: "200K ctx",
-    costPer1K: "$0.0030",
-    accent: "var(--revise)",
-  },
-  {
-    id: "gpt-4o",
-    label: "GPT-4o",
-    vendor: "OpenAI",
-    ctx: "128K ctx",
-    costPer1K: "$0.0050",
-    accent: "var(--allow)",
-  },
-];
-
+/** A completed gateway run, text-free: no prompt, no reply, no detected value. */
 export interface GatewayRun {
-  id: string;
+  receiptId: string;
   ts: string;
-  model: ModelId;
-  prompt: string;
-  verdict: "allow" | "block" | "revise";
-  tokens: { prompt: number; completion: number };
+  model: string;
+  status: GatewayRunStatus;
+  verdict: ValidatorVerdict;
   latencyMs: number;
-  ruleId?: string;
-  stage?: string;
 }
 
 export interface RecordedReceipt {
@@ -78,6 +54,16 @@ export interface RecordedReceipt {
   /** Set when a receipt folder is chosen: where it was written, or why it was not. */
   folder: FolderWriteResult | null;
 }
+
+/**
+ * What the browser knows about the server-side gateway. Everything here comes from the
+ * server; "Connected" is shown only when `status.connections[model].state` says so.
+ */
+export type GatewayView =
+  | { phase: "loading" }
+  | { phase: "unavailable"; reason: "disabled" | "token-missing" | "error"; message?: string }
+  | { phase: "locked"; expired: boolean }
+  | { phase: "ready"; status: GatewayStatus };
 
 const RECENT_RECEIPT_COUNT = 5;
 
@@ -89,43 +75,7 @@ export interface VeilCheckRecord {
   chars: number;
 }
 
-export interface PlumbCheckRecord {
-  verdict: ValidatorVerdict;
-  assertions: number;
-  matches: number;
-  drifted: number;
-  cannotDetermine: number;
-}
-
-interface LedgerDay {
-  veil: {
-    checks: number;
-    allow: number;
-    revise: number;
-    block: number;
-    occurrences: number;
-    redacted: number;
-    tokenized: number;
-    chars: number;
-  };
-  plumb: {
-    checks: number;
-    allow: number;
-    revise: number;
-    block: number;
-    assertions: number;
-    matches: number;
-    drifted: number;
-    cannotDetermine: number;
-  };
-  receipts: number;
-}
-
-export interface LocalMetricsLedger {
-  version: 1;
-  simulated: boolean;
-  days: Record<string, LedgerDay>;
-}
+export type { PlumbCheckRecord, LocalMetricsLedger };
 
 // Fixed simulated seed (SPEC_OVERVIEW): internally consistent weekly numbers,
 // present by default, evicted by the first real check.
@@ -133,6 +83,10 @@ export const SIMULATED_SEED = {
   veil: { checks: 126, occurrences: 1482, redacted: 1178, tokenized: 304, chars: 3_600_000 },
   plumb: { checks: 88, assertions: 412, matches: 354, drifted: 37, cannotDetermine: 21 },
   overall: { checks: 214, allow: 132, revise: 51, block: 31, receipts: 47 },
+  plumbRisk: {
+    counts: { low: 52, uncertain: 24, high: 12 },
+    latest: { score: 38, band: "uncertain" },
+  },
 } as const;
 
 const METRICS_STORAGE_KEY = "juriscore.localMetrics.v1";
@@ -141,30 +95,11 @@ const METRICS_STORAGE_KEY = "juriscore.localMetrics.v1";
 // builds saved them under these keys; they are deleted on load.
 const LEGACY_SOURCE_STORAGE_KEYS = ["juriscore.plumbRepository.v1", "juriscore.plumbDocuments.v1"];
 
-const seededLedger = (): LocalMetricsLedger => ({ version: 1, simulated: true, days: {} });
-
-const emptyDay = (): LedgerDay => ({
-  veil: {
-    checks: 0,
-    allow: 0,
-    revise: 0,
-    block: 0,
-    occurrences: 0,
-    redacted: 0,
-    tokenized: 0,
-    chars: 0,
-  },
-  plumb: {
-    checks: 0,
-    allow: 0,
-    revise: 0,
-    block: 0,
-    assertions: 0,
-    matches: 0,
-    drifted: 0,
-    cannotDetermine: 0,
-  },
-  receipts: 0,
+const seededLedger = (): LocalMetricsLedger => ({
+  version: 1,
+  simulated: true,
+  days: {},
+  latestRisk: null,
 });
 
 const utcDayKey = () => new Date().toISOString().slice(0, 10);
@@ -174,17 +109,30 @@ function pruneDays(days: Record<string, LedgerDay>): Record<string, LedgerDay> {
   return Object.fromEntries(Object.entries(days).filter(([key]) => key >= cutoff));
 }
 
-export function summarizeTrailingWeek(ledger: LocalMetricsLedger) {
-  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+/**
+ * The "Last 7 days" window: seven UTC calendar days, today and the six dates before it.
+ * Dates after today are excluded.
+ */
+export function trailingWeekRange(now = new Date()) {
+  const newest = now.toISOString().slice(0, 10);
+  const sixDaysMs = 6 * 24 * 60 * 60 * 1000;
+  const oldest = new Date(Date.parse(newest) - sixDaysMs).toISOString().slice(0, 10);
+  return { oldest, newest };
+}
+
+export function summarizeTrailingWeek(ledger: LocalMetricsLedger, now = new Date()) {
+  const { oldest, newest } = trailingWeekRange(now);
   const summary = emptyDay();
   for (const [key, day] of Object.entries(ledger.days)) {
-    if (key < cutoff) continue;
+    if (key < oldest || key > newest) continue;
     for (const field of Object.keys(summary.veil) as Array<keyof LedgerDay["veil"]>) {
       summary.veil[field] += day.veil[field];
     }
     for (const field of Object.keys(summary.plumb) as Array<keyof LedgerDay["plumb"]>) {
+      if (field === "risk") continue;
       summary.plumb[field] += day.plumb[field];
     }
+    for (const band of RISK_BANDS) summary.plumb.risk[band] += day.plumb.risk?.[band] ?? 0;
     summary.receipts += day.receipts;
   }
   return summary;
@@ -222,8 +170,18 @@ export interface SourceDocument {
 }
 
 interface DemoStore {
-  activeModel: ModelId;
-  setActiveModel: (m: ModelId) => void;
+  /** A model id from the server allowlist; empty until gateway status has loaded. */
+  activeModel: string;
+  setActiveModel: (modelId: string) => void;
+  gateway: GatewayView;
+  /** Model ids with a connection check in flight. */
+  checkingModels: string[];
+  refreshGateway: () => Promise<void>;
+  /** Returns an error message, or null when the gateway was unlocked. */
+  unlockGateway: (token: string) => Promise<string | null>;
+  verifyGatewayModel: (modelId: string) => Promise<void>;
+  /** Called when a gateway request answers 401: reopens the Unlock dialog. */
+  markGatewayLocked: (expired: boolean) => void;
   killSwitch: boolean;
   setKillSwitch: (v: boolean) => void;
   driftMode: DriftMode;
@@ -234,9 +192,11 @@ interface DemoStore {
   setPolicyActive: (policyId: string, active: boolean) => void;
   customPolicies: PolicyDefinition[];
   addCustomPolicy: (policy: PolicyDefinition) => void;
+  updateCustomPolicy: (policy: PolicyDefinition) => void;
+  removeCustomPolicy: (policyId: string) => void;
   localMetrics: LocalMetricsLedger;
   recordVeilCheck: (record: VeilCheckRecord) => void;
-  recordPlumbCheck: (record: PlumbCheckRecord) => void;
+  recordPlumbCheck: (record: StampedPlumbCheck) => void;
   /** Stores the receipt of a completed run in the browser history (and folder, if chosen). */
   recordReceipt: (receipt: ValidationReceipt) => Promise<RecordedReceipt>;
   seedDemoMetrics: () => void;
@@ -257,7 +217,10 @@ interface DemoStore {
 const Ctx = createContext<DemoStore | null>(null);
 
 export function DemoStoreProvider({ children }: { children: ReactNode }) {
-  const [activeModel, setActiveModel] = useState<ModelId>("gemini-1.5-pro");
+  const [activeModel, setActiveModelState] = useState("");
+  const [gateway, setGateway] = useState<GatewayView>({ phase: "loading" });
+  const [checkingModels, setCheckingModels] = useState<string[]>([]);
+  const autoVerified = useRef(new Set<string>());
   const [killSwitch, setKillSwitch] = useState(false);
   const [driftMode, setDriftMode] = useState<DriftMode>("clean");
   const [recentRuns, setRecentRuns] = useState<GatewayRun[]>([]);
@@ -294,7 +257,8 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       if (savedMetrics) {
         const parsed = JSON.parse(savedMetrics) as LocalMetricsLedger;
         if (parsed.version === 1) {
-          setLocalMetrics({ ...parsed, days: pruneDays(parsed.days) });
+          const normalized = normalizeLedger(parsed);
+          setLocalMetrics({ ...normalized, days: pruneDays(normalized.days) });
         }
       }
     } catch {
@@ -353,6 +317,102 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     setRecentRuns((prev) => [r, ...prev].slice(0, 20));
   }, []);
 
+  const markGatewayLocked = useCallback((expired: boolean) => {
+    setGateway({ phase: "locked", expired });
+  }, []);
+
+  const applyGatewayError = useCallback((error: unknown) => {
+    if (needsUnlock(error)) {
+      setGateway({
+        phase: "locked",
+        expired: (error as GatewayHttpError).code === "session-expired",
+      });
+    } else if (error instanceof GatewayHttpError && error.status === 404) {
+      setGateway({ phase: "unavailable", reason: "disabled" });
+    } else if (error instanceof GatewayHttpError && error.code === "gateway-token-missing") {
+      setGateway({ phase: "unavailable", reason: "token-missing" });
+    } else {
+      setGateway({
+        phase: "unavailable",
+        reason: "error",
+        message: error instanceof Error ? error.message : undefined,
+      });
+    }
+  }, []);
+
+  const refreshGateway = useCallback(async () => {
+    try {
+      const status = await gatewayClient.status();
+      setGateway({ phase: "ready", status });
+      setActiveModelState((current) =>
+        status.models.includes(current) ? current : (status.defaultModelId ?? ""),
+      );
+    } catch (error) {
+      applyGatewayError(error);
+    }
+  }, [applyGatewayError]);
+
+  useEffect(() => {
+    void refreshGateway();
+  }, [refreshGateway]);
+
+  const unlockGateway = useCallback(
+    async (token: string) => {
+      try {
+        await gatewayClient.unlock(token);
+      } catch (error) {
+        if (error instanceof GatewayHttpError && error.code === "token-rejected") {
+          return "That gateway token was not accepted.";
+        }
+        if (error instanceof GatewayHttpError && error.code === "rate-limited") {
+          return "Too many attempts. Wait a minute and try again.";
+        }
+        return "The gateway could not be unlocked.";
+      }
+      await refreshGateway();
+      return null;
+    },
+    [refreshGateway],
+  );
+
+  const verifyGatewayModel = useCallback(
+    async (modelId: string) => {
+      setCheckingModels((current) => [...new Set([...current, modelId])]);
+      try {
+        const result = await gatewayClient.verify(modelId);
+        setGateway((current) =>
+          current.phase === "ready"
+            ? {
+                phase: "ready",
+                status: {
+                  ...current.status,
+                  connections: { ...current.status.connections, [modelId]: result.connection },
+                },
+              }
+            : current,
+        );
+      } catch (error) {
+        applyGatewayError(error);
+      } finally {
+        setCheckingModels((current) => current.filter((id) => id !== modelId));
+      }
+    },
+    [applyGatewayError],
+  );
+
+  // Choosing a model shows that model's own state and checks it once, automatically.
+  const setActiveModel = useCallback(
+    (modelId: string) => {
+      setActiveModelState(modelId);
+      if (gateway.phase !== "ready" || !gateway.status.configured) return;
+      const connection = gateway.status.connections[modelId];
+      if (connection?.state !== "not_connected" || autoVerified.current.has(modelId)) return;
+      autoVerified.current.add(modelId);
+      void verifyGatewayModel(modelId);
+    },
+    [gateway, verifyGatewayModel],
+  );
+
   const setPolicyActive = useCallback((policyId: string, active: boolean) => {
     setActivePolicyIds((current) =>
       active ? [...new Set([...current, policyId])] : current.filter((id) => id !== policyId),
@@ -364,15 +424,21 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     setActivePolicyIds((current) => [...new Set([...current, policy.id])]);
   }, []);
 
+  // An edit keeps the policy id, so activation and past receipts (which record id@version at
+  // check time) are unaffected; only later checks see the new definition.
+  const updateCustomPolicy = useCallback((policy: PolicyDefinition) => {
+    setCustomPolicies((current) =>
+      current.map((existing) => (existing.id === policy.id ? policy : existing)),
+    );
+  }, []);
+
+  const removeCustomPolicy = useCallback((policyId: string) => {
+    setCustomPolicies((current) => current.filter((policy) => policy.id !== policyId));
+    setActivePolicyIds((current) => current.filter((id) => id !== policyId));
+  }, []);
+
   const mutateToday = useCallback((mutate: (day: LedgerDay) => void) => {
-    setLocalMetrics((current) => {
-      // The first real record evicts the simulated seed entirely.
-      const days = current.simulated ? {} : { ...current.days };
-      const key = utcDayKey();
-      const day = structuredClone(days[key] ?? emptyDay());
-      mutate(day);
-      return { version: 1, simulated: false, days: { ...days, [key]: day } };
-    });
+    setLocalMetrics((current) => mutateLedgerDay(current, utcDayKey(), mutate));
   }, []);
 
   const recordVeilCheck = useCallback(
@@ -389,19 +455,10 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     [mutateToday],
   );
 
-  const recordPlumbCheck = useCallback(
-    (record: PlumbCheckRecord) => {
-      mutateToday((day) => {
-        day.plumb.checks += 1;
-        day.plumb[record.verdict] += 1;
-        day.plumb.assertions += record.assertions;
-        day.plumb.matches += record.matches;
-        day.plumb.drifted += record.drifted;
-        day.plumb.cannotDetermine += record.cannotDetermine;
-      });
-    },
-    [mutateToday],
-  );
+  // Dated by when the comparison completed, not by when its prediction arrived.
+  const recordPlumbCheck = useCallback((record: StampedPlumbCheck) => {
+    setLocalMetrics((current) => recordPlumbCheckInLedger(current, record));
+  }, []);
 
   const recordReceipt = useCallback(
     async (receipt: ValidationReceipt): Promise<RecordedReceipt> => {
@@ -441,6 +498,12 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     () => ({
       activeModel,
       setActiveModel,
+      gateway,
+      checkingModels,
+      refreshGateway,
+      unlockGateway,
+      verifyGatewayModel,
+      markGatewayLocked,
       killSwitch,
       setKillSwitch,
       driftMode,
@@ -451,6 +514,8 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       setPolicyActive,
       customPolicies,
       addCustomPolicy,
+      updateCustomPolicy,
+      removeCustomPolicy,
       localMetrics,
       recordVeilCheck,
       recordPlumbCheck,
@@ -472,6 +537,13 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     }),
     [
       activeModel,
+      setActiveModel,
+      gateway,
+      checkingModels,
+      refreshGateway,
+      unlockGateway,
+      verifyGatewayModel,
+      markGatewayLocked,
       killSwitch,
       driftMode,
       recentRuns,
@@ -480,6 +552,8 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       setPolicyActive,
       customPolicies,
       addCustomPolicy,
+      updateCustomPolicy,
+      removeCustomPolicy,
       localMetrics,
       recordVeilCheck,
       recordPlumbCheck,
@@ -505,8 +579,4 @@ export function useDemoStore() {
   const c = useContext(Ctx);
   if (!c) throw new Error("useDemoStore must be used within DemoStoreProvider");
   return c;
-}
-
-export function modelById(id: ModelId): ModelMeta {
-  return MODELS.find((m) => m.id === id)!;
 }

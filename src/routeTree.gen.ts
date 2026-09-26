@@ -26,6 +26,10 @@ import { Route as DashboardAnalyticsRouteImport } from './routes/dashboard.analy
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as DashboardUseCasesKeyRouteImport } from './routes/dashboard.use-cases.$key'
+import { Route as ApiGatewayVerifyRouteImport } from './routes/api/gateway/verify'
+import { Route as ApiGatewayStatusRouteImport } from './routes/api/gateway/status'
+import { Route as ApiGatewaySessionRouteImport } from './routes/api/gateway/session'
+import { Route as ApiGatewayRunRouteImport } from './routes/api/gateway/run'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
 
 const McpRoute = McpRouteImport.update({
@@ -115,6 +119,26 @@ const DashboardUseCasesKeyRoute = DashboardUseCasesKeyRouteImport.update({
   path: '/$key',
   getParentRoute: () => DashboardUseCasesRoute,
 } as any)
+const ApiGatewayVerifyRoute = ApiGatewayVerifyRouteImport.update({
+  id: '/api/gateway/verify',
+  path: '/api/gateway/verify',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiGatewayStatusRoute = ApiGatewayStatusRouteImport.update({
+  id: '/api/gateway/status',
+  path: '/api/gateway/status',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiGatewaySessionRoute = ApiGatewaySessionRouteImport.update({
+  id: '/api/gateway/session',
+  path: '/api/gateway/session',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiGatewayRunRoute = ApiGatewayRunRouteImport.update({
+  id: '/api/gateway/run',
+  path: '/api/gateway/run',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const Char91DotmcpChar93InvokeToolToolRoute =
   Char91DotmcpChar93InvokeToolToolRouteImport.update({
     id: '/.mcp/invoke-tool/$tool',
@@ -140,6 +164,10 @@ export interface FileRoutesByFullPath {
   '/dashboard/use-cases': typeof DashboardUseCasesRouteWithChildren
   '/dashboard/': typeof DashboardIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/api/gateway/run': typeof ApiGatewayRunRoute
+  '/api/gateway/session': typeof ApiGatewaySessionRoute
+  '/api/gateway/status': typeof ApiGatewayStatusRoute
+  '/api/gateway/verify': typeof ApiGatewayVerifyRoute
   '/dashboard/use-cases/$key': typeof DashboardUseCasesKeyRoute
 }
 export interface FileRoutesByTo {
@@ -159,6 +187,10 @@ export interface FileRoutesByTo {
   '/dashboard/use-cases': typeof DashboardUseCasesRouteWithChildren
   '/dashboard': typeof DashboardIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/api/gateway/run': typeof ApiGatewayRunRoute
+  '/api/gateway/session': typeof ApiGatewaySessionRoute
+  '/api/gateway/status': typeof ApiGatewayStatusRoute
+  '/api/gateway/verify': typeof ApiGatewayVerifyRoute
   '/dashboard/use-cases/$key': typeof DashboardUseCasesKeyRoute
 }
 export interface FileRoutesById {
@@ -180,6 +212,10 @@ export interface FileRoutesById {
   '/dashboard/use-cases': typeof DashboardUseCasesRouteWithChildren
   '/dashboard/': typeof DashboardIndexRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/api/gateway/run': typeof ApiGatewayRunRoute
+  '/api/gateway/session': typeof ApiGatewaySessionRoute
+  '/api/gateway/status': typeof ApiGatewayStatusRoute
+  '/api/gateway/verify': typeof ApiGatewayVerifyRoute
   '/dashboard/use-cases/$key': typeof DashboardUseCasesKeyRoute
 }
 export interface FileRouteTypes {
@@ -202,6 +238,10 @@ export interface FileRouteTypes {
     | '/dashboard/use-cases'
     | '/dashboard/'
     | '/.mcp/invoke-tool/$tool'
+    | '/api/gateway/run'
+    | '/api/gateway/session'
+    | '/api/gateway/status'
+    | '/api/gateway/verify'
     | '/dashboard/use-cases/$key'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -221,6 +261,10 @@ export interface FileRouteTypes {
     | '/dashboard/use-cases'
     | '/dashboard'
     | '/.mcp/invoke-tool/$tool'
+    | '/api/gateway/run'
+    | '/api/gateway/session'
+    | '/api/gateway/status'
+    | '/api/gateway/verify'
     | '/dashboard/use-cases/$key'
   id:
     | '__root__'
@@ -241,6 +285,10 @@ export interface FileRouteTypes {
     | '/dashboard/use-cases'
     | '/dashboard/'
     | '/.mcp/invoke-tool/$tool'
+    | '/api/gateway/run'
+    | '/api/gateway/session'
+    | '/api/gateway/status'
+    | '/api/gateway/verify'
     | '/dashboard/use-cases/$key'
   fileRoutesById: FileRoutesById
 }
@@ -252,6 +300,10 @@ export interface RootRouteChildren {
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
+  ApiGatewayRunRoute: typeof ApiGatewayRunRoute
+  ApiGatewaySessionRoute: typeof ApiGatewaySessionRoute
+  ApiGatewayStatusRoute: typeof ApiGatewayStatusRoute
+  ApiGatewayVerifyRoute: typeof ApiGatewayVerifyRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -375,6 +427,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardUseCasesKeyRouteImport
       parentRoute: typeof DashboardUseCasesRoute
     }
+    '/api/gateway/verify': {
+      id: '/api/gateway/verify'
+      path: '/api/gateway/verify'
+      fullPath: '/api/gateway/verify'
+      preLoaderRoute: typeof ApiGatewayVerifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/gateway/status': {
+      id: '/api/gateway/status'
+      path: '/api/gateway/status'
+      fullPath: '/api/gateway/status'
+      preLoaderRoute: typeof ApiGatewayStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/gateway/session': {
+      id: '/api/gateway/session'
+      path: '/api/gateway/session'
+      fullPath: '/api/gateway/session'
+      preLoaderRoute: typeof ApiGatewaySessionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/gateway/run': {
+      id: '/api/gateway/run'
+      path: '/api/gateway/run'
+      fullPath: '/api/gateway/run'
+      preLoaderRoute: typeof ApiGatewayRunRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/.mcp/invoke-tool/$tool': {
       id: '/.mcp/invoke-tool/$tool'
       path: '/.mcp/invoke-tool/$tool'
@@ -435,6 +515,10 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
+  ApiGatewayRunRoute: ApiGatewayRunRoute,
+  ApiGatewaySessionRoute: ApiGatewaySessionRoute,
+  ApiGatewayStatusRoute: ApiGatewayStatusRoute,
+  ApiGatewayVerifyRoute: ApiGatewayVerifyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

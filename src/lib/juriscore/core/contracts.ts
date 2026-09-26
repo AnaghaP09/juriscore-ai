@@ -187,6 +187,8 @@ export const validationReceiptSchema = z.object({
   digestVersion: digestVersionSchema.optional(),
   /** Plumb v2 only: digest of the diff and each document's content, separate from claims. */
   sourceDigest: z.string().min(1).optional(),
+  /** Gateway only: digest of the sanitized payload that left the process. */
+  outboundDigest: z.string().min(1).optional(),
 });
 
 export type ValidationReceipt = z.infer<typeof validationReceiptSchema>;
@@ -217,6 +219,7 @@ export const persistedReceiptSchema = z
     createdAt: z.string().datetime(),
     digestVersion: digestVersionSchema.optional(),
     sourceDigest: z.string().min(1).optional(),
+    outboundDigest: z.string().min(1).optional(),
   })
   .strict();
 
