@@ -43,6 +43,7 @@ ml/.venv/
 ml/data/work/
 ml/**/__pycache__/
 
-# Rendered at deploy time from docs/GATEWAY_SETUP.md and packaging/RUN.md (PLAN-7)
+# Rendered at deploy time from the Markdown sources (PLAN-7)
 landing/setup.html
 landing/run.html
+landing/release-notes.html

@@ -2,6 +2,8 @@
 
 ## 2026.09.30 — A connected model, your own sources, receipts you keep
 
+Released as package **v2026.10.01**: [download](https://github.com/AnaghaP09/juriscore-ai/releases/tag/v2026.10.01) · [all releases](https://github.com/AnaghaP09/juriscore-ai/releases)
+
 **Status: version 2026.10.01.** Runs on your own machine. Every number in the product is labelled. Detection quality is not yet measured on real traffic. There is no login. A single local server on port 8080 serves everything.
 
 Since the 2026.08.01 release, JurisCore can send a prompt to a real model through its own gateway, check your own code and documents instead of sample data, and keep a history of receipts in your browser. This entry lists the changes that matter, the fixes that change a result, the things we turned off, the claims from the last notes that are no longer true, and the problems we know about today.

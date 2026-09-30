@@ -2,8 +2,9 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 /**
- * Renders `docs/GATEWAY_SETUP.md` and `packaging/RUN.md` into `landing/setup.html` and
- * `landing/run.html` for the GitHub Pages site (PLAN-7). The Markdown files stay the only
+ * Renders `docs/GATEWAY_SETUP.md`, `packaging/RUN.md` and `docs/RELEASE_NOTES.md` into
+ * `landing/setup.html`, `landing/run.html` and `landing/release-notes.html` for the GitHub
+ * Pages site (PLAN-7; release notes added at the owner's request, 2026-09-30). The Markdown files stay the only
  * source; the Pages workflow runs this before publishing, and the generated files are not
  * committed. The page shell (head, styles, header, footer) is taken from `landing/index.html`
  * so every page shares one look and one navigation.
@@ -18,6 +19,12 @@ export const SITE = "https://anaghap09.github.io/juriscore-ai";
 export const PAGES = [
   { source: "docs/GATEWAY_SETUP.md", output: "setup.html", title: "Setup", nav: "setup" },
   { source: "packaging/RUN.md", output: "run.html", title: "Run", nav: "run" },
+  {
+    source: "docs/RELEASE_NOTES.md",
+    output: "release-notes.html",
+    title: "Release notes",
+    nav: "release-notes",
+  },
 ] as const;
 
 const root = resolve(import.meta.dir, "..");
@@ -104,6 +111,14 @@ export function renderMarkdown(markdown: string) {
 
     if (line.trim() === "") {
       flushAll();
+      index += 1;
+      continue;
+    }
+
+    if (/^-{3,}$/.test(line.trim())) {
+      flushAll();
+      closeLists();
+      html.push("<hr />");
       index += 1;
       continue;
     }
