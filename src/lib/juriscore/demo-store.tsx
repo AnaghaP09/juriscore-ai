@@ -25,6 +25,7 @@ import {
 import { createSafeStorage } from "@/lib/juriscore/core/safe-storage";
 import { GatewayHttpError, gatewayClient, needsUnlock } from "@/lib/juriscore/gateway/client";
 import {
+  createGenerationGuard,
   loadStatusAfterUnlock,
   unlockFailureMessage,
   verifyOnce,
@@ -370,15 +371,27 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Every gateway state write is ordered by one guard: a successful unlock invalidates
+  // any status request started before it, so its late answer is discarded (P5-R2-001).
+  const guard = useRef(createGenerationGuard());
+  const refreshInFlight = useRef(false);
   const refreshGateway = useCallback(async () => {
+    if (refreshInFlight.current) return;
+    refreshInFlight.current = true;
+    const ticket = guard.current.begin();
+    setCheckingModels((current) => [...new Set([...current, "__refresh__"])]);
     try {
       const status = await gatewayClient.status();
+      if (!guard.current.isCurrent(ticket)) return;
       setGateway({ phase: "ready", status });
       setActiveModelState((current) =>
         status.models.includes(current) ? current : (status.defaultModelId ?? ""),
       );
     } catch (error) {
-      applyGatewayError(error);
+      if (guard.current.isCurrent(ticket)) applyGatewayError(error);
+    } finally {
+      setCheckingModels((current) => current.filter((id) => id !== "__refresh__"));
+      refreshInFlight.current = false;
     }
   }, [applyGatewayError]);
 
@@ -406,20 +419,21 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
 
   // One recovery at a time: a second call while one runs is ignored, and an outcome
   // from a superseded call never overwrites newer gateway state.
-  const recovery = useRef<{ inFlight: boolean; generation: number }>({ inFlight: false, generation: 0 });
+  const recoveryInFlight = useRef(false);
   const loadAfterUnlock = useCallback(async () => {
-    if (recovery.current.inFlight) return;
-    recovery.current.inFlight = true;
-    const generation = ++recovery.current.generation;
+    if (recoveryInFlight.current) return;
+    recoveryInFlight.current = true;
+    // Starting a recovery supersedes every earlier status request, including a refresh.
+    const ticket = guard.current.invalidate();
     const preferred = activeModelRef.current;
     const marker = preferred || "__default__";
     setCheckingModels((current) => [...new Set([...current, marker])]);
     try {
       const outcome = await loadStatusAfterUnlock(gatewayClient, preferred || undefined);
-      if (generation === recovery.current.generation) applyUnlockOutcome(outcome);
+      if (guard.current.isCurrent(ticket)) applyUnlockOutcome(outcome);
     } finally {
       setCheckingModels((current) => current.filter((id) => id !== marker));
-      recovery.current.inFlight = false;
+      recoveryInFlight.current = false;
     }
   }, [applyUnlockOutcome]);
 

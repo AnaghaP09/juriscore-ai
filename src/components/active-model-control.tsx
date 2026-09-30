@@ -99,7 +99,13 @@ export function ActiveModelControl() {
         <Badge variant="outline" className={mutedBadge} title={gateway.message}>
           Gateway unavailable
         </Badge>
-        <Button size="sm" variant="ghost" className="h-8" onClick={() => void refreshGateway()}>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-8"
+          disabled={checkingModels.includes("__refresh__")}
+          onClick={() => void refreshGateway()}
+        >
           <RefreshCw className="h-3.5 w-3.5 mr-1.5" aria-hidden />
           Retry
         </Button>

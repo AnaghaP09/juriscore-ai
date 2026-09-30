@@ -22,12 +22,13 @@ import {
   suggestUnlockPhrase,
 } from "../src/lib/juriscore/gateway/suggest-phrase";
 import {
+  createGenerationGuard,
   loadStatusAfterUnlock,
   unlockFailureMessage,
   verifyOnce,
 } from "../src/lib/juriscore/gateway/session-flow";
 import { GATEWAY_MODEL_TABLE } from "../src/lib/juriscore/gateway/models";
-import { GatewayHttpError, createRunSequencer } from "../src/lib/juriscore/gateway/client";
+import { GatewayHttpError, createRunSequencer, needsUnlock } from "../src/lib/juriscore/gateway/client";
 import { createFakeTransport, type FakeTransport } from "../src/lib/juriscore/gateway/adapter/fake";
 import {
   GATEWAY_ROUTES,
@@ -950,6 +951,36 @@ function assertNothingRan(h: Harness, label: string) {
       "claude-opus-5",
     );
     assert.deepEqual(lost, { kind: "locked", expired: true });
+  }
+  // A status request started before the unlock must not overwrite the unlocked state,
+  // whatever it answers and whenever it answers (P5-R2-001).
+  {
+    const guard = createGenerationGuard();
+    let view: string = "loading";
+    let release401: () => void = () => {};
+    const delayed401 = new Promise<never>((_, reject) => {
+      release401 = () => reject(new GatewayHttpError(401, "session-required"));
+    });
+    const preUnlockTicket = guard.begin();
+    const preUnlock = delayed401.catch((error) => {
+      if (guard.isCurrent(preUnlockTicket)) view = needsUnlock(error) ? "locked" : "unavailable";
+    });
+    // Unlock succeeds and recovery runs to completion with one verify.
+    const ticket = guard.invalidate();
+    const { client, calls } = flowClient(async () => okStatus);
+    const outcome = await loadStatusAfterUnlock(client);
+    if (guard.isCurrent(ticket) && outcome.kind === "ready") view = "ready";
+    assert.equal(view, "ready");
+    assert.deepEqual(calls.verify, ["claude-opus-5"]);
+    // Now the pre-unlock 401 arrives late: it is discarded.
+    release401();
+    await preUnlock;
+    assert.equal(view, "ready", "a delayed pre-unlock 401 did not re-lock the page");
+    // A newer recovery ticket supersedes an older one; only the newest may write.
+    const older = guard.invalidate();
+    const newer = guard.invalidate();
+    assert.equal(guard.isCurrent(older), false);
+    assert.equal(guard.isCurrent(newer), true);
   }
   assert.ok(unlockFailureMessage(new GatewayHttpError(401, "token-rejected")).includes("does not match"));
   assert.ok(unlockFailureMessage(new GatewayHttpError(400, "https-required")).includes("localhost"));

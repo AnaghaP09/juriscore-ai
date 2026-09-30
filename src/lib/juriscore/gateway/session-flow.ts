@@ -103,6 +103,20 @@ export function recoverableMessage(error: unknown) {
   return "Could not reach the server. Check your connection and retry.";
 }
 
+/**
+ * Orders gateway state writes. Every status refresh or post-unlock recovery takes a ticket;
+ * a successful unlock invalidates every ticket taken before it, so a delayed pre-unlock
+ * answer (for example a 401) can never overwrite the unlocked state.
+ */
+export function createGenerationGuard() {
+  let generation = 0;
+  return {
+    begin: () => generation,
+    invalidate: () => ++generation,
+    isCurrent: (ticket: number) => ticket === generation,
+  };
+}
+
 /** Text shown in the Unlock dialog for a failed session call. */
 export function unlockFailureMessage(error: unknown) {
   if (error instanceof GatewayHttpError) {
