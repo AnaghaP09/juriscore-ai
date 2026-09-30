@@ -49,7 +49,7 @@ The product direction is **on-prem / sovereign-AI deployment**: single-tenant in
 > **Verification** — which existing check scripts extend, what new deterministic checks are added, what can only be verified manually
 > **Risks** — failure modes, rollback path, and the one assumption most likely to be wrong
 
-**Respect the blast radius.** This repo syncs to Lovable (`AGENTS.md`) — the connected branch must stay working, and published history must not be rewritten. Big-bang refactors are out; design strangler-style migrations that keep old surfaces functional until replacements land.
+**Respect the blast radius.** `main` must stay working, and published history must not be rewritten (`AGENTS.md`). Big-bang refactors are out; design strangler-style migrations that keep old surfaces functional until replacements land.
 
 **Interrogate dependencies.** Before a design adds a dependency, state what it's for, what it weighs, and what the no-dependency version looks like. The on-prem story punishes sprawling supply chains.
 

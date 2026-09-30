@@ -156,6 +156,6 @@ These routes may be relabeled, connected to shared engines, or marked as demo da
 - source ingestion and retrieval services;
 - GitHub pull-request integration for Plumb;
 - independent privacy, security, and benchmark validation;
-- Lovable interface regeneration after the source contracts stabilize.
+- Interface refinement in this repository after the source contracts stabilize (Lovable is no longer used).
 
 Addendum, 2026-09-26 — the LLM Gateway drops its Beta label (founder instruction). It now makes real, Veil-gated calls to the operator's own Anthropic account once enabled on the server; setup steps live in `docs/GATEWAY_SETUP.md`, not in the product UI.

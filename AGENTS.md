@@ -1,10 +1,7 @@
-<!-- LOVABLE:BEGIN -->
-> [!IMPORTANT]
-> This project is connected to [Lovable](https://lovable.dev). Avoid rewriting
-> published git history — force pushing, or rebasing/amending/squashing commits
-> that are already pushed — as it rewrites history on Lovable's side and the
-> user will likely lose their project history.
->
-> Commits you push to the connected branch sync back to Lovable and show up in
-> the editor, so keep the branch in a working state.
-<!-- LOVABLE:END -->
+# Agent notes
+
+- Never rewrite published git history: no force-push, and no rebasing, amending or squashing
+  commits that are already pushed. Work on feature branches and merge through pull requests.
+- Keep `main` in a working state; the owner's stage (`bun run dev` on :8080) runs from it.
+- JurisCore builds and runs without Lovable (see `docs/INDEPENDENT_BUILD.md`).
+  `bun run check:lovable` reports any remaining Lovable dependency or sync activity.

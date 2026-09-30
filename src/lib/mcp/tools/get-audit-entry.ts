@@ -1,4 +1,4 @@
-import { defineTool } from "@lovable.dev/mcp-js";
+import { defineTool } from "@/lib/mcp/define";
 import { z } from "zod";
 import { unavailableResult } from "@/lib/mcp/safe-output";
 

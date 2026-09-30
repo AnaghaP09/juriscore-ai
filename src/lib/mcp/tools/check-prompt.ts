@@ -1,4 +1,4 @@
-import { defineTool } from "@lovable.dev/mcp-js";
+import { defineTool } from "@/lib/mcp/define";
 import { z } from "zod";
 import { protectText } from "@/lib/juriscore/veil/engine";
 import { veilScopesForPolicies } from "@/lib/juriscore/policies/catalog";

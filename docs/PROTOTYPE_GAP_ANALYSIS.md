@@ -15,7 +15,7 @@ The exported Lovable project is a valuable interaction and design baseline. The 
 | Access control  | Public prototype routes and tools                                         | Authentication, role-based authorization, tenant isolation, and protected server tools                           | P0       |
 | Model execution | Simulated selector with hard-coded metadata                               | Provider adapter, server-side secrets, timeouts, structured outputs, and usage records                           | P1       |
 | Metrics         | Simulated operational and outcome claims                                  | Reproducible evaluations with maturity labels                                                                    | P0       |
-| Interface       | Broad Lovable dashboard                                                   | Preserve existing routes; foreground Veil and Plumb; refine in Lovable after contracts stabilize                 | P1       |
+| Interface       | Broad Lovable dashboard                                                   | Preserve existing routes; foreground Veil and Plumb; refine in this repo after contracts stabilize               | P1       |
 
 ## First vertical slices
 

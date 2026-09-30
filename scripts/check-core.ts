@@ -4,6 +4,7 @@ import "./check-plumb";
 import "./check-receipts";
 import "./check-receipt-store";
 import "./check-mcp";
+import "./check-mcp-http";
 import "./check-predict";
 import "./check-ml";
 import "./check-exposure";

@@ -1,0 +1,37 @@
+name: Lovable watch
+
+# Daily check that Lovable is not syncing with this repository: no commits, events or
+# check runs from Lovable's GitHub App (it commits as gpt-engineer-app[bot]), and no
+# Lovable dependency in the tree. Fails, and so emails the owner, if any appear.
+# It cannot see whether the Lovable App is still installed; that is listed at
+# https://github.com/settings/installations.
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: read
+  statuses: read
+
+jobs:
+  watch:
+    name: Lovable sync
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Check for Lovable dependencies and sync activity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bun scripts/check-lovable.ts --sync

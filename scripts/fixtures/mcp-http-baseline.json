@@ -1,0 +1,491 @@
+{
+  "preflight": {
+    "status": 204,
+    "headers": {
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
+      "access-control-allow-headers": "Authorization, Content-Type, Mcp-Session-Id, Mcp-Protocol-Version, Last-Event-ID",
+      "access-control-max-age": "86400"
+    }
+  },
+  "initialize": {
+    "status": 200,
+    "cors": {
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "WWW-Authenticate, Mcp-Session-Id, Mcp-Protocol-Version"
+    },
+    "body": {
+      "result": {
+        "protocolVersion": "2025-06-18",
+        "capabilities": {
+          "tools": {
+            "listChanged": true
+          }
+        },
+        "serverInfo": {
+          "name": "juriscore-ai",
+          "version": "0.1.0",
+          "title": "JurisCore — AI validation and guardrails"
+        },
+        "instructions": "JurisCore is an AI validation and guardrail platform that runs inside the operator's own environment — on-premises, private cloud, or air-gapped. Two features share one policy library: Veil controls what enters and leaves a model, and Plumb checks assertions against the implemented source of truth. Every check returns allow, revise, or block with findings and the active policy versions. Call `check_prompt` before sending any text to a model; `retrieve_policy` for the pack catalog and versions; `compare_claims` to validate structured assertions against authoritative values; `evaluate_response` to run Veil on a prompt and a draft answer, plus the Plumb comparison when structured claims are supplied. Evaluation is local and deterministic: no external call is made, and no prompt, draft, or detected value is ever returned or logged — findings carry category, severity, and count only. This build persists nothing and is unauthenticated, so `enforce_citations` and `get_audit_entry` report themselves unavailable rather than return fabricated results. JurisCore guides checks against published references; it does not determine legal applicability or certify compliance."
+      },
+      "jsonrpc": "2.0",
+      "id": 1
+    }
+  },
+  "toolsList": {
+    "status": 200,
+    "body": {
+      "result": {
+        "tools": [
+          {
+            "name": "check_prompt",
+            "title": "Check prompt (Veil input protection)",
+            "description": "Run JurisCore Veil over text before it reaches a model. Detects personal identifiers, customer and tenant identifiers, credentials and secrets, regulated health identifiers, and prompt-attack patterns, then returns allow, revise, or block together with the active policy versions. Findings report category, severity, and count only — the detected values and the submitted text never cross this boundary, so the result is safe to keep in a transcript. Evaluation is local and deterministic; nothing is sent anywhere.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "prompt": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The text to inspect before it reaches a model."
+                },
+                "policyIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Policy pack ids to activate. Defaults to the built-in active set. Call `retrieve_policy` for the catalog."
+                }
+              },
+              "required": [
+                "prompt"
+              ],
+              "additionalProperties": false,
+              "$schema": "http://json-schema.org/draft-07/schema#"
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "idempotentHint": true,
+              "openWorldHint": false
+            },
+            "execution": {
+              "taskSupport": "forbidden"
+            }
+          },
+          {
+            "name": "retrieve_policy",
+            "title": "Retrieve policy packs",
+            "description": "Look up JurisCore policy packs from the instance catalog: the PII and sensitive-data baseline, HIPAA Privacy Rule reference, SOC 2 Trust Services Criteria reference, MITRE ATLAS, NIST AI RMF with the Generative AI Profile, and NIST CSF 2.0. Returns each pack's id, version, issuing authority, the Veil scopes it activates, and its source title, publisher, URL, and retrieval date. Packs translate published references into product checks; they do not reproduce restricted standards, determine legal applicability, or certify compliance. Pass the returned ids to `check_prompt`, `compare_claims`, or `evaluate_response`.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "What you are trying to govern, for example 'health identifiers' or 'prompt attacks'."
+                },
+                "feature": {
+                  "type": "string",
+                  "enum": [
+                    "veil",
+                    "plumb"
+                  ],
+                  "description": "Restrict to packs that apply to Veil input protection or Plumb source validation."
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 10,
+                  "default": 3
+                }
+              },
+              "required": [
+                "query"
+              ],
+              "additionalProperties": false,
+              "$schema": "http://json-schema.org/draft-07/schema#"
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "idempotentHint": true,
+              "openWorldHint": false
+            },
+            "execution": {
+              "taskSupport": "forbidden"
+            }
+          },
+          {
+            "name": "compare_claims",
+            "title": "Compare claims (Plumb source validation)",
+            "description": "Run JurisCore Plumb: compare structured assertions taken from documentation, support content, release notes, or a model answer against structured authoritative values taken from code, configuration, schemas, or policy. Matching is by exact subject and compatible units. Each assertion returns matches, drifted, or cannot_determine with both source references, and the run returns allow, revise, or block. Supply the claims yourself — this tool compares claims, it does not extract them from prose. Evaluation is local; nothing is fetched.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "authorities": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "subject": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "The thing being asserted, for example 'cross_border_fee'. Matching is exact."
+                      },
+                      "value": {
+                        "type": [
+                          "string",
+                          "number",
+                          "boolean"
+                        ]
+                      },
+                      "unit": {
+                        "type": "string",
+                        "description": "Units must agree, or the result is cannot_determine."
+                      },
+                      "statement": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "The sentence or line the claim was read from."
+                      },
+                      "reference": {
+                        "type": "object",
+                        "properties": {
+                          "sourceId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "File, document, or system the claim comes from."
+                          },
+                          "sourceVersion": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Commit, digest, or version of that source."
+                          },
+                          "locator": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Line, section, or paragraph inside the source."
+                          }
+                        },
+                        "required": [
+                          "sourceId",
+                          "sourceVersion",
+                          "locator"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "subject",
+                      "value",
+                      "statement",
+                      "reference"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "Claims read from the implemented source of truth."
+                },
+                "assertions": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/properties/authorities/items"
+                  },
+                  "minItems": 1,
+                  "description": "Claims to be validated."
+                },
+                "policyIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Policy pack ids to record against the run. Defaults to the built-in active set."
+                }
+              },
+              "required": [
+                "authorities",
+                "assertions"
+              ],
+              "additionalProperties": false,
+              "$schema": "http://json-schema.org/draft-07/schema#"
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "idempotentHint": true,
+              "openWorldHint": false
+            },
+            "execution": {
+              "taskSupport": "forbidden"
+            }
+          },
+          {
+            "name": "evaluate_response",
+            "title": "Evaluate response (Veil in, Veil out, Plumb)",
+            "description": "Run JurisCore end to end over a prompt and a draft answer: Veil protection on the input, Veil protection on the draft, and — when structured claims are supplied — the Plumb comparison against authoritative values. Returns one allow, revise, or block verdict with the active policy versions. Without structured claims the source-of-truth stage reports that it did not run and the verdict can be no better than revise. Findings carry category, severity, and count only; neither the prompt nor the draft is echoed back. No receipt is persisted server-side in this build.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "prompt": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The prompt that produced the draft."
+                },
+                "draftResponse": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The draft answer to inspect before it is delivered."
+                },
+                "policyIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Policy pack ids to activate. Defaults to the built-in active set."
+                },
+                "authorities": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "subject": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "The thing being asserted, for example 'cross_border_fee'. Matching is exact."
+                      },
+                      "value": {
+                        "type": [
+                          "string",
+                          "number",
+                          "boolean"
+                        ]
+                      },
+                      "unit": {
+                        "type": "string",
+                        "description": "Units must agree, or the result is cannot_determine."
+                      },
+                      "statement": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "The sentence or line the claim was read from."
+                      },
+                      "reference": {
+                        "type": "object",
+                        "properties": {
+                          "sourceId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "File, document, or system the claim comes from."
+                          },
+                          "sourceVersion": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Commit, digest, or version of that source."
+                          },
+                          "locator": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Line, section, or paragraph inside the source."
+                          }
+                        },
+                        "required": [
+                          "sourceId",
+                          "sourceVersion",
+                          "locator"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "subject",
+                      "value",
+                      "statement",
+                      "reference"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "Claims read from the implemented source of truth, for the Plumb stage."
+                },
+                "assertions": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/properties/authorities/items"
+                  },
+                  "description": "Claims made by the draft, for the Plumb stage."
+                }
+              },
+              "required": [
+                "prompt",
+                "draftResponse"
+              ],
+              "additionalProperties": false,
+              "$schema": "http://json-schema.org/draft-07/schema#"
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "idempotentHint": true,
+              "openWorldHint": false
+            },
+            "execution": {
+              "taskSupport": "forbidden"
+            }
+          },
+          {
+            "name": "enforce_citations",
+            "title": "Enforce citations (not implemented)",
+            "description": "NOT IMPLEMENTED in this build. Verifying that claims in prose are grounded in a cited policy clause requires claim extraction from free text and a clause-level policy index; JurisCore has neither, and returning a coverage figure without them would be fabricated. The call fails closed. Use `compare_claims` to validate structured assertions against authoritative values, or `check_prompt` to protect the draft before it is delivered.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "response": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Draft response. Not inspected — the capability is unavailable."
+                },
+                "allowedPolicyIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Policy ids the response may cite. Not inspected — the capability is unavailable."
+                }
+              },
+              "required": [
+                "response",
+                "allowedPolicyIds"
+              ],
+              "additionalProperties": false,
+              "$schema": "http://json-schema.org/draft-07/schema#"
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "idempotentHint": true,
+              "openWorldHint": false
+            },
+            "execution": {
+              "taskSupport": "forbidden"
+            }
+          },
+          {
+            "name": "get_audit_entry",
+            "title": "Get validation receipt (not implemented)",
+            "description": "NOT IMPLEMENTED in this build. JurisCore issues a validation receipt for every check, but receipts are returned to the operator and not persisted server-side, so there is no store to look an id up in. The call fails closed rather than returning a fabricated chain of checks. Receipt persistence and search ship with the Team and Enterprise receipt store.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Receipt id. Not looked up — no receipt store exists in this build."
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "additionalProperties": false,
+              "$schema": "http://json-schema.org/draft-07/schema#"
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "idempotentHint": true,
+              "openWorldHint": false
+            },
+            "execution": {
+              "taskSupport": "forbidden"
+            }
+          }
+        ]
+      },
+      "jsonrpc": "2.0",
+      "id": 2
+    }
+  },
+  "checkPrompt": {
+    "status": 200,
+    "body": {
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Verdict: revise. 1 finding(s) covering 1 protected value(s); categories: email. Active packs: pii-baseline, soc2-tsc, mitre-atlas, nist-ai-rmf."
+          }
+        ],
+        "structuredContent": {
+          "verdict": "revise",
+          "sanitizedVerdict": "allow",
+          "requiresReview": true,
+          "profile": "all_sensitive",
+          "findings": [
+            {
+              "id": "veil.common.email.1",
+              "detectorId": "veil.common.email",
+              "category": "email",
+              "label": "Email address",
+              "severity": "medium",
+              "count": 1
+            }
+          ],
+          "findingCount": 1,
+          "protectedValueCount": 1,
+          "highSeverityCount": 0,
+          "categories": [
+            "email"
+          ],
+          "policyIds": [
+            "pii-baseline",
+            "soc2-tsc",
+            "mitre-atlas",
+            "nist-ai-rmf"
+          ],
+          "policyVersions": [
+            {
+              "id": "pii-baseline",
+              "version": "JurisCore 2026.07"
+            },
+            {
+              "id": "soc2-tsc",
+              "version": "2017 TSC with March 2020 updates"
+            },
+            {
+              "id": "mitre-atlas",
+              "version": "Living knowledge base · accessed 2026-07-31"
+            },
+            {
+              "id": "nist-ai-rmf",
+              "version": "AI RMF 1.0 + NIST AI 600-1"
+            }
+          ],
+          "unknownPolicyIds": [],
+          "sanitizedTextReturned": false,
+          "note": "Findings carry category, severity, and count only. Detected values and the submitted text are never returned by this tool; use the Veil workbench in JurisCore to obtain redacted or tokenized text."
+        }
+      },
+      "jsonrpc": "2.0",
+      "id": 3
+    },
+    "echoedPrompt": false
+  },
+  "unknownTool": {
+    "status": 200,
+    "body": {
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "MCP error -32602: Tool no_such_tool not found"
+          }
+        ],
+        "isError": true
+      },
+      "jsonrpc": "2.0",
+      "id": 4
+    }
+  }
+}

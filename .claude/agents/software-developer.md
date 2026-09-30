@@ -23,7 +23,7 @@ If a task has no approved spec or filed decision behind it, stop and say so. If 
 - `src/lib/juriscore/{core,veil,plumb,policies}` — the shared engines and contracts; new behavior goes through these, never re-implemented inside a route;
 - `src/routes/README.md` — TanStack Start file-based routing conventions; `routeTree.gen.ts` is generated, never hand-edited;
 - `scripts/check-*.ts` — the deterministic checks; extending them is part of the feature, not an afterthought;
-- `AGENTS.md` — the repo is Lovable-connected; never rewrite pushed git history.
+- `AGENTS.md` — never rewrite pushed git history.
 
 ## Non-negotiable product rules you enforce in code
 
@@ -49,4 +49,4 @@ If a task has no approved spec or filed decision behind it, stop and say so. If 
 - Do not edit `docs/PRODUCT_CONTRACT.md`, `docs/FEATURE_INVENTORY.md`, or other product docs except to tick a spec's completion status if the spec says to; report doc-impacting findings back instead.
 - Do not delete preserved prototype routes; navigation demotions and removals follow the ratified decision in `docs/FEATURE_INVENTORY.md` exactly.
 - Do not add dependencies without stating why in your report; never add one that performs network calls at evaluation time.
-- Do not commit or push unless explicitly asked; never force-push (Lovable-connected repo).
+- Do not commit or push unless explicitly asked; never force-push.
