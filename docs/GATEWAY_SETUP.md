@@ -17,7 +17,7 @@ state, not configuration steps.
    JURISCORE_GATEWAY_TOKEN=<a passphrase of 16 characters or more>
    ```
 
-2. Restart the dev server (stop it, then `bun run dev`). Environment variables are read
+2. Restart the server (stop it, then `bun run dev`). Environment variables are read
    only at startup.
 3. Open `/dashboard`, choose **Unlock gateway** in the header, and enter the passphrase.
 4. Choose **Test connection**. The header badge reads **Connected — Anthropic · <model>**
@@ -112,7 +112,7 @@ at the length limit is labelled **truncated**.
 
 ## Access boundary
 
-The session cookie is a prototype boundary for a single operator on a local or stage
+The session cookie is a prototype boundary for a single operator on a local
 deployment. It is not multi-user authentication and must not be the only protection on a
 public deployment.
 

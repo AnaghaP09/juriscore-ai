@@ -93,7 +93,7 @@ To connect the LLM Gateway to your own Anthropic account, follow
 | Command | What it does |
 | --- | --- |
 | `bun run setup` | Cross-platform, self-healing dependency install |
-| `bun run dev` | Start the local dev server (hot reload) |
+| `bun run dev` | Start the server on http://localhost:8080 (reloads on edits) |
 | `bun run build` | Production build |
 | `bun run preview` | Preview the production build locally |
 | `bun run check:core` | Full deterministic validation suite (Veil + Plumb + contracts) |
@@ -140,11 +140,11 @@ installs faster and more reliable.
 **Port 8080 already in use.** Stop the other process or set a different port,
 e.g. `bun run dev --port 5173`.
 
-**Cannot open the dev server from another device.** By design the dev server
-listens on this machine only. Start it with `bun run dev --host` to serve it on
-your network as well; it has no login, so do this only on a network you control.
-The packaged release listens on all interfaces by default and is restricted the
-other way round, with `HOST=127.0.0.1` (see `packaging/RUN.md`).
+**Cannot open the server from another device.** `bun run dev` listens on this
+machine only. Start it with `bun run dev --host` to serve it on your network as
+well; it has no login, so do this only on a network you control. The on-prem
+package listens on all interfaces by default and is restricted the other way
+round, with `HOST=127.0.0.1` (see `packaging/RUN.md`).
 
 See [the product contract](docs/PRODUCT_CONTRACT.md), [feature inventory](docs/FEATURE_INVENTORY.md), and [validation report](docs/VALIDATION_REPORT.md) for current scope and evidence maturity.
 
