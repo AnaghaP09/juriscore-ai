@@ -1,4 +1,10 @@
-import { createFileRoute, Link, notFound, useRouter } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  type ErrorComponentProps,
+  Link,
+  notFound,
+  useRouter,
+} from "@tanstack/react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,12 +52,13 @@ function NotFoundView() {
   );
 }
 
-function ErrorView({ error, reset }: { error: Error; reset: () => void }) {
+function ErrorView({ error, reset }: ErrorComponentProps) {
+  const message = error instanceof Error ? error.message : String(error);
   const router = useRouter();
   return (
     <div className="p-8 space-y-3">
       <p className="text-sm text-muted-foreground">Couldn't load this use case.</p>
-      <p className="text-xs font-mono text-destructive">{error.message}</p>
+      <p className="text-xs font-mono text-destructive">{message}</p>
       <div className="flex gap-2">
         <Button
           size="sm"
