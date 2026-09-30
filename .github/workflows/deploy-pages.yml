@@ -1,6 +1,7 @@
 name: Deploy landing page
 
-# Publishes the static marketing/home page in `landing/` to GitHub Pages.
+# Publishes the static site in `landing/` to GitHub Pages: home, release notes, and the
+# Setup and Run pages rendered from their Markdown sources at deploy time.
 # The full app (SSR + MCP server) is not hosted here — only the landing page.
 
 on:
@@ -8,6 +9,10 @@ on:
     branches: [main]
     paths:
       - "landing/**"
+      - "docs/GATEWAY_SETUP.md"
+      - "packaging/RUN.md"
+      - "scripts/build-landing-docs.ts"
+      - "scripts/check-landing-docs.ts"
       - ".github/workflows/deploy-pages.yml"
   workflow_dispatch:
 
@@ -30,6 +35,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+
+      # Setup and Run pages are rendered from docs/GATEWAY_SETUP.md and packaging/RUN.md
+      # at deploy time (PLAN-7). Node built-ins only, so no dependency install is needed.
+      - name: Render Setup and Run pages
+        run: bun scripts/build-landing-docs.ts
 
       - name: Configure Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0

@@ -5,7 +5,8 @@ runs Veil before every request and again over every reply, and writes a receipt 
 completed run. Your API key is held by the JurisCore server and never reaches the browser.
 
 This page is the single home of the setup steps. The product links here; it does not repeat
-them.
+them. It is published at <https://anaghap09.github.io/juriscore-ai/setup.html>; the Run guide for the
+downloaded package is at <https://anaghap09.github.io/juriscore-ai/run.html>.
 
 ## 1. Get an unlock phrase
 
