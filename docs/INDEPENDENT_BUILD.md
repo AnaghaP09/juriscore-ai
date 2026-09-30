@@ -9,7 +9,7 @@ package installs from the public npm registry.
 | Task                                                     | Command                                                           |
 | -------------------------------------------------------- | ----------------------------------------------------------------- |
 | Install                                                  | `bun install` (CI uses `bun install --frozen-lockfile`)           |
-| Dev server (stage, http://localhost:8080)                | `bun run dev`                                                     |
+| The server (http://localhost:8080)                       | `bun run dev`                                                     |
 | Production build (Cloudflare `cloudflare-module` output) | `bun run build`                                                   |
 | Self-hosted release package (Bun preset)                 | `bun run package:release`                                         |
 | Checks                                                   | `bun run check:core`, `bunx tsc --noEmit`, `bun run check:bundle` |
