@@ -316,8 +316,11 @@ function VeilWorkbench() {
     () => JSON.stringify([strategy, encodePolicyVersion(policyRefs), raw]),
     [strategy, policyRefs, raw],
   );
-  const receipt = finalizedRun?.key === runKey ? finalizedRun.recorded.receipt : null;
-  const folderResult = finalizedRun?.key === runKey ? finalizedRun.recorded.folder : null;
+  // A loaded sample shows no receipt, folder note or receipt error, even if the same text
+  // was recorded as a real run earlier (PLAN-6): the sample is "not recorded".
+  const receipt = !isSample && finalizedRun?.key === runKey ? finalizedRun.recorded.receipt : null;
+  const folderResult =
+    !isSample && finalizedRun?.key === runKey ? finalizedRun.recorded.folder : null;
 
   useEffect(() => {
     setReceiptError(null);
@@ -469,6 +472,9 @@ function VeilWorkbench() {
     // A loaded, unedited sample is never recorded: no receipt, no metrics (PLAN-6).
     if (isSample) return null;
     const key = runKey;
+    // A finalization that finishes after the input changed (or a sample was loaded) is
+    // stored in the history but never shown against the current input.
+    const generation = inputGeneration.current;
     const run = { result, raw, policyRefs, strategy };
     let reason = "A valid receipt could not be produced for this run.";
     try {
@@ -484,13 +490,13 @@ function VeilWorkbench() {
         },
       );
       if (recorded) {
-        setFinalizedRun({ key, recorded });
+        if (inputGeneration.current === generation) setFinalizedRun({ key, recorded });
         return recorded;
       }
     } catch (error) {
       if (error instanceof ReceiptError) reason = error.message;
     }
-    setReceiptError(reason);
+    if (inputGeneration.current === generation) setReceiptError(reason);
     return null;
   };
 
@@ -1131,7 +1137,11 @@ function VeilWorkbench() {
             browser-local history on the Receipts tab, once per run. Save report downloads the
             protected text with a findings summary; it is never stored.
           </p>
-          <ReceiptSummary receipt={receipt} error={receiptError} verdictLabel="Raw input verdict" />
+          <ReceiptSummary
+            receipt={receipt}
+            error={isSample ? null : receiptError}
+            verdictLabel="Raw input verdict"
+          />
           <FolderWriteNote result={folderResult} />
         </CardContent>
       </Card>

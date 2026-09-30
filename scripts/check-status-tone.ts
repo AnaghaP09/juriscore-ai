@@ -189,6 +189,16 @@ const root = resolve(import.meta.dir, "..");
   assert.equal(banner({ phase: "ready", configured: true, connectionState: "failed", connectionError: "API key rejected", ...off })?.kind, "connection:failed");
   assert.ok(banner({ phase: "ready", configured: true, connectionState: "failed", connectionError: "API key rejected", ...off })?.text.includes("API key rejected"));
   assert.equal(banner({ phase: "ready", configured: true, connectionState: "connected", ...off }), null);
+  // Any active check is amber: rechecking a connected model, refreshing an unavailable
+  // gateway, retrying a failed one (inspection r3, #2).
+  assert.equal(
+    banner({ phase: "ready", configured: true, connectionState: "connected", checking: true, recovering: false })?.kind,
+    "connection:checking",
+  );
+  assert.equal(
+    banner({ phase: "unavailable", unavailableReason: "error", message: "boom", checking: true, recovering: false })?.text,
+    "Loading gateway status…",
+  );
   // Retry after a failure: the active check outranks the old failure (inspection r2, #3).
   assert.equal(
     banner({ phase: "ready", configured: true, connectionState: "failed", connectionError: "x", checking: true, recovering: false })?.kind,

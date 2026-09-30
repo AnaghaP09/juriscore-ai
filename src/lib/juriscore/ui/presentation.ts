@@ -93,9 +93,12 @@ export function gatewayBanner(input: GatewayBannerInput): { kind: StatusKind; te
   if (input.phase === "loading") {
     return { kind: "connection:checking", text: "Loading gateway status…" };
   }
-  // An active check outranks whatever came before it, including a failure being retried.
-  if (input.phase === "ready" && input.checking && input.connectionState !== "connected") {
-    return { kind: "connection:checking", text: "Checking the connection to the active model." };
+  // An active check or refresh outranks whatever came before it: a failure being retried,
+  // an unavailable gateway being refreshed, or a connected model being rechecked.
+  if (input.checking && input.phase !== "status-unknown") {
+    return input.phase === "ready" && input.configured
+      ? { kind: "connection:checking", text: "Checking the connection to the active model." }
+      : { kind: "connection:checking", text: "Loading gateway status…" };
   }
   if (input.phase === "unavailable") {
     if (input.unavailableReason === "error") {
