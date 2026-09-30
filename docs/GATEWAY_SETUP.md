@@ -17,7 +17,7 @@ state, not configuration steps.
    JURISCORE_GATEWAY_TOKEN=<a passphrase of 16 characters or more>
    ```
 
-2. Restart the dev server (stop it, then `bun run dev`). Environment variables are read
+2. Restart the server (stop it, then `bun run dev`). Environment variables are read
    only at startup.
 3. Open `/dashboard`, choose **Unlock gateway** in the header, and enter the passphrase.
 4. Choose **Test connection**. The header badge reads **Connected — Anthropic · <model>**
@@ -57,7 +57,13 @@ JURISCORE_GATEWAY_MODELS=claude-opus-5,claude-sonnet-5,claude-haiku-4-5
 ```
 
 `bun run dev` loads `.env.local` into the server's environment. For other deployments,
-set the variables in the host's environment.
+set the variables in the host's environment. For the downloadable on-prem package there
+is no `.env.local`: export the variables in the shell before `./start.sh` or `start.cmd`
+(`packaging/RUN.md`, "What you are running"), or pass them to `docker run` with `-e`.
+
+The gateway routes accept requests only from the page they were served with (same
+origin), so a script calling `/api/gateway/*` directly is refused. Reach the gateway
+through the dashboard at the address the server prints.
 
 ## Connect
 
@@ -106,7 +112,7 @@ at the length limit is labelled **truncated**.
 
 ## Access boundary
 
-The session cookie is a prototype boundary for a single operator on a local or stage
+The session cookie is a prototype boundary for a single operator on a local
 deployment. It is not multi-user authentication and must not be the only protection on a
 public deployment.
 
