@@ -622,7 +622,7 @@ function DriftView() {
     if (!evaluation) return;
     downloadText(
       plumbReportFileName(fileTimestamp()),
-      plumbReportMarkdown(evaluation, receipt),
+      plumbReportMarkdown(evaluation, receipt, { sample: sampleMode }),
       "text/markdown;charset=utf-8",
     );
   };

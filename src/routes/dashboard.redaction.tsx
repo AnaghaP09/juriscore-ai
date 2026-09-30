@@ -340,13 +340,22 @@ function VeilWorkbench() {
   };
 
   const processDocument = async (file: File) => {
+    // A replacement is validated before it touches anything: a rejected file shows its
+    // error and leaves the current input, sample flag and any running extraction alone.
+    let kind: SupportedDocumentKind;
+    try {
+      kind = validateDocument(file);
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "The document could not be read.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
     const generation = ++inputGeneration.current;
     const current = () => inputGeneration.current === generation;
     setUploadError(null);
     setProgress({ label: "Validating document", percent: 1 });
 
     try {
-      const kind = validateDocument(file);
       // Only validated input replaces the previous text and its sample provenance.
       setIsSample(false);
       releasePreview();
@@ -496,7 +505,7 @@ function VeilWorkbench() {
     const recorded = raw.trim() ? await finalizeRun() : null;
     downloadText(
       veilReportFileName(fileTimestamp()),
-      veilReportText(result, strategy, recorded?.receipt ?? null),
+      veilReportText(result, strategy, recorded?.receipt ?? null, { sample: isSample }),
       "text/plain;charset=utf-8",
     );
   };

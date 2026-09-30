@@ -51,7 +51,11 @@ import {
   type RunFinalizer,
 } from "../src/lib/juriscore/core/run-finalizer";
 import { createSafeStorage } from "../src/lib/juriscore/core/safe-storage";
-import { plumbReportMarkdown, veilReportText } from "../src/lib/juriscore/core/reports";
+import {
+  SAMPLE_REPORT_NOTICE,
+  plumbReportMarkdown,
+  veilReportText,
+} from "../src/lib/juriscore/core/reports";
 import { protectText } from "../src/lib/juriscore/veil/engine";
 import { veilReceiptInput } from "../src/lib/juriscore/veil/receipt";
 import { compareClaims } from "../src/lib/juriscore/plumb/engine";
@@ -572,6 +576,15 @@ async function plumbReceipt(diff: string, doc: string, createdAt: string) {
   );
   assert.ok(plumbReport.includes("Claims compared"));
   assert.ok(plumbReport.includes(plumb.id));
+  // Sample runs are labelled in the downloaded report, real runs are not (PLAN-6).
+  assert.equal(report.includes(SAMPLE_REPORT_NOTICE), false);
+  assert.equal(plumbReport.includes(SAMPLE_REPORT_NOTICE), false);
+  assert.ok(veilReportText(veilRun, "redact", null, { sample: true }).includes(SAMPLE_REPORT_NOTICE));
+  assert.ok(
+    plumbReportMarkdown(workbenchRun(DIFF, doc, iso(21)).result, null, { sample: true }).includes(
+      SAMPLE_REPORT_NOTICE,
+    ),
+  );
 }
 
 // ---------------------------------------------------------------------------

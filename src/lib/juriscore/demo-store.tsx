@@ -509,11 +509,13 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
         // A verify started before a newer unlock may not write anything (P5-R3-001), and
         // one started before a failure of this model may not restore Connected (PLAN-6).
         if (!guard.current.isCurrent(ticket)) return;
-        if (!revisions.current.isCurrent(modelId, revision)) return;
+        // Session evidence is about the session, not the model: a 401 locks the header
+        // even if this model failed meanwhile. Model revisions only reject stale results.
         if (outcome.kind === "locked") {
           setGateway({ phase: "locked", expired: outcome.expired });
           return;
         }
+        if (!revisions.current.isCurrent(modelId, revision)) return;
         // A recoverable error becomes a failed connection with Retry; the session stays.
         setGateway((current) =>
           current.phase === "ready"

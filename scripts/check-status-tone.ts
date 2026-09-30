@@ -189,6 +189,11 @@ const root = resolve(import.meta.dir, "..");
   assert.equal(banner({ phase: "ready", configured: true, connectionState: "failed", connectionError: "API key rejected", ...off })?.kind, "connection:failed");
   assert.ok(banner({ phase: "ready", configured: true, connectionState: "failed", connectionError: "API key rejected", ...off })?.text.includes("API key rejected"));
   assert.equal(banner({ phase: "ready", configured: true, connectionState: "connected", ...off }), null);
+  // Retry after a failure: the active check outranks the old failure (inspection r2, #3).
+  assert.equal(
+    banner({ phase: "ready", configured: true, connectionState: "failed", connectionError: "x", checking: true, recovering: false })?.kind,
+    "connection:checking",
+  );
   assert.equal(banner({ phase: "ready", configured: true, connectionState: "not_connected", ...off })?.kind, "connection:not_connected");
 
   // Gateway scrub: hidden for an empty prompt; green only for allow without review (#5).
