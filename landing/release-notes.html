@@ -400,11 +400,22 @@
 
             <h3>What is new</h3>
             <p>
-              <strong>LLM Gateway — send a prompt to a real model, with Veil in the path.</strong> Put an
-              Anthropic API key and a passphrase on the server, unlock the gateway from the header, and
-              test the connection. Every prompt goes through Veil before it leaves, the reply goes
-              through Veil on the way back, and each run gets a receipt. The API key never reaches the
-              browser. Only Anthropic models are supported. The “Beta” badge is gone.
+              <strong>LLM Gateway — send a prompt to a real model, with Veil in the path.</strong> Put your
+              proprietary LLM API key and an unlock phrase on the server, unlock the gateway from the
+              header, and the connection is tested for you. Every prompt goes through Veil before it
+              leaves, the reply goes through Veil on the way back, and each completed run gets a
+              receipt. The API key never reaches the browser. Anthropic is the only provider this
+              build accepts. The “Beta” badge is gone.
+            </p>
+            <p>
+              <strong>Guided gateway setup.</strong> Choose <strong>Set up gateway</strong> in the header:
+              the product suggests an unlock phrase and links to the steps. Setup is your API key plus
+              that phrase in <code>.env.local</code>, copied from <code>.env.example</code>, which now
+              carries the instructions itself. The variable names are provider-agnostic
+              (<code>JURISCORE_LLM_API_KEY</code>, <code>JURISCORE_LLM_PROVIDER</code>); the old
+              <code>ANTHROPIC_API_KEY</code> still works. The gateway is for the server’s own machine in
+              this build; remote use is roadmap. Steps:
+              <a href="https://github.com/AnaghaP09/juriscore-ai/blob/main/docs/GATEWAY_SETUP.md">the setup guide</a>.
             </p>
             <p>
               <strong>Plumb reads your own sources.</strong> Paste a diff, fetch a public GitHub pull
@@ -736,6 +747,7 @@
               <li><strong>Login, roles, and tenant isolation</strong> — needed before more than one person can use one server safely.</li>
               <li><strong>Semantic judge</strong> — checking whether a model reply agrees with the policy text it cites. The card exists on the gateway page and is labelled Roadmap.</li>
               <li><strong>Detector gaps listed under Known issues</strong> — generic <code>api_key=</code> values, AWS secret keys, and passwords in prose.</li>
+              <li><strong>Remote gateway use behind HTTPS</strong> — unlocking the gateway from another device, including through a TLS proxy. Today it works from the server’s own machine only.</li>
             </ol>
             <p class="fine">
               Independent privacy, security, and detection benchmarking remains ahead of us. Until it is

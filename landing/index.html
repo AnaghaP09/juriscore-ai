@@ -511,12 +511,18 @@
 <span class="c">curl</span> -fsSL https://bun.sh/install | bash
 
 <span class="p"># 2 · unzip the release package</span>
-<span class="c">unzip</span> juriscore-0.1.0.zip
-<span class="c">cd</span> juriscore-0.1.0
+<span class="c">unzip</span> juriscore-2026.10.01.zip
+<span class="c">cd</span> juriscore-2026.10.01
 
 <span class="p"># 3 · start it (Windows: start.cmd)</span>
 <span class="c">./start.sh</span>
 <span class="o">  ➜ Listening on: http://localhost:8080/</span>
+<span class="p"># 4 · connect a model (optional, package 2026.10.01+): set three values, then start</span>
+<span class="c">export</span> JURISCORE_LLM_API_KEY=&lt;your proprietary LLM API key&gt;
+<span class="c">export</span> JURISCORE_GATEWAY=enabled
+<span class="c">export</span> JURISCORE_GATEWAY_TOKEN=&lt;the phrase the dashboard suggests&gt;
+<span class="c">./start.sh</span>
+<span class="o">  ➜ Unlock the gateway from the dashboard header</span>
 
 <span class="p"># the deterministic checks, from a source checkout</span>
 <span class="c">bun</span> run check:core
@@ -526,6 +532,14 @@
 <span class="o">  ✔ MCP        tool boundary checks passed</span>
 <span class="o">  ✔ Receipts   receipt checks passed</span></pre>
             </div>
+            <p class="fine">
+              To send prompts to a real model, add your proprietary LLM API key and an unlock
+              phrase to the server&rsquo;s configuration, restart, and unlock the gateway from the
+              dashboard header. The dashboard suggests the phrase. Steps for every way of
+              running, including Windows and the container, are in the
+              <a href="https://github.com/AnaghaP09/juriscore-ai/blob/main/docs/GATEWAY_SETUP.md">setup guide</a>. The
+              gateway is unlocked from the server&rsquo;s own machine.
+            </p>
             <p class="fine">
               The checks are deterministic and run headless, so they drop into CI. They are the gate
               every release package is built behind. There is no <code>juriscore</code> command-line

@@ -10,7 +10,9 @@ Since the 2026.08.01 release, JurisCore can send a prompt to a real model throug
 
 ### What is new
 
-**LLM Gateway — send a prompt to a real model, with Veil in the path.** Put an Anthropic API key and a passphrase on the server, unlock the gateway from the header, and test the connection. Every prompt goes through Veil before it leaves, the reply goes through Veil on the way back, and each run gets a receipt. The API key never reaches the browser. Only Anthropic models are supported. The "Beta" badge is gone. Set-up steps are in `docs/GATEWAY_SETUP.md`.
+**LLM Gateway — send a prompt to a real model, with Veil in the path.** Put your proprietary LLM API key and an unlock phrase on the server, unlock the gateway from the header, and the connection is tested for you. Every prompt goes through Veil before it leaves, the reply goes through Veil on the way back, and each completed run gets a receipt. The API key never reaches the browser. Anthropic is the only provider this build accepts. The "Beta" badge is gone.
+
+**Guided gateway setup.** Choose **Set up gateway** in the header: the product suggests an unlock phrase and links to the steps. Setup is your API key plus that phrase in `.env.local`, copied from `.env.example`, which now carries the instructions itself. The variable names are provider-agnostic (`JURISCORE_LLM_API_KEY`, `JURISCORE_LLM_PROVIDER`); the old `ANTHROPIC_API_KEY` still works. The gateway is for the server's own machine in this build; remote use is roadmap. Steps: `docs/GATEWAY_SETUP.md`.
 
 **Plumb reads your own sources.** Paste a diff, fetch a public GitHub pull request by number, or upload your own documents. Plumb reads every file in the diff, not only the first. Sources stay in memory and are gone when you close the page. Private repositories are not supported yet.
 
@@ -162,6 +164,7 @@ Updated 2026.09.30. Nothing here is available today.
 4. **Login, roles, and tenant isolation** — needed before more than one person can use one server safely.
 5. **Semantic judge** — checking whether a model reply agrees with the policy text it cites. The card exists on the gateway page and is labelled Roadmap.
 6. **Detector gaps listed under Known issues** — generic `api_key=` values, AWS secret keys, and passwords in prose.
+7. **Remote gateway use behind HTTPS** — unlocking the gateway from another device, including through a TLS proxy. Today it works from the server's own machine only.
 
 Independent privacy, security, and detection benchmarking remains ahead of us. Until it is done and reproducible, our numbers stay labelled.
 

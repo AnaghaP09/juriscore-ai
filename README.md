@@ -84,10 +84,12 @@ bun run dev
 
 Open the printed URL (defaults to **http://localhost:8080/**). The server
 reloads on edits under `src/`. It listens on this machine only; add `--host` to
-reach it from another device on your network.
+reach it from another device on your network (browsing and checks work there;
+receipts, copy-to-clipboard and the LLM Gateway need HTTPS or this machine).
 
-To connect the LLM Gateway to your own Anthropic account, follow
-[docs/GATEWAY_SETUP.md](docs/GATEWAY_SETUP.md). The gateway is off by default.
+To connect a model, follow [docs/GATEWAY_SETUP.md](docs/GATEWAY_SETUP.md): copy
+`.env.example` to `.env.local`, add your proprietary LLM API key and the unlock
+phrase the dashboard suggests, restart. The gateway is off until a key is set.
 
 ## Scripts
 

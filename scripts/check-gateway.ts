@@ -9,9 +9,25 @@ import {
   sanitizeForProvider,
 } from "../src/lib/juriscore/veil/engine";
 import { SESSION_TTL_MS } from "../src/lib/juriscore/gateway/access";
-import { GatewayConfigError, readProviderConfig } from "../src/lib/juriscore/gateway/config";
+import {
+  GATEWAY_ENV_VARIABLES,
+  GatewayConfigError,
+  readAccessConfig,
+  readProviderConfig,
+} from "../src/lib/juriscore/gateway/config";
+import { isLoopbackHostname, unlockBlockedByLocation } from "../src/lib/juriscore/gateway/loopback";
+import {
+  PHRASE_ALPHABET,
+  SUGGESTED_PHRASE_LENGTH,
+  suggestUnlockPhrase,
+} from "../src/lib/juriscore/gateway/suggest-phrase";
+import {
+  loadStatusAfterUnlock,
+  unlockFailureMessage,
+  verifyOnce,
+} from "../src/lib/juriscore/gateway/session-flow";
 import { GATEWAY_MODEL_TABLE } from "../src/lib/juriscore/gateway/models";
-import { createRunSequencer } from "../src/lib/juriscore/gateway/client";
+import { GatewayHttpError, createRunSequencer } from "../src/lib/juriscore/gateway/client";
 import { createFakeTransport, type FakeTransport } from "../src/lib/juriscore/gateway/adapter/fake";
 import {
   GATEWAY_ROUTES,
@@ -85,7 +101,7 @@ interface Harness {
   keysSeen: string[];
 }
 
-function harness(envOverrides: Record<string, string | undefined> = {}): Harness {
+function harness(envOverrides: Record<string, string | undefined> = {}, logs?: string[]): Harness {
   const env: Record<string, string | undefined> = {
     JURISCORE_GATEWAY: "enabled",
     JURISCORE_GATEWAY_TOKEN: TOKEN,
@@ -100,7 +116,9 @@ function harness(envOverrides: Record<string, string | undefined> = {}): Harness
   const server = createGatewayServer({
     env: () => env,
     now: () => clock.now,
-    log: () => {},
+    log: (message) => {
+      logs?.push(message);
+    },
     createTransport: (apiKey) => {
       counts.transports += 1;
       keysSeen.push(apiKey);
@@ -285,7 +303,8 @@ function assertNothingRan(h: Harness, label: string) {
     assertNothingRan(h, label);
   }
 
-  const disabled = harness({ JURISCORE_GATEWAY: undefined });
+  // PLAN-5: a key alone turns the gateway on, so "off" is now the explicit switch.
+  const disabled = harness({ JURISCORE_GATEWAY: "disabled" });
   for (const route of GATEWAY_ROUTES) {
     assert.equal(
       (await disabled.handle(route, request(route, {}))).status,
@@ -720,6 +739,243 @@ function assertNothingRan(h: Harness, label: string) {
       else process.env[key] = value;
     }
   }
+}
+
+// --- PLAN-5: guided setup — enable rule, agnostic key, phrase, flow, env example -------
+{
+  // Enable rule: a key alone turns the gateway on; "disabled" wins; nothing → off.
+  const keyOnly = harness({ JURISCORE_GATEWAY: undefined });
+  assert.equal((await keyOnly.handle("status", request("status", {}))).status, 401, "key alone: on");
+  const disabledWithKey = harness({ JURISCORE_GATEWAY: "disabled" });
+  assert.equal((await disabledWithKey.handle("status", request("status", {}))).status, 404);
+  assertNothingRan(disabledWithKey, "disabled with key");
+  const nothing = harness({ JURISCORE_GATEWAY: undefined, ANTHROPIC_API_KEY: undefined });
+  assert.equal((await nothing.handle("status", request("status", {}))).status, 404);
+  assert.equal(readAccessConfig({ JURISCORE_GATEWAY: "enabled" }).enabled, true);
+  assert.equal(readAccessConfig({}).enabled, false);
+
+  // Agnostic key name first, legacy name as fallback; the value reaches the adapter intact.
+  const newName = harness({ ANTHROPIC_API_KEY: undefined, JURISCORE_LLM_API_KEY: API_KEY });
+  await connect(newName, await unlock(newName));
+  assert.deepEqual(newName.keysSeen, [API_KEY]);
+  const both = harness({ JURISCORE_LLM_API_KEY: API_KEY, ANTHROPIC_API_KEY: "sk-ant-legacy-00000000000" });
+  await connect(both, await unlock(both));
+  assert.deepEqual(both.keysSeen, [API_KEY], "the new name wins over the legacy name");
+
+  // Provider: default anthropic; anything else is a configuration error, never connectable.
+  assert.equal(readProviderConfig({}).provider, "anthropic");
+  assert.equal(readProviderConfig({}).providerLabel, "Anthropic");
+  assert.throws(() => readProviderConfig({ JURISCORE_LLM_PROVIDER: "openai" }), GatewayConfigError);
+  const badProvider = harness({ JURISCORE_LLM_PROVIDER: "openai" });
+  const badCookie = await unlock(badProvider);
+  const badStatus = (await (
+    await badProvider.handle("status", request("status", {}, { cookie: badCookie }))
+  ).json()) as { configured: boolean; configError?: string; models: string[] };
+  assert.equal(badStatus.configured, false);
+  assert.ok(badStatus.configError?.includes("openai"));
+  assert.deepEqual(badStatus.models, []);
+  assert.equal(
+    (await badProvider.handle("verify", request("verify", { modelId: "claude-opus-5" }, { cookie: badCookie }))).status,
+    503,
+  );
+  assertNothingRan(badProvider, "unknown provider");
+
+  // A phrase equal to the API key is ignored, once, with one log line; the old value is refused.
+  const logs: string[] = [];
+  const same = harness({ JURISCORE_GATEWAY_TOKEN: API_KEY }, logs);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const response = await same.handle("session", request("session", { token: API_KEY }));
+    assert.equal(response.status, 503, "a phrase equal to the key is treated as absent");
+    assert.equal(((await response.json()) as { error: string }).error, "gateway-token-missing");
+  }
+  assert.equal(logs.filter((line) => line.includes("equals the LLM API key")).length, 1);
+  assertNothingRan(same, "token equals key");
+
+  // Remote plain HTTP: the session route refuses before reading the phrase; HTTPS proceeds.
+  const remote = harness();
+  const remoteRequest = (url: string, origin: string) =>
+    new Request(url, {
+      method: "POST",
+      headers: { origin, "content-type": "application/json" },
+      body: JSON.stringify({ token: TOKEN }),
+    });
+  const refused = await remote.handle(
+    "session",
+    remoteRequest("http://192.168.1.5:8080/api/gateway/session", "http://192.168.1.5:8080"),
+  );
+  assert.equal(refused.status, 400);
+  assert.equal(((await refused.json()) as { error: string }).error, "https-required");
+  assert.equal(refused.headers.get("set-cookie"), null);
+  const secure = await remote.handle(
+    "session",
+    remoteRequest("https://gateway.example/api/gateway/session", "https://gateway.example"),
+  );
+  assert.equal(secure.status, 200, "HTTPS from another host is allowed");
+  assert.ok(secure.headers.get("set-cookie")?.includes("Secure"));
+  assertNothingRan(remote, "remote session attempts");
+
+  // No route body, on any status, ever contains the phrase or the key.
+  const bodies = harness();
+  const bodyCookie = await unlock(bodies);
+  const noKey = harness({ ANTHROPIC_API_KEY: undefined, JURISCORE_GATEWAY: "enabled" });
+  const noKeyCookie = await unlock(noKey);
+  const responses = await Promise.all([
+    bodies.handle("status", request("status", {})),
+    bodies.handle("session", request("session", { token: "wrong-phrase-0123456789" })),
+    bodies.handle("status", request("status", {}, { cookie: bodyCookie })),
+    bodies.handle("verify", request("verify", { modelId: "claude-opus-5" }, { cookie: bodyCookie })),
+    noKey.handle("status", request("status", {}, { cookie: noKeyCookie })),
+    noKey.handle("verify", request("verify", { modelId: "claude-opus-5" }, { cookie: noKeyCookie })),
+    same.handle("session", request("session", { token: API_KEY })),
+  ]);
+  for (const response of responses) {
+    const text = await response.text();
+    assert.equal(text.includes(TOKEN), false, `phrase leaked in a ${response.status} body`);
+    assert.equal(text.includes(API_KEY), false, `key leaked in a ${response.status} body`);
+    assert.equal(text.includes("sk-ant-legacy"), false, "legacy key leaked");
+  }
+
+  // Suggested phrase: length, alphabet, randomness, unbiased rejection sampling.
+  const phrase = suggestUnlockPhrase();
+  assert.equal(phrase.length, SUGGESTED_PHRASE_LENGTH);
+  assert.ok(new RegExp(`^[${PHRASE_ALPHABET}]+$`).test(phrase), "phrase uses the alphabet only");
+  assert.notEqual(phrase, suggestUnlockPhrase(), "two draws differ");
+  let counter = 250; // starts in the rejected range so sampling must skip bytes
+  const sequential = suggestUnlockPhrase((buffer) => {
+    for (let index = 0; index < buffer.length; index += 1) buffer[index] = counter++ % 256;
+    return buffer;
+  });
+  assert.equal(sequential.length, SUGGESTED_PHRASE_LENGTH);
+  assert.equal(sequential[0], PHRASE_ALPHABET[0], "bytes at or above the limit are skipped");
+  assert.ok(SUGGESTED_PHRASE_LENGTH >= 20);
+
+  // Browser guard: plain HTTP off loopback blocks the Unlock dialog before any request.
+  for (const hostname of ["localhost", "127.0.0.1", "[::1]"]) {
+    assert.equal(unlockBlockedByLocation({ protocol: "http:", hostname }), false, hostname);
+  }
+  assert.equal(unlockBlockedByLocation({ protocol: "http:", hostname: "192.168.1.5" }), true);
+  assert.equal(unlockBlockedByLocation({ protocol: "http:", hostname: "laptop.local" }), true);
+  assert.equal(unlockBlockedByLocation({ protocol: "https:", hostname: "gateway.example" }), false);
+  assert.equal(isLoopbackHostname("LOCALHOST"), true);
+
+  // Unlock flow, driven without React: status then one automatic verify.
+  const okStatus = {
+    enabled: true as const,
+    configured: true,
+    provider: "anthropic" as const,
+    providerLabel: "Anthropic",
+    models: ["claude-opus-5", "claude-sonnet-5"],
+    defaultModelId: "claude-opus-5",
+    connections: {
+      "claude-opus-5": { state: "not_connected" as const, lastVerifiedAt: null },
+      "claude-sonnet-5": { state: "connected" as const, lastVerifiedAt: "2026-09-30T00:00:00.000Z" },
+    },
+  };
+  const connected = { state: "connected" as const, lastVerifiedAt: "2026-09-30T00:00:01.000Z" };
+  const flowClient = (statusImpl: () => Promise<typeof okStatus>, verifyImpl?: (id: string) => Promise<unknown>) => {
+    const calls = { status: 0, verify: [] as string[] };
+    return {
+      calls,
+      client: {
+        status: () => {
+          calls.status += 1;
+          return statusImpl();
+        },
+        verify: async (modelId: string) => {
+          calls.verify.push(modelId);
+          if (verifyImpl) return (await verifyImpl(modelId)) as never;
+          return { modelId, connection: connected };
+        },
+      },
+    };
+  };
+  {
+    const { client, calls } = flowClient(async () => okStatus);
+    const outcome = await loadStatusAfterUnlock(client);
+    assert.equal(outcome.kind, "ready");
+    assert.deepEqual(calls, { status: 1, verify: ["claude-opus-5"] });
+    if (outcome.kind === "ready") {
+      assert.equal(outcome.status.connections["claude-opus-5"].state, "connected");
+      assert.ok(outcome.verified);
+    }
+  }
+  {
+    const { client, calls } = flowClient(async () => okStatus);
+    const outcome = await loadStatusAfterUnlock(client, "claude-sonnet-5");
+    assert.equal(outcome.kind, "ready");
+    assert.deepEqual(calls.verify, [], "an already connected preferred model is not re-verified");
+  }
+  {
+    const { client, calls } = flowClient(async () => {
+      throw new GatewayHttpError(401, "session-required");
+    });
+    const outcome = await loadStatusAfterUnlock(client);
+    assert.deepEqual(outcome, { kind: "locked", expired: false });
+    assert.deepEqual(calls.verify, [], "no verify after a rejected status");
+  }
+  {
+    const { client, calls } = flowClient(async () => {
+      throw new TypeError("Failed to fetch");
+    });
+    const outcome = await loadStatusAfterUnlock(client);
+    assert.equal(outcome.kind, "status-unknown");
+    assert.deepEqual(calls.verify, []);
+    // Retry is the same call again; when the network is back it completes with one verify.
+    const retry = flowClient(async () => okStatus);
+    assert.equal((await loadStatusAfterUnlock(retry.client)).kind, "ready");
+    assert.deepEqual(retry.calls, { status: 1, verify: ["claude-opus-5"] });
+  }
+  {
+    const busy = flowClient(async () => okStatus, async () => {
+      throw new GatewayHttpError(429, "busy", "Too many provider calls in flight.");
+    });
+    const outcome = await loadStatusAfterUnlock(busy.client);
+    assert.equal(outcome.kind, "ready", "a busy verify keeps the unlocked state");
+    if (outcome.kind === "ready") {
+      const connection = outcome.status.connections["claude-opus-5"];
+      assert.equal(connection.state, "failed");
+      assert.ok(connection.state === "failed" && connection.error?.includes("busy"));
+    }
+    const network = flowClient(async () => okStatus, async () => {
+      throw new TypeError("Failed to fetch");
+    });
+    const again = await verifyOnce(network.client, "claude-opus-5");
+    assert.equal(again.kind, "recoverable");
+    const recovered = await verifyOnce(flowClient(async () => okStatus).client, "claude-opus-5");
+    assert.equal(recovered.kind, "verified");
+    const lost = await verifyOnce(
+      flowClient(async () => okStatus, async () => {
+        throw new GatewayHttpError(401, "session-expired");
+      }).client,
+      "claude-opus-5",
+    );
+    assert.deepEqual(lost, { kind: "locked", expired: true });
+  }
+  assert.ok(unlockFailureMessage(new GatewayHttpError(401, "token-rejected")).includes("does not match"));
+  assert.ok(unlockFailureMessage(new GatewayHttpError(400, "https-required")).includes("localhost"));
+
+  // .env.example carries the instructions and every variable the server reads.
+  const example = readFileSync(resolve(here, "../.env.example"), "utf8");
+  const assignments = new Map(
+    example
+      .split(/\r?\n/)
+      .filter((line) => /^[A-Z_]+=/.test(line))
+      .map((line) => {
+        const index = line.indexOf("=");
+        return [line.slice(0, index), line.slice(index + 1).trim()] as const;
+      }),
+  );
+  for (const name of GATEWAY_ENV_VARIABLES) {
+    assert.ok(assignments.has(name), `.env.example lists ${name}`);
+  }
+  for (const [name, value] of assignments) {
+    if (name === "JURISCORE_GATEWAY") assert.equal(value, "enabled");
+    else assert.equal(value, "", `.env.example must not fill in ${name}`);
+  }
+  for (const phraseNeeded of [".env.local", "docs/GATEWAY_SETUP.md", "already exists", "Do not overwrite"]) {
+    assert.ok(example.includes(phraseNeeded), `.env.example mentions "${phraseNeeded}"`);
+  }
+  assert.equal(example.includes("sk-"), false, "no key-shaped value in the example");
 }
 
 console.log("JurisCore gateway checks passed.");

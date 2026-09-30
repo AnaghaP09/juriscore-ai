@@ -83,7 +83,7 @@ export interface GatewayStatus {
   /** Why the gateway is not configured. Never contains key material. */
   configError?: string;
   provider: "anthropic";
-  providerLabel: "Anthropic";
+  providerLabel: string;
   models: string[];
   defaultModelId: string | null;
   connections: Record<string, GatewayConnection>;

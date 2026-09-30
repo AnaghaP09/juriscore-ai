@@ -48,6 +48,9 @@ is no login (see below), so choose deliberately:
   - Windows: `set HOST=127.0.0.1` then `start.cmd`
 - **A network you control:** leave `HOST` unset, or set it to the address of
   the interface you want to serve, and keep the machine behind your firewall.
+  From another device over plain HTTP you can browse and run checks, but
+  receipts, copy-to-clipboard and the LLM Gateway need HTTPS or the server's
+  own machine.
 
 `HOST` and `PORT` can be combined: `HOST=127.0.0.1 PORT=9000 ./start.sh`.
 
@@ -76,19 +79,17 @@ publishes it to every interface of the host machine, while
 - **Plumb** compares structured claims against authoritative values and returns
   matches, drifted, or cannot determine.
 - Both are also exposed over the Model Context Protocol at `/mcp`.
-- **LLM Gateway** sends a prompt to a model from your own Anthropic account,
-  with Veil run over the prompt and over the reply and a receipt for every run.
-  It is **off** until you set these in the environment before starting:
-
-  ```
-  ANTHROPIC_API_KEY=<your Anthropic API key>
-  JURISCORE_GATEWAY=enabled
-  JURISCORE_GATEWAY_TOKEN=<a passphrase of 16 characters or more>
-  ```
-
-  Then open `/dashboard`, choose **Unlock gateway**, and enter the passphrase.
-  The API key stays on the server and never reaches the browser. With the
-  gateway on, the only outbound calls are to Anthropic, made by the server.
+- **LLM Gateway** sends a prompt to a model from your own proprietary LLM
+  account, with Veil run over the prompt and over the reply and a receipt for
+  every completed run. It is **off** until three values are set in the
+  environment before starting: `JURISCORE_LLM_API_KEY`, `JURISCORE_GATEWAY`
+  and `JURISCORE_GATEWAY_TOKEN`. Steps, including the exact commands for your
+  shell and for the container, are in the setup guide:
+  <https://github.com/AnaghaP09/juriscore-ai/blob/main/docs/GATEWAY_SETUP.md>. The dashboard suggests the unlock phrase
+  (**Set up gateway** in the header). The gateway is unlocked from the server's
+  own machine only. The API key stays on the server and never reaches the
+  browser; with the gateway on, the only outbound calls are to your provider,
+  made by the server. This applies to package 2026.10.01 or later.
 
 Every dependency is already bundled in this package. Starting it does not
 install anything, and evaluation makes no external call.
