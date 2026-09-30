@@ -83,7 +83,8 @@ bun run dev
 ```
 
 Open the printed URL (defaults to **http://localhost:8080/**). The dev server
-supports hot reload, so edits under `src/` appear instantly.
+supports hot reload, so edits under `src/` appear instantly. It listens on this
+machine only; add `--host` to reach it from another device on your network.
 
 To connect the LLM Gateway to your own Anthropic account, follow
 [docs/GATEWAY_SETUP.md](docs/GATEWAY_SETUP.md). The gateway is off by default.
