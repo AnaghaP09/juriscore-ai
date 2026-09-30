@@ -34,20 +34,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: latest
 
+      # The dispatch input is passed through env rather than interpolated into the
+      # script, so its value is data to the shell and can never become commands.
       - name: Resolve version
         id: version
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            VERSION="${{ github.event.inputs.version }}"
+          if [ -n "${INPUT_VERSION}" ]; then
+            VERSION="${INPUT_VERSION}"
           else
             VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          if ! printf "%s" "${VERSION}" | grep -Eq "^[0-9]+[.][0-9]+[.][0-9]+([.-][A-Za-z0-9.-]+)?$"; then
+            echo "version must look like 0.1.0 (got: ${VERSION})"
+            exit 1
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "name=juriscore-${VERSION}" >> "$GITHUB_OUTPUT"
@@ -87,7 +95,7 @@ jobs:
           exit 1
 
       - name: Publish release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', steps.version.outputs.version) }}
           name: JurisCore ${{ steps.version.outputs.version }}

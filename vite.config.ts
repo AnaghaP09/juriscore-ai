@@ -51,7 +51,8 @@ export default defineConfig(({ command, mode }): UserConfig => {
       ignoreOutdatedRequests: true,
     },
     server: {
-      host: "::",
+      // Listen on this machine only. `bun run dev --host` opens it to the network.
+      host: "localhost",
       port: 8080,
       watch: { awaitWriteFinish: { stabilityThreshold: 1000, pollInterval: 100 } },
     },
