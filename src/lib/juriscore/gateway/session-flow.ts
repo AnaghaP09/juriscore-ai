@@ -51,9 +51,8 @@ export async function loadStatusAfterUnlock(
       ? preferredModelId
       : status.defaultModelId;
   if (!status.configured || !modelId) return { kind: "ready", status, verified: null };
-  if (status.connections[modelId]?.state === "connected") {
-    return { kind: "ready", status, verified: null };
-  }
+  // Always one live check after an unlock, even if the server still holds an older
+  // "connected" state: a key revoked since then must not show as Connected.
   const verified = await verifyOnce(client, modelId);
   if (verified.kind === "locked") return verified;
   return {

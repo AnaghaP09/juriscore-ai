@@ -404,14 +404,22 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // One recovery at a time: a second call while one runs is ignored, and an outcome
+  // from a superseded call never overwrites newer gateway state.
+  const recovery = useRef<{ inFlight: boolean; generation: number }>({ inFlight: false, generation: 0 });
   const loadAfterUnlock = useCallback(async () => {
+    if (recovery.current.inFlight) return;
+    recovery.current.inFlight = true;
+    const generation = ++recovery.current.generation;
     const preferred = activeModelRef.current;
     const marker = preferred || "__default__";
     setCheckingModels((current) => [...new Set([...current, marker])]);
     try {
-      applyUnlockOutcome(await loadStatusAfterUnlock(gatewayClient, preferred || undefined));
+      const outcome = await loadStatusAfterUnlock(gatewayClient, preferred || undefined);
+      if (generation === recovery.current.generation) applyUnlockOutcome(outcome);
     } finally {
       setCheckingModels((current) => current.filter((id) => id !== marker));
+      recovery.current.inFlight = false;
     }
   }, [applyUnlockOutcome]);
 

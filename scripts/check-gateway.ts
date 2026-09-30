@@ -903,7 +903,7 @@ function assertNothingRan(h: Harness, label: string) {
     const { client, calls } = flowClient(async () => okStatus);
     const outcome = await loadStatusAfterUnlock(client, "claude-sonnet-5");
     assert.equal(outcome.kind, "ready");
-    assert.deepEqual(calls.verify, [], "an already connected preferred model is not re-verified");
+    assert.deepEqual(calls.verify, ["claude-sonnet-5"], "a cached connected state is re-verified once");
   }
   {
     const { client, calls } = flowClient(async () => {

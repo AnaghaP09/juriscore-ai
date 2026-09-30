@@ -9,34 +9,29 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as McpRouteImport } from './routes/mcp'
-import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as ConnectRouteImport } from './routes/connect'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ConnectRouteImport } from './routes/connect'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as McpRouteImport } from './routes/mcp'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard.index'
-import { Route as DashboardUseCasesRouteImport } from './routes/dashboard.use-cases'
-import { Route as DashboardRulebooksRouteImport } from './routes/dashboard.rulebooks'
-import { Route as DashboardRedactionRouteImport } from './routes/dashboard.redaction'
-import { Route as DashboardPipelineRouteImport } from './routes/dashboard.pipeline'
-import { Route as DashboardGatewayRouteImport } from './routes/dashboard.gateway'
-import { Route as DashboardDriftRouteImport } from './routes/dashboard.drift'
-import { Route as DashboardCisoRouteImport } from './routes/dashboard.ciso'
-import { Route as DashboardAuditRouteImport } from './routes/dashboard.audit'
 import { Route as DashboardAnalyticsRouteImport } from './routes/dashboard.analytics'
-import { Route as DashboardUseCasesKeyRouteImport } from './routes/dashboard.use-cases.$key'
-import { Route as ApiGatewayVerifyRouteImport } from './routes/api/gateway/verify'
-import { Route as ApiGatewayStatusRouteImport } from './routes/api/gateway/status'
-import { Route as ApiGatewaySessionRouteImport } from './routes/api/gateway/session'
+import { Route as DashboardAuditRouteImport } from './routes/dashboard.audit'
+import { Route as DashboardCisoRouteImport } from './routes/dashboard.ciso'
+import { Route as DashboardDriftRouteImport } from './routes/dashboard.drift'
+import { Route as DashboardGatewayRouteImport } from './routes/dashboard.gateway'
+import { Route as DashboardPipelineRouteImport } from './routes/dashboard.pipeline'
+import { Route as DashboardRedactionRouteImport } from './routes/dashboard.redaction'
+import { Route as DashboardRulebooksRouteImport } from './routes/dashboard.rulebooks'
+import { Route as DashboardUseCasesRouteImport } from './routes/dashboard.use-cases'
 import { Route as ApiGatewayRunRouteImport } from './routes/api/gateway/run'
+import { Route as ApiGatewaySessionRouteImport } from './routes/api/gateway/session'
+import { Route as ApiGatewayStatusRouteImport } from './routes/api/gateway/status'
+import { Route as ApiGatewayVerifyRouteImport } from './routes/api/gateway/verify'
+import { Route as DashboardUseCasesKeyRouteImport } from './routes/dashboard.use-cases.$key'
 
-const McpRoute = McpRouteImport.update({
-  id: '/mcp',
-  path: '/mcp',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConnectRoute = ConnectRouteImport.update({
@@ -44,9 +39,14 @@ const ConnectRoute = ConnectRouteImport.update({
   path: '/connect',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const McpRoute = McpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardIndexRoute = DashboardIndexRouteImport.update({
@@ -54,39 +54,9 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
   path: '/',
   getParentRoute: () => DashboardRoute,
 } as any)
-const DashboardUseCasesRoute = DashboardUseCasesRouteImport.update({
-  id: '/use-cases',
-  path: '/use-cases',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardRulebooksRoute = DashboardRulebooksRouteImport.update({
-  id: '/rulebooks',
-  path: '/rulebooks',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardRedactionRoute = DashboardRedactionRouteImport.update({
-  id: '/redaction',
-  path: '/redaction',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardPipelineRoute = DashboardPipelineRouteImport.update({
-  id: '/pipeline',
-  path: '/pipeline',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardGatewayRoute = DashboardGatewayRouteImport.update({
-  id: '/gateway',
-  path: '/gateway',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardDriftRoute = DashboardDriftRouteImport.update({
-  id: '/drift',
-  path: '/drift',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardCisoRoute = DashboardCisoRouteImport.update({
-  id: '/ciso',
-  path: '/ciso',
+const DashboardAnalyticsRoute = DashboardAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
   getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardAuditRoute = DashboardAuditRouteImport.update({
@@ -94,24 +64,44 @@ const DashboardAuditRoute = DashboardAuditRouteImport.update({
   path: '/audit',
   getParentRoute: () => DashboardRoute,
 } as any)
-const DashboardAnalyticsRoute = DashboardAnalyticsRouteImport.update({
-  id: '/analytics',
-  path: '/analytics',
+const DashboardCisoRoute = DashboardCisoRouteImport.update({
+  id: '/ciso',
+  path: '/ciso',
   getParentRoute: () => DashboardRoute,
 } as any)
-const DashboardUseCasesKeyRoute = DashboardUseCasesKeyRouteImport.update({
-  id: '/$key',
-  path: '/$key',
-  getParentRoute: () => DashboardUseCasesRoute,
+const DashboardDriftRoute = DashboardDriftRouteImport.update({
+  id: '/drift',
+  path: '/drift',
+  getParentRoute: () => DashboardRoute,
 } as any)
-const ApiGatewayVerifyRoute = ApiGatewayVerifyRouteImport.update({
-  id: '/api/gateway/verify',
-  path: '/api/gateway/verify',
-  getParentRoute: () => rootRouteImport,
+const DashboardGatewayRoute = DashboardGatewayRouteImport.update({
+  id: '/gateway',
+  path: '/gateway',
+  getParentRoute: () => DashboardRoute,
 } as any)
-const ApiGatewayStatusRoute = ApiGatewayStatusRouteImport.update({
-  id: '/api/gateway/status',
-  path: '/api/gateway/status',
+const DashboardPipelineRoute = DashboardPipelineRouteImport.update({
+  id: '/pipeline',
+  path: '/pipeline',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardRedactionRoute = DashboardRedactionRouteImport.update({
+  id: '/redaction',
+  path: '/redaction',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardRulebooksRoute = DashboardRulebooksRouteImport.update({
+  id: '/rulebooks',
+  path: '/rulebooks',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardUseCasesRoute = DashboardUseCasesRouteImport.update({
+  id: '/use-cases',
+  path: '/use-cases',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const ApiGatewayRunRoute = ApiGatewayRunRouteImport.update({
+  id: '/api/gateway/run',
+  path: '/api/gateway/run',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiGatewaySessionRoute = ApiGatewaySessionRouteImport.update({
@@ -119,10 +109,20 @@ const ApiGatewaySessionRoute = ApiGatewaySessionRouteImport.update({
   path: '/api/gateway/session',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiGatewayRunRoute = ApiGatewayRunRouteImport.update({
-  id: '/api/gateway/run',
-  path: '/api/gateway/run',
+const ApiGatewayStatusRoute = ApiGatewayStatusRouteImport.update({
+  id: '/api/gateway/status',
+  path: '/api/gateway/status',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ApiGatewayVerifyRoute = ApiGatewayVerifyRouteImport.update({
+  id: '/api/gateway/verify',
+  path: '/api/gateway/verify',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardUseCasesKeyRoute = DashboardUseCasesKeyRouteImport.update({
+  id: '/$key',
+  path: '/$key',
+  getParentRoute: () => DashboardUseCasesRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -266,18 +266,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/mcp': {
-      id: '/mcp'
-      path: '/mcp'
-      fullPath: '/mcp'
-      preLoaderRoute: typeof McpRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/connect': {
@@ -287,11 +280,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConnectRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mcp': {
+      id: '/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof McpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard/': {
@@ -301,53 +301,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIndexRouteImport
       parentRoute: typeof DashboardRoute
     }
-    '/dashboard/use-cases': {
-      id: '/dashboard/use-cases'
-      path: '/use-cases'
-      fullPath: '/dashboard/use-cases'
-      preLoaderRoute: typeof DashboardUseCasesRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/rulebooks': {
-      id: '/dashboard/rulebooks'
-      path: '/rulebooks'
-      fullPath: '/dashboard/rulebooks'
-      preLoaderRoute: typeof DashboardRulebooksRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/redaction': {
-      id: '/dashboard/redaction'
-      path: '/redaction'
-      fullPath: '/dashboard/redaction'
-      preLoaderRoute: typeof DashboardRedactionRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/pipeline': {
-      id: '/dashboard/pipeline'
-      path: '/pipeline'
-      fullPath: '/dashboard/pipeline'
-      preLoaderRoute: typeof DashboardPipelineRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/gateway': {
-      id: '/dashboard/gateway'
-      path: '/gateway'
-      fullPath: '/dashboard/gateway'
-      preLoaderRoute: typeof DashboardGatewayRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/drift': {
-      id: '/dashboard/drift'
-      path: '/drift'
-      fullPath: '/dashboard/drift'
-      preLoaderRoute: typeof DashboardDriftRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/ciso': {
-      id: '/dashboard/ciso'
-      path: '/ciso'
-      fullPath: '/dashboard/ciso'
-      preLoaderRoute: typeof DashboardCisoRouteImport
+    '/dashboard/analytics': {
+      id: '/dashboard/analytics'
+      path: '/analytics'
+      fullPath: '/dashboard/analytics'
+      preLoaderRoute: typeof DashboardAnalyticsRouteImport
       parentRoute: typeof DashboardRoute
     }
     '/dashboard/audit': {
@@ -357,32 +315,60 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardAuditRouteImport
       parentRoute: typeof DashboardRoute
     }
-    '/dashboard/analytics': {
-      id: '/dashboard/analytics'
-      path: '/analytics'
-      fullPath: '/dashboard/analytics'
-      preLoaderRoute: typeof DashboardAnalyticsRouteImport
+    '/dashboard/ciso': {
+      id: '/dashboard/ciso'
+      path: '/ciso'
+      fullPath: '/dashboard/ciso'
+      preLoaderRoute: typeof DashboardCisoRouteImport
       parentRoute: typeof DashboardRoute
     }
-    '/dashboard/use-cases/$key': {
-      id: '/dashboard/use-cases/$key'
-      path: '/$key'
-      fullPath: '/dashboard/use-cases/$key'
-      preLoaderRoute: typeof DashboardUseCasesKeyRouteImport
-      parentRoute: typeof DashboardUseCasesRoute
+    '/dashboard/drift': {
+      id: '/dashboard/drift'
+      path: '/drift'
+      fullPath: '/dashboard/drift'
+      preLoaderRoute: typeof DashboardDriftRouteImport
+      parentRoute: typeof DashboardRoute
     }
-    '/api/gateway/verify': {
-      id: '/api/gateway/verify'
-      path: '/api/gateway/verify'
-      fullPath: '/api/gateway/verify'
-      preLoaderRoute: typeof ApiGatewayVerifyRouteImport
-      parentRoute: typeof rootRouteImport
+    '/dashboard/gateway': {
+      id: '/dashboard/gateway'
+      path: '/gateway'
+      fullPath: '/dashboard/gateway'
+      preLoaderRoute: typeof DashboardGatewayRouteImport
+      parentRoute: typeof DashboardRoute
     }
-    '/api/gateway/status': {
-      id: '/api/gateway/status'
-      path: '/api/gateway/status'
-      fullPath: '/api/gateway/status'
-      preLoaderRoute: typeof ApiGatewayStatusRouteImport
+    '/dashboard/pipeline': {
+      id: '/dashboard/pipeline'
+      path: '/pipeline'
+      fullPath: '/dashboard/pipeline'
+      preLoaderRoute: typeof DashboardPipelineRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/redaction': {
+      id: '/dashboard/redaction'
+      path: '/redaction'
+      fullPath: '/dashboard/redaction'
+      preLoaderRoute: typeof DashboardRedactionRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/rulebooks': {
+      id: '/dashboard/rulebooks'
+      path: '/rulebooks'
+      fullPath: '/dashboard/rulebooks'
+      preLoaderRoute: typeof DashboardRulebooksRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/use-cases': {
+      id: '/dashboard/use-cases'
+      path: '/use-cases'
+      fullPath: '/dashboard/use-cases'
+      preLoaderRoute: typeof DashboardUseCasesRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/api/gateway/run': {
+      id: '/api/gateway/run'
+      path: '/api/gateway/run'
+      fullPath: '/api/gateway/run'
+      preLoaderRoute: typeof ApiGatewayRunRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/gateway/session': {
@@ -392,12 +378,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGatewaySessionRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/gateway/run': {
-      id: '/api/gateway/run'
-      path: '/api/gateway/run'
-      fullPath: '/api/gateway/run'
-      preLoaderRoute: typeof ApiGatewayRunRouteImport
+    '/api/gateway/status': {
+      id: '/api/gateway/status'
+      path: '/api/gateway/status'
+      fullPath: '/api/gateway/status'
+      preLoaderRoute: typeof ApiGatewayStatusRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/api/gateway/verify': {
+      id: '/api/gateway/verify'
+      path: '/api/gateway/verify'
+      fullPath: '/api/gateway/verify'
+      preLoaderRoute: typeof ApiGatewayVerifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard/use-cases/$key': {
+      id: '/dashboard/use-cases/$key'
+      path: '/$key'
+      fullPath: '/dashboard/use-cases/$key'
+      preLoaderRoute: typeof DashboardUseCasesKeyRouteImport
+      parentRoute: typeof DashboardUseCasesRoute
     }
   }
 }

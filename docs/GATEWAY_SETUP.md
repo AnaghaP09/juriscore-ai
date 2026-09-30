@@ -45,9 +45,9 @@ values in the shell, then start:
 
 - macOS, Linux:
   ```
-  export JURISCORE_LLM_API_KEY=<your key>
+  export JURISCORE_LLM_API_KEY='<your key>'
   export JURISCORE_GATEWAY=enabled
-  export JURISCORE_GATEWAY_TOKEN=<the phrase>
+  export JURISCORE_GATEWAY_TOKEN='<the phrase>'
   ./start.sh
   ```
 - Windows PowerShell:
@@ -59,15 +59,19 @@ values in the shell, then start:
   ```
 - Windows Command Prompt:
   ```
-  set JURISCORE_LLM_API_KEY=<your key>
+  set "JURISCORE_LLM_API_KEY=<your key>"
   set JURISCORE_GATEWAY=enabled
-  set JURISCORE_GATEWAY_TOKEN=<the phrase>
+  set "JURISCORE_GATEWAY_TOKEN=<the phrase>"
   start.cmd
   ```
 - Container:
   ```
-  docker run --rm -p 8080:8080 -e JURISCORE_LLM_API_KEY=<your key> -e JURISCORE_GATEWAY=enabled -e JURISCORE_GATEWAY_TOKEN=<the phrase> juriscore:<version>
+  docker run --rm -p 8080:8080 -e 'JURISCORE_LLM_API_KEY=<your key>' -e JURISCORE_GATEWAY=enabled -e 'JURISCORE_GATEWAY_TOKEN=<the phrase>' juriscore:<version>
   ```
+
+Replace `<your key>` and `<the phrase>` including the angle brackets, and keep the quotes:
+they let a phrase with spaces through unchanged. A phrase that itself contains a quote
+character is best replaced by another suggestion. In `.env.local` no quotes are needed.
 
 To change a value later: stop the server, set the values again, start it. A container is
 stopped and started again with the new flags.

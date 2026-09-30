@@ -112,15 +112,17 @@ export function ActiveModelControl() {
         : "The server has a key but no unlock phrase.",
     );
   } else if (gateway.phase === "status-unknown") {
+    const recovering = checkingModels.length > 0;
     control = (
       <>
         <Badge variant="outline" className={mutedBadge} title={gateway.message}>
-          Unlocked. Could not load gateway status.
+          {recovering ? "Unlocked. Loading gateway status…" : "Unlocked. Could not load gateway status."}
         </Badge>
         <Button
           size="sm"
           variant="ghost"
           className="h-8"
+          disabled={recovering}
           onClick={() => void retryGatewayStatus()}
         >
           <RefreshCw className="h-3.5 w-3.5 mr-1.5" aria-hidden />
@@ -173,11 +175,19 @@ export function ActiveModelControl() {
         </>
       );
     } else if (connection?.state === "failed") {
+      // A rejected or under-privileged key cannot be fixed by retrying: say what to do.
+      const keyProblem = /key/i.test(connection.error ?? "");
       badge = (
         <>
           <Badge variant="outline" className={blockBadge} title={connection.error}>
             Connection failed — {connection.error ?? "unknown reason"}
           </Badge>
+          {keyProblem && (
+            <span className="text-xs text-muted-foreground">
+              Fix the key in your server&apos;s configuration, restart, refresh this page and
+              unlock again. <SetupStepsLink />
+            </span>
+          )}
           <Button
             size="sm"
             variant="ghost"
