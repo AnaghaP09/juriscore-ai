@@ -925,6 +925,9 @@ function DemoRecords() {
                   {selected.domain} · {selected.useCase} ·{" "}
                   {selected.ts.slice(0, 16).replace("T", " ")}
                 </SheetDescription>
+                <Badge variant="outline" className={`w-fit ${DEMO_BADGE}`}>
+                  Demo data · synthetic · not a real check
+                </Badge>
               </SheetHeader>
               <div className="mt-6 space-y-4 px-1">
                 <Stage title="1 · Prompt" body={selected.prompt} />
