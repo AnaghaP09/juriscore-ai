@@ -42,3 +42,7 @@ ml/data/raw/
 ml/.venv/
 ml/data/work/
 ml/**/__pycache__/
+
+# Rendered at deploy time from docs/GATEWAY_SETUP.md and packaging/RUN.md (PLAN-7)
+landing/setup.html
+landing/run.html

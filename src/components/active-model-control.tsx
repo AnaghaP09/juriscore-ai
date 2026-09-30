@@ -24,8 +24,7 @@ import {
 } from "@/components/ui/select";
 
 /** The single home of the setup steps (PLAN-5). The UI links here and holds no steps. */
-export const GATEWAY_SETUP_URL =
-  "https://github.com/AnaghaP09/juriscore-ai/blob/main/docs/GATEWAY_SETUP.md";
+export const GATEWAY_SETUP_URL = "https://anaghap09.github.io/juriscore-ai/setup.html";
 
 const mutedBadge = "border-border text-muted-foreground";
 const allowBadge = "border-[color:var(--allow)]/40 text-[color:var(--allow)]";
