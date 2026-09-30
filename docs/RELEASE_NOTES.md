@@ -1,5 +1,68 @@
 # JurisCore release notes
 
+## 2026.09.30 — A connected model, your own sources, receipts you keep
+
+**Status: still a V1 prototype.** Every number in the product is still labelled. Detection quality has not been measured on real traffic. There is no login. A single local server on port 8080 serves everything.
+
+Since the 2026.08.01 release, JurisCore can send a prompt to a real model through its own gateway, check your own code and documents instead of sample data, and keep a history of receipts in your browser. This entry lists the changes that matter, the fixes that change a result, the things we turned off, the claims from the last notes that are no longer true, and the problems we know about today.
+
+---
+
+### What is new
+
+**LLM Gateway — send a prompt to a real model, with Veil in the path.** Put an Anthropic API key and a passphrase on the server, unlock the gateway from the header, and test the connection. Every prompt goes through Veil before it leaves, the reply goes through Veil on the way back, and each run gets a receipt. The API key never reaches the browser. Only Anthropic models are supported. The "Beta" badge is gone. Set-up steps are in `docs/GATEWAY_SETUP.md`.
+
+**Plumb reads your own sources.** Paste a diff, fetch a public GitHub pull request by number, or upload your own documents. Plumb reads every file in the diff, not only the first. Sources stay in memory and are gone when you close the page. Private repositories are not supported yet.
+
+**Receipts you keep.** The Receipts page now shows a live history of your real checks, stored in your browser, up to 200 records. You can filter, export, delete, and verify a receipt against the same input. Nothing is stored on the server.
+
+**Predictive scores, clearly labelled.** Veil shows a residual-exposure score and Plumb shows a drift-risk score, with a history on the Overview. These are advisory. They use hand-set weights at "target" maturity, not a trained model, and they never change a verdict.
+
+**Policy Library — edit and delete your own policies.** Custom policies can now be changed and removed. Old receipts that name a removed policy still open.
+
+**Veil — invoice and payment data.** New detectors for bank routing and account numbers, IBAN, SWIFT codes, tax IDs, postal addresses, and contact names. Tables in PDF and DOCX files keep their column gaps so labelled values are found.
+
+### Fixes that change a result
+
+- **Plumb no longer reports drift when only the format differs.** `30` and `"30"`, `true` and `"true"`, and the same value in different units now match.
+- **Plumb no longer says "allow" when it compared nothing.** An empty comparison is reported as such.
+- **Plumb reads every file in a change.** Earlier only the first file was read, so claims in later files were missed.
+- **The gateway sends nothing when Veil blocks.** If the second Veil pass still finds sensitive data, the run stops and the model is never called.
+
+### Turned off or removed
+
+- **Reset demo** is gone from the dashboard.
+- **MCP Connect** is greyed out and marked "Soon". The `/mcp` endpoint itself still answers, without authentication, for anyone who can reach the server.
+- The **Demos** group has left the navigation. Navigation is now Overview, Veil, Plumb, Policy Library, Receipts, and LLM Gateway.
+
+### Corrections to the 2026.08.01 notes
+
+The last notes made three claims that are no longer true. We would rather say so here than let you find out.
+
+- **"Nothing is persisted."** The browser now stores receipts, custom policies, and metric counts on your device. The server still stores nothing.
+- **"No external network calls."** Three things call out: fetching a public GitHub pull request, reading text from images (the OCR library downloads its files from a public CDN on first use), and the gateway when you turn it on. Veil and Plumb checks themselves make no network call.
+- **"A receipt for every run."** Not yet. If the model provider fails or times out after the prompt was sent, no receipt is written. If you clear a run while it is in flight, its receipt is dropped.
+
+### Known issues
+
+These are open today. Please read them before you rely on the product.
+
+1. **Some secrets pass Veil and reach the model.** Veil recognises keys by known prefixes such as `sk-`. A value written as `api_key=...`, an AWS secret access key, or a password written in a sentence is not detected and will be sent through the gateway.
+2. **Plumb checks only the first statement about each subject.** If a document says the retention period is 30 days and later says it is 90 days, only the first is compared.
+3. **Receipt verification can fail on inputs with more than one file.** Verification rebuilds claims from the first file only, so a receipt made from a multi-file diff reports "extracted claims differ" even when nothing changed.
+4. **Using the server from another device needs HTTPS.** Over plain HTTP from a different machine, the gateway session cookie is not kept and receipts cannot be generated. On the same machine over localhost everything works.
+5. **A retention value of -1 is read as minus one day.** Many systems use -1 to mean "keep forever". Plumb does not.
+6. **There is no login.** Anyone who can reach the address can use every page and every MCP tool. The gateway passphrase protects the gateway only.
+
+### Also in this release
+
+- The product no longer depends on Lovable. A daily check fails if any Lovable package or sync reappears.
+- CI actions are pinned to exact commits, the release workflow validates its input, and Dependabot watches dependencies.
+- The local server listens on this machine only. Use `bun run dev --host` to open it to your network on purpose.
+- The on-prem package documents `HOST` and `PORT`, and how to turn on the gateway.
+
+---
+
 ## 2026.08.01 — V1 platform
 
 **Status: V1 prototype.** Every demonstrated outcome is at **Synthetic** maturity — measured on generated fixtures, not on benchmarks, pilots, or production traffic. JurisCore runs locally and makes no external network calls at evaluation time. There is no connected model, no server-side persistence, no authentication, and no compliance claim of any kind. Policy packs guide checks; they do not certify anything.
@@ -91,14 +154,16 @@ Every number that remains anywhere in the product carries a maturity label. An u
 
 ## What's next — roadmap, not shipped
 
-These are planned, in this order. Nothing here is available today.
+Updated 2026.09.30. Nothing here is available today.
 
-1. **Gateway API** — a versioned endpoint so applications can call Veil and Plumb without the UI, with JurisCore in the request path rather than beside it.
-2. **Approved-provider connections behind the gateway** — routing to proprietary models (Anthropic, OpenAI, Azure OpenAI, Google, and others) through Veil, with credentials held server-side and every provider a replaceable adapter.
-3. **Receipt persistence** — a receipt store with retention, search, and export, which also unlocks receipt-backed metrics that survive beyond one device.
-4. **Authentication, RBAC, and tenant isolation** — the prerequisites for multi-user operation, and for any claim about isolation.
+1. **Gateway API** — a versioned endpoint so applications can call Veil and Plumb without the UI. Still ahead.
+2. **More providers behind the gateway** — Anthropic is connected. OpenAI, Azure OpenAI, Google, and others are not.
+3. **Receipts on the server** — receipts are kept in your browser today. A server-side store with retention, search, and shared metrics is still ahead.
+4. **Login, roles, and tenant isolation** — needed before more than one person can use one server safely.
+5. **Semantic judge** — checking whether a model reply agrees with the policy text it cites. The card exists on the gateway page and is labelled Roadmap.
+6. **Detector gaps listed under Known issues** — generic `api_key=` values, AWS secret keys, and passwords in prose.
 
-Independent privacy, security, and detection benchmarking remains ahead of us. Until it is done and reproducible, our numbers stay labelled Synthetic.
+Independent privacy, security, and detection benchmarking remains ahead of us. Until it is done and reproducible, our numbers stay labelled.
 
 ---
 
