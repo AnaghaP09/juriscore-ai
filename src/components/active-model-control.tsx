@@ -150,7 +150,7 @@ export function ActiveModelControl() {
     const { status } = gateway;
     const connection = status.connections[activeModel];
     const checking =
-      checkingModels.includes(activeModel) || checkingModels.includes("__default__");
+      checkingModels.includes(activeModel) || checkingModels.includes("__recovery__");
     let badge: ReactNode;
     if (checking) {
       badge = (

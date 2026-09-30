@@ -23,6 +23,7 @@ import {
 } from "../src/lib/juriscore/gateway/suggest-phrase";
 import {
   createGenerationGuard,
+  createRecoveryScheduler,
   loadStatusAfterUnlock,
   unlockFailureMessage,
   verifyOnce,
@@ -1001,6 +1002,33 @@ function assertNothingRan(h: Harness, label: string) {
       const fresh = guard.begin();
       lock(fresh);
       assert.equal(locked, true, "a current ticket still locks");
+    }
+    // A second successful unlock while the first recovery is still pending: the second
+    // invalidates the first's ticket, runs after it, and only the second writes (P5-R4-001).
+    {
+      const scheduler = createGenerationGuard();
+      const writes: number[] = [];
+      let releaseFirst: () => void = () => {};
+      const firstDone = new Promise<void>((resolve) => {
+        releaseFirst = resolve;
+      });
+      let runs = 0;
+      const recoveries = createRecoveryScheduler(scheduler, async (ticket) => {
+        runs += 1;
+        if (runs === 1) await firstDone;
+        if (scheduler.isCurrent(ticket)) writes.push(ticket);
+      });
+      const first = recoveries.request();
+      const second = recoveries.request();
+      assert.equal(recoveries.isBusy(), true);
+      releaseFirst();
+      await first;
+      await second;
+      // Let the queued run settle.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      assert.equal(runs, 2, "the queued recovery ran after the first");
+      assert.deepEqual(writes, [2], "only the newest ticket wrote state");
+      assert.equal(recoveries.isBusy(), false);
     }
     // A newer recovery ticket supersedes an older one; only the newest may write.
     const older = guard.invalidate();
