@@ -26,6 +26,7 @@ import { createSafeStorage } from "@/lib/juriscore/core/safe-storage";
 import { GatewayHttpError, gatewayClient, needsUnlock } from "@/lib/juriscore/gateway/client";
 import {
   createGenerationGuard,
+  createRecoveryScheduler,
   loadStatusAfterUnlock,
   unlockFailureMessage,
   verifyOnce,
@@ -426,23 +427,23 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
 
   // One recovery at a time: a second call while one runs is ignored, and an outcome
   // from a superseded call never overwrites newer gateway state.
-  const recoveryInFlight = useRef(false);
-  const loadAfterUnlock = useCallback(async () => {
-    if (recoveryInFlight.current) return;
-    recoveryInFlight.current = true;
-    // Starting a recovery supersedes every earlier status request, including a refresh.
-    const ticket = guard.current.invalidate();
-    const preferred = activeModelRef.current;
-    const marker = preferred || "__default__";
-    setCheckingModels((current) => [...new Set([...current, marker])]);
-    try {
-      const outcome = await loadStatusAfterUnlock(gatewayClient, preferred || undefined);
-      if (guard.current.isCurrent(ticket)) applyUnlockOutcome(outcome);
-    } finally {
-      setCheckingModels((current) => current.filter((id) => id !== marker));
-      recoveryInFlight.current = false;
-    }
-  }, [applyUnlockOutcome]);
+  // Every successful unlock invalidates older tickets and gets its own recovery, even if
+  // one is still running: the scheduler queues it and drops the superseded result.
+  const applyOutcomeRef = useRef(applyUnlockOutcome);
+  applyOutcomeRef.current = applyUnlockOutcome;
+  const scheduler = useRef(
+    createRecoveryScheduler(guard.current, async (ticket) => {
+      const preferred = activeModelRef.current;
+      setCheckingModels((current) => [...new Set([...current, "__recovery__"])]);
+      try {
+        const outcome = await loadStatusAfterUnlock(gatewayClient, preferred || undefined);
+        if (guard.current.isCurrent(ticket)) applyOutcomeRef.current(outcome);
+      } finally {
+        setCheckingModels((current) => current.filter((id) => id !== "__recovery__"));
+      }
+    }),
+  );
+  const loadAfterUnlock = useCallback(() => scheduler.current.request(), []);
 
   const unlockGateway = useCallback(
     async (token: string) => {

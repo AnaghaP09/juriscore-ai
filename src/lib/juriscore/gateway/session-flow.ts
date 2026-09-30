@@ -117,6 +117,45 @@ export function createGenerationGuard() {
   };
 }
 
+/**
+ * Runs post-unlock recoveries one at a time. A request that arrives while one is running
+ * is queued and runs afterwards with its own, newer ticket; the earlier run's outcome is
+ * dropped because its ticket is no longer current. Every request invalidates older tickets
+ * first, so a delayed answer from before it can never write (P5-R4-001).
+ */
+export function createRecoveryScheduler(
+  guard: ReturnType<typeof createGenerationGuard>,
+  run: (ticket: number) => Promise<void>,
+) {
+  let inFlight = false;
+  let queued: number | null = null;
+  const drain = async (ticket: number): Promise<void> => {
+    inFlight = true;
+    try {
+      await run(ticket);
+    } finally {
+      inFlight = false;
+    }
+    if (queued !== null) {
+      const next = queued;
+      queued = null;
+      await drain(next);
+    }
+  };
+  return {
+    /** Invalidates earlier tickets and runs (or queues) a recovery for the new one. */
+    request: () => {
+      const ticket = guard.invalidate();
+      if (inFlight) {
+        queued = ticket;
+        return Promise.resolve();
+      }
+      return drain(ticket);
+    },
+    isBusy: () => inFlight || queued !== null,
+  };
+}
+
 /** Text shown in the Unlock dialog for a failed session call. */
 export function unlockFailureMessage(error: unknown) {
   if (error instanceof GatewayHttpError) {
