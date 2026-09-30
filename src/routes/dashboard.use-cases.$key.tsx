@@ -39,6 +39,9 @@ export const Route = createFileRoute("/dashboard/use-cases/$key")({
   component: UseCaseDetail,
   notFoundComponent: NotFoundView,
   errorComponent: ErrorView,
+  // NotFoundView is also rendered inside UseCaseDetail, so the code splitter must not
+  // move it into its own chunk (router-plugin >= 1.168 fails the build if it tries).
+  codeSplitGroupings: [["component"], ["errorComponent"]],
 });
 
 function NotFoundView() {
