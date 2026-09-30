@@ -57,7 +57,13 @@ JURISCORE_GATEWAY_MODELS=claude-opus-5,claude-sonnet-5,claude-haiku-4-5
 ```
 
 `bun run dev` loads `.env.local` into the server's environment. For other deployments,
-set the variables in the host's environment.
+set the variables in the host's environment. For the downloadable on-prem package there
+is no `.env.local`: export the variables in the shell before `./start.sh` or `start.cmd`
+(`packaging/RUN.md`, "What you are running"), or pass them to `docker run` with `-e`.
+
+The gateway routes accept requests only from the page they were served with (same
+origin), so a script calling `/api/gateway/*` directly is refused. Reach the gateway
+through the dashboard at the address the server prints.
 
 ## Connect
 
