@@ -16,14 +16,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import {
-  badgeTone,
-  borderTone,
-  gatewayScrubVisible,
-  textTone,
-  verdictKind,
-  type StatusKind,
-} from "@/lib/juriscore/ui/status-tone";
+import { badgeTone, borderTone, textTone, verdictKind } from "@/lib/juriscore/ui/status-tone";
+import { gatewayBanner, gatewayScrub } from "@/lib/juriscore/ui/presentation";
 import { PageHeader } from "@/components/page-header";
 import { useDemoStore } from "@/lib/juriscore/demo-store";
 import type { ValidationReceipt, ValidatorVerdict } from "@/lib/juriscore/core/contracts";
@@ -159,27 +153,26 @@ function Gateway() {
   const status = gateway.phase === "ready" ? gateway.status : null;
   const connection = status?.connections[activeModel];
   const connected = Boolean(status?.configured && connection?.state === "connected");
-  const checking = checkingModels.includes(activeModel) || checkingModels.includes("__recovery__");
-  // The banner's colour follows the real state (PLAN-6): grey until something is wrong or
-  // pending, amber while a check runs, red for a failed connection.
-  const bannerKind: StatusKind = checking
-    ? "connection:checking"
-    : connection?.state === "failed"
-      ? "connection:failed"
-      : gateway.phase === "locked"
-        ? "gateway:locked"
-        : !status || !status.configured
-          ? "gateway:unconfigured"
-          : "connection:not_connected";
-  const bannerText = checking
-    ? "Checking the connection to the active model."
-    : connection?.state === "failed"
-      ? `Connection failed: ${connection.error ?? "unknown reason"}.`
-      : gateway.phase === "locked"
-        ? "Gateway locked. Unlock it in the header."
-        : !status || !status.configured
-          ? "Gateway not set up. Use Set up gateway in the header."
-          : "No model connected yet.";
+  const recovering = checkingModels.includes("__recovery__");
+  const checking =
+    checkingModels.includes(activeModel) || recovering || checkingModels.includes("__refresh__");
+  // The banner's state and colour come from one shared selector (PLAN-6).
+  const banner = gatewayBanner({
+    phase: gateway.phase,
+    unavailableReason: gateway.phase === "unavailable" ? gateway.reason : undefined,
+    message: gateway.phase === "unavailable" || gateway.phase === "status-unknown" ? gateway.message : undefined,
+    configured: status?.configured,
+    connectionState: connection?.state,
+    connectionError: connection?.state === "failed" ? connection.error : undefined,
+    checking,
+    recovering,
+  });
+  const scrub = gatewayScrub({
+    prompt,
+    blocked: preview.blocked,
+    sanitizedVerdict: preview.result.sanitizedVerdict,
+    requiresReview: preview.result.requiresReview,
+  });
 
   let sendBlockedReason: string | null = null;
   if (killSwitch) sendBlockedReason = "Emergency stop is on.";
@@ -239,13 +232,17 @@ function Gateway() {
         latencyMs: response.run.latencyMs,
       });
     } catch (caught) {
-      // Shared state first, before the page's own cancellation rule: a provider or
-      // gateway failure ends "Connected" even if Clear was pressed meanwhile (PLAN-6).
+      // Shared state first, before the page's own cancellation rule: a provider failure
+      // ends "Connected" and a lost session locks the header even if Clear was pressed
+      // meanwhile (PLAN-6). Both are ticket-guarded against a newer unlock.
       const providerFailure =
         caught instanceof GatewayHttpError &&
         (caught.code === "provider-error" || caught.code === "model-not-connected");
       if (providerFailure) {
         markModelFailed(activeModel, (caught as GatewayHttpError).message, sessionTicket);
+      }
+      if (needsUnlock(caught)) {
+        markGatewayLocked((caught as GatewayHttpError).code === "session-expired", sessionTicket);
       }
       if (!sequencer.current.isCurrent(clientRequestId)) return;
       const reason = needsUnlock(caught)
@@ -253,9 +250,6 @@ function Gateway() {
         : caught instanceof GatewayHttpError
           ? caught.message
           : "The request did not reach the gateway.";
-      if (needsUnlock(caught)) {
-        markGatewayLocked((caught as GatewayHttpError).code === "session-expired", sessionTicket);
-      }
       setError(reason);
       pushRun({
         kind: "failed",
@@ -281,12 +275,12 @@ function Gateway() {
 
   return (
     <div className="p-6 sm:p-8 space-y-6">
-      {!connected && (
+      {banner && (
         <div
           role="note"
-          className={`rounded-lg border px-4 py-3 text-sm ${borderTone(bannerKind)} bg-muted/20`}
+          className={`rounded-lg border px-4 py-3 text-sm ${borderTone(banner.kind)} bg-muted/20`}
         >
-          <span className={`font-medium ${textTone(bannerKind)}`}>{bannerText}</span>{" "}
+          <span className={`font-medium ${textTone(banner.kind)}`}>{banner.text}</span>{" "}
           Nothing on this page leaves your browser until a model passes a live connection check. The
           input scrub below runs locally; no verdict, latency, or token count is shown until a real
           run returns one.
@@ -378,28 +372,17 @@ function Gateway() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
-            {!gatewayScrubVisible(prompt) ? (
-              <p className="text-xs text-muted-foreground">
-                Type a prompt above. The input scrub runs locally as you type and shows its
-                result here.
-              </p>
+            {!scrub.visible ? (
+              <p className="text-xs text-muted-foreground">{scrub.emptyText}</p>
             ) : (
               <>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className={badgeTone(verdictKind(preview.result.rawVerdict))}>
                 Raw input {preview.result.rawVerdict.toUpperCase()}
               </Badge>
-              {preview.blocked ? (
-                <Badge variant="outline" className={badgeTone("verdict:block")}>
-                  Will not be sent
-                </Badge>
-              ) : (
-                <Badge variant="outline" className={badgeTone(verdictKind(preview.result.sanitizedVerdict))}>
-                  {preview.result.sanitizedVerdict === "allow"
-                    ? "Safe to send after protection"
-                    : "Review before sending"}
-                </Badge>
-              )}
+              <Badge variant="outline" className={badgeTone(scrub.sendKind)}>
+                {scrub.sendText}
+              </Badge>
             </div>
             {preview.blocked && <p className="text-xs">{preview.reason}</p>}
             <FindingList

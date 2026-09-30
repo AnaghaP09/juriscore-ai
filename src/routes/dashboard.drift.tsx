@@ -5,10 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   badgeTone,
+  plumbRiskVisible,
   riskKind,
   textTone,
   type StatusKind,
 } from "@/lib/juriscore/ui/status-tone";
+import { plumbSampleMode } from "@/lib/juriscore/ui/presentation";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/page-header";
@@ -199,18 +201,32 @@ function ClaimCell({
 }
 
 /** One citable line of a document. `locator` is set only when it contradicts the code. */
-function DocumentSentenceLine({ text, locator }: { text: string; locator?: string }) {
+function DocumentSentenceLine({
+  text,
+  locator,
+  sample,
+}: {
+  text: string;
+  locator?: string;
+  /** Sample comparisons are shown in neutral tones (PLAN-6). */
+  sample?: boolean;
+}) {
   const hit = Boolean(locator);
+  const hitClass = sample
+    ? "border-border bg-muted/40 text-foreground"
+    : "border-[color:var(--block)]/60 bg-[color:var(--block)]/10 text-foreground";
   return (
     <p
       className={`text-sm leading-relaxed p-2 rounded-md border transition-colors ${
-        hit
-          ? "border-[color:var(--block)]/60 bg-[color:var(--block)]/10 text-foreground"
-          : "border-transparent text-muted-foreground"
+        hit ? hitClass : "border-transparent text-muted-foreground"
       }`}
     >
       {hit && (
-        <span className="inline-block mr-2 text-[10px] font-mono text-[color:var(--block)] uppercase">
+        <span
+          className={`inline-block mr-2 text-[10px] font-mono uppercase ${
+            sample ? "text-muted-foreground" : "text-[color:var(--block)]"
+          }`}
+        >
           Contradicts +{locator}
         </span>
       )}
@@ -237,10 +253,13 @@ function DriftRiskPanel({
   risk,
   hasConnectedChange,
   showsSampleCode,
+  visible,
 }: {
   risk: RiskView | null;
   hasConnectedChange: boolean;
   showsSampleCode: boolean;
+  /** From the shared zero-state selector: nothing to score means nothing shown. */
+  visible: boolean;
 }) {
   const scored = risk?.status === "scored" ? risk : null;
   const maturityLabel = scored
@@ -271,7 +290,7 @@ function DriftRiskPanel({
             your own change and add it to this device&apos;s history.
           </div>
         )}
-        {!hasConnectedChange && !showsSampleCode ? (
+        {!visible ? (
           <p className="text-muted-foreground">
             Connect a pull request or paste a diff to see how likely it is that its docs need
             updating.
@@ -412,6 +431,9 @@ function DriftView() {
   // user connects a change or asks for the sample, and a sample run is never recorded.
   const [sampleLoaded, setSampleLoaded] = useState(false);
   const showsSampleCode = sampleLoaded && !connectedRepository && !hasUserDocuments;
+  // A comparison is a sample when either side is: sample code, or a sample document held
+  // against a real change. Labels, colours and recording all follow this one flag.
+  const sampleMode = plumbSampleMode({ showsSampleCode, selectedDocKind: selectedDoc?.kind });
   // A connected change with no recognised subject still runs: the check then reports what
   // it cannot determine instead of refusing to start.
   const hasCodeSource = Boolean(connectedRepository) || showsSampleCode;
@@ -534,7 +556,7 @@ function DriftView() {
     });
     setRan(true);
     setEvaluation(nextEvaluation);
-    if (showsSampleCode) return; // a sample run is shown, never recorded (PLAN-6)
+    if (sampleMode) return; // a sample run is shown, never recorded (PLAN-6)
     // The check is recorded once, with the prediction for these exact inputs, even when
     // the panel is still scoring them. The verdict above is already final, and the stamp
     // taken here dates the check however long its prediction takes.
@@ -608,8 +630,7 @@ function DriftView() {
   const driftFindings =
     evaluation?.findings.filter((finding) => finding.status === "drifted") ?? [];
   // Sample runs are neutral; real runs take their outcome's tone.
-  const resultText = (kind: StatusKind) =>
-    showsSampleCode ? textTone("sample:any") : textTone(kind);
+  const resultText = (kind: StatusKind) => (sampleMode ? textTone("sample:any") : textTone(kind));
   // Each contradicting sentence cites the authority it actually conflicts with, rather
   // than borrowing the locator of whichever drift happened to be found first.
   const driftByAssertionLocator = new Map(
@@ -685,6 +706,7 @@ function DriftView() {
         risk={risk}
         hasConnectedChange={Boolean(connectedChange)}
         showsSampleCode={showsSampleCode}
+        visible={plumbRiskVisible({ connected: Boolean(connectedChange), sampleLoaded: showsSampleCode })}
       />
 
       {runWarning && (
@@ -780,7 +802,11 @@ function DriftView() {
               {displayedDiffLines.map((l, index) => {
                 const hit = ran && l.kind === "add" && driftedCodeLocators.has(`line ${l.n}`);
                 const bg = l.kind === "add" ? "diff-add" : l.kind === "del" ? "diff-del" : "";
-                const flag = hit ? "outline outline-2 outline-[color:var(--block)]" : "";
+                const flag = hit
+                  ? sampleMode
+                    ? "outline outline-2 outline-border"
+                    : "outline outline-2 outline-[color:var(--block)]"
+                  : "";
                 return (
                   <div
                     key={`${l.kind}-${l.n}-${index}`}
@@ -794,7 +820,11 @@ function DriftView() {
                     </span>
                     <span className="flex-1 py-0.5 pr-2">{l.text}</span>
                     {hit && (
-                      <span className="pr-3 py-0.5 text-[10px] font-mono text-[color:var(--block)]">
+                      <span
+                        className={`pr-3 py-0.5 text-[10px] font-mono ${
+                          sampleMode ? "text-muted-foreground" : "text-[color:var(--block)]"
+                        }`}
+                      >
                         ◀ DRIFT
                       </span>
                     )}
@@ -863,7 +893,7 @@ function DriftView() {
                       </p>
                     )}
                     {selectedSentences.slice(0, 40).map((sentence) => (
-                      <DocumentSentenceLine
+                      <DocumentSentenceLine sample={sampleMode}
                         key={sentence.id}
                         text={sentence.text}
                         locator={
@@ -912,7 +942,7 @@ function DriftView() {
           )}
           {ran && evaluation && (
             <div className="flex flex-wrap items-start gap-6" aria-live="polite">
-              {showsSampleCode && (
+              {sampleMode && (
                 <Badge variant="outline" className={`basis-full ${badgeTone("sample:any")}`}>
                   Sample run · shown for illustration, not recorded
                 </Badge>

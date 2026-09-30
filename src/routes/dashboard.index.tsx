@@ -23,13 +23,10 @@ export const Route = createFileRoute("/dashboard/")({
   component: Overview,
 });
 
-import { badgeTone, dotTone, riskKind, textTone, verdictKind, outcomesVisible } from "@/lib/juriscore/ui/status-tone";
+import { badgeTone, dotTone, riskKind, textTone, verdictKind } from "@/lib/juriscore/ui/status-tone";
+import { overviewTool } from "@/lib/juriscore/ui/presentation";
 
 
-function formatVolume(chars: number) {
-  if (chars < 1024 * 1024) return `${Math.max(1, Math.round(chars / 1024))} KB`;
-  return `${(chars / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 function Overview() {
   const { localMetrics, recentReceipts, activePolicyIds, customPolicies, seedDemoMetrics } =
@@ -117,7 +114,7 @@ function Overview() {
           <div className="grid gap-4">
             <MetricTile title="Overall" simulated={simulated}>
               <BigStat value={overall.checks} label="Checks run" />
-              {outcomesVisible(overall.checks) ? (
+              {overviewTool({ checks: overall.checks }).showOutcomes ? (
                 <dl className="flex gap-4 text-sm">
                   <VerdictCell label="Allow" value={overall.allow} tone="allow" />
                   <VerdictCell label="Revise" value={overall.revise} tone="revise" />
@@ -155,7 +152,10 @@ function Overview() {
                     value={veil.occurrences.toLocaleString("en-US")}
                     label={`Sensitive occurrences protected (${veil.redacted.toLocaleString("en-US")} redacted · ${veil.tokenized.toLocaleString("en-US")} tokenized)`}
                   />
-                  <SmallStat value={formatVolume(veil.chars)} label="Input volume processed" />
+                  <SmallStat
+                    value={overviewTool({ checks: veil.checks, chars: veil.chars }).volumeLabel}
+                    label="Input volume processed"
+                  />
                 </>
               }
               predictive={
@@ -215,7 +215,7 @@ function Overview() {
                       : (latestOf(recent, "drift-risk") ??
                         (localMetrics.latestRisk ? { ...localMetrics.latestRisk } : null))
                   }
-                  bands={plumbRisk}
+                  bands={overviewTool({ checks: plumb.checks, bands: plumbRisk }).bands}
                   history={historyOf(recent, "drift-risk")}
                   emptyText="No scored change yet. Connect a pull request or paste a diff in Plumb and run a check."
                 />
@@ -373,7 +373,8 @@ function ToolCard({
   predictive: ReactNode;
 }) {
   const total = outcomes.reduce((sum, outcome) => sum + outcome.value, 0);
-  const hasRun = outcomesVisible(checks);
+  const presentation = overviewTool({ checks });
+  const hasRun = presentation.showOutcomes;
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -400,9 +401,7 @@ function ToolCard({
             What those checks found
           </div>
           {!hasRun ? (
-            <p className="text-xs text-muted-foreground">
-              No {title} checks on this device yet. Outcomes appear after the first check.
-            </p>
+            <p className="text-xs text-muted-foreground">{presentation.emptyText}</p>
           ) : total > 0 ? (
             <div
               className="flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full"
@@ -455,7 +454,7 @@ function ToolCard({
           </dl>
         </div>
 
-        <div className="space-y-3">{details}</div>
+        {presentation.showDetails && <div className="space-y-3">{details}</div>}
 
         <div className="border-t border-border pt-4">{predictive}</div>
       </CardContent>

@@ -18,14 +18,8 @@ import {
   X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import {
-  badgeTone,
-  riskKind,
-  textTone,
-  veilResultVisible,
-  verdictKind,
-  type StatusKind,
-} from "@/lib/juriscore/ui/status-tone";
+import { badgeTone, riskKind, textTone, verdictKind, type StatusKind } from "@/lib/juriscore/ui/status-tone";
+import { veilStatus } from "@/lib/juriscore/ui/presentation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -126,12 +120,16 @@ const FEATURE_LABEL: Record<string, string> = {
 
 const PROTECTION_TOKEN = /(\[(?:REDACTED_)?[A-Z_]+(?:_\d+)?\])/g;
 
-function renderProtectedText(text: string, keyPrefix: string) {
+function renderProtectedText(text: string, keyPrefix: string, neutral = false) {
   return text.split(PROTECTION_TOKEN).map((chunk, index) =>
     /^\[/.test(chunk) ? (
       <span
         key={`${keyPrefix}-token-${index}`}
-        className="inline-block px-1 rounded bg-[color:var(--block)]/15 text-[color:var(--block)]"
+        className={
+          neutral
+            ? "inline-block px-1 rounded bg-muted text-muted-foreground"
+            : "inline-block px-1 rounded bg-[color:var(--block)]/15 text-[color:var(--block)]"
+        }
       >
         {chunk}
       </span>
@@ -153,6 +151,7 @@ function renderSanitizedPreview(
   text: string,
   spans: ExposureSpan[],
   ruleMatches: ResidualRuleMatch[] = [],
+  neutral = false,
 ) {
   const marks = [
     ...spans.slice(0, MAX_HIGHLIGHTED_SPANS).map((span) => ({
@@ -172,23 +171,31 @@ function renderSanitizedPreview(
   let cursor = 0;
   marks.forEach((mark, index) => {
     if (mark.start < cursor) return;
-    nodes.push(...renderProtectedText(text.slice(cursor, mark.start), `before-${index}`));
+    nodes.push(...renderProtectedText(text.slice(cursor, mark.start), `before-${index}`, neutral));
     const { label } = mark;
     nodes.push(
       <mark
         key={`span-${mark.start}-${mark.end}-${label}`}
         title={mark.title}
-        className="rounded bg-[color:var(--revise)]/20 px-0.5 text-foreground underline decoration-[color:var(--revise)] decoration-dotted underline-offset-2"
+        className={
+          neutral
+            ? "rounded bg-muted px-0.5 text-foreground underline decoration-muted-foreground decoration-dotted underline-offset-2"
+            : "rounded bg-[color:var(--revise)]/20 px-0.5 text-foreground underline decoration-[color:var(--revise)] decoration-dotted underline-offset-2"
+        }
       >
         {text.slice(mark.start, mark.end)}
-        <sup className="ml-0.5 font-sans text-[9px] uppercase tracking-wide text-[color:var(--revise)]">
+        <sup
+          className={`ml-0.5 font-sans text-[9px] uppercase tracking-wide ${
+            neutral ? "text-muted-foreground" : "text-[color:var(--revise)]"
+          }`}
+        >
           {label}
         </sup>
       </mark>,
     );
     cursor = mark.end;
   });
-  nodes.push(...renderProtectedText(text.slice(cursor), "tail"));
+  nodes.push(...renderProtectedText(text.slice(cursor), "tail", neutral));
   return nodes;
 }
 
@@ -335,12 +342,13 @@ function VeilWorkbench() {
   const processDocument = async (file: File) => {
     const generation = ++inputGeneration.current;
     const current = () => inputGeneration.current === generation;
-    setIsSample(false);
     setUploadError(null);
     setProgress({ label: "Validating document", percent: 1 });
 
     try {
       const kind = validateDocument(file);
+      // Only validated input replaces the previous text and its sample provenance.
+      setIsSample(false);
       releasePreview();
       const previewUrl = kind === "pdf" || kind === "png" ? URL.createObjectURL(file) : undefined;
       previewUrlRef.current = previewUrl ?? null;
@@ -407,19 +415,22 @@ function VeilWorkbench() {
     setRaw(value);
   };
 
-  // What the page may show (PLAN-6): nothing until there is input and extraction is done.
-  const showResult = veilResultVisible({ raw, extracting: Boolean(progress) });
+  // What the page may show (PLAN-6): nothing until there is input and extraction is done;
+  // the status, badge text and tone come from the shared presentation helper.
+  const view = veilStatus({
+    raw,
+    extracting: Boolean(progress),
+    isSample,
+    sanitizedVerdict: result.sanitizedVerdict,
+    requiresReview: result.requiresReview,
+    strategy,
+  });
+  const showResult = view.showResult;
   // Sample runs are shown in neutral tones; real runs take the outcome's tone.
   const badgeFor = (kind: StatusKind, count?: number) =>
     isSample ? badgeTone("sample:any") : badgeTone(kind, count);
   const textFor = (kind: StatusKind) => (isSample ? textTone("sample:any") : textTone(kind));
-  // The protection status follows the outcome, never the mere presence of text.
-  const protectionKind: StatusKind =
-    result.sanitizedVerdict === "block"
-      ? "verdict:block"
-      : result.sanitizedVerdict === "revise" || result.requiresReview
-        ? "verdict:revise"
-        : "verdict:allow";
+  const protectionKind: StatusKind = view.resultKind;
 
   const recordCurrentRun = () => {
     const occurrences = result.findings.reduce((sum, finding) => sum + finding.count, 0);
@@ -802,7 +813,7 @@ function VeilWorkbench() {
             <TabsTrigger value="tokenize">Tokenize</TabsTrigger>
           </TabsList>
         </Tabs>
-        <Badge variant="outline">All sensitive data protected</Badge>
+        {showResult && <Badge variant="outline">All sensitive data protected</Badge>}
       </div>
 
       <p className="-mt-4 text-xs text-muted-foreground" aria-live="polite">
@@ -911,16 +922,15 @@ function VeilWorkbench() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex flex-wrap items-center justify-between gap-3">
               <span className="flex items-center gap-2">
-                <ShieldCheck
-                  className={`h-4 w-4 ${showResult ? textFor(protectionKind) : "text-muted-foreground"}`}
-                  aria-hidden
-                />
+                {showResult && (
+                  <ShieldCheck className={`h-4 w-4 ${textFor(protectionKind)}`} aria-hidden />
+                )}
                 Permitted model input
               </span>
               <span className="flex items-center gap-2">
                 {showResult && (
-                  <Badge variant="outline" className={badgeFor(verdictKind(result.sanitizedVerdict))}>
-                    {result.sanitizedVerdict.toUpperCase()}
+                  <Badge variant="outline" className={badgeFor(protectionKind)}>
+                    {view.badgeText}
                   </Badge>
                 )}
                 <Button size="sm" variant="outline" onClick={requestCopy}>
@@ -965,20 +975,14 @@ function VeilWorkbench() {
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                   <span className={`flex items-center gap-2 font-medium ${textFor(protectionKind)}`}>
                     <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
-                    {protectionKind === "verdict:block"
-                      ? "Blocked: do not send"
-                      : protectionKind === "verdict:revise"
-                        ? "Review required before sending"
-                        : `${strategy === "redact" ? "Redacted" : "Tokenized"} · ready to send`}
+                    {view.statusText}
                   </span>
                   <span className="text-muted-foreground">
                     Protection runs locally as soon as text is ready.
                   </span>
                 </div>
               ) : (
-                <div className="text-xs text-muted-foreground">
-                  Upload a document or enter text to create permitted model input.
-                </div>
+                <div className="text-xs text-muted-foreground">{view.statusText}</div>
               )}
             </div>
             {confirmingCopy && (
@@ -1008,7 +1012,12 @@ function VeilWorkbench() {
               aria-label="Sanitized output"
               className="rounded-md border border-border bg-muted/20 p-3 font-mono text-xs whitespace-pre-wrap min-h-[24rem] overflow-auto"
             >
-              {renderSanitizedPreview(result.sanitizedText, exposure.spans, baselineRule.matches)}
+              {renderSanitizedPreview(
+                result.sanitizedText,
+                exposure.spans,
+                baselineRule.matches,
+                isSample,
+              )}
             </pre>
             {showResult && result.requiresReview && (
               <p className={`mt-3 text-xs ${textFor("verdict:revise")}`}>

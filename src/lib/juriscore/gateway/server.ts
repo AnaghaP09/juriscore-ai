@@ -43,6 +43,7 @@ import {
   type GatewayProviderConfig,
 } from "./config";
 import { gatewayModelSpec } from "./models";
+import { createConnectionRevisions } from "./session-flow";
 import {
   DEFERRED_RUN_PURPOSES,
   promptRunRequestSchema,
@@ -246,6 +247,17 @@ export function createGatewayServer(deps: GatewayServerDeps): GatewayServer {
   const providerCalls = new ConcurrencyGate(MAX_PROVIDER_CALLS_IN_FLIGHT);
   // In-process only, keyed by model id; never persisted and never holds a secret.
   const connections = new Map<string, GatewayConnection>();
+  // A failure bumps the model's revision; a verify that started before it may not write
+  // "connected" (PLAN-6): the server state is what a reload shows.
+  const revisions = createConnectionRevisions();
+  const markFailed = (modelId: string, error: string) => {
+    revisions.bump(modelId);
+    connections.set(modelId, {
+      state: "failed",
+      lastVerifiedAt: new Date(now()).toISOString(),
+      error,
+    });
+  };
   const logged = new Set<string>();
   // PLAN-5: an unlock phrase equal to the API key is refused, decided once per process.
   let tokenEqualsKey: boolean | null = null;
@@ -301,19 +313,25 @@ export function createGatewayServer(deps: GatewayServerDeps): GatewayServer {
     if (!adapter) return fail(503, "provider-key-missing", KEY_MISSING_MESSAGE);
     const release = providerCalls.tryAcquire();
     if (!release) return fail(429, "busy", "Too many provider calls in flight.");
+    const revision = revisions.current(modelId);
     try {
       const result = await adapter.verify(modelId);
       // "Connected" needs both a live check and a parameter row for the model.
-      const connection: GatewayConnection =
-        result.ok && gatewayModelSpec(modelId)
-          ? { state: "connected", lastVerifiedAt: new Date(now()).toISOString() }
-          : {
-              state: "failed",
-              lastVerifiedAt: new Date(now()).toISOString(),
-              error: result.ok ? "No request parameters for this model" : result.reason,
-            };
-      connections.set(modelId, connection);
-      return json(200, { modelId, connection });
+      if (result.ok && gatewayModelSpec(modelId)) {
+        if (!revisions.isCurrent(modelId, revision)) {
+          // A failure happened while this check ran: the failed state stands until a
+          // check that started after it succeeds.
+          return json(200, { modelId, connection: connectionFor(modelId) });
+        }
+        const connection: GatewayConnection = {
+          state: "connected",
+          lastVerifiedAt: new Date(now()).toISOString(),
+        };
+        connections.set(modelId, connection);
+        return json(200, { modelId, connection });
+      }
+      markFailed(modelId, result.ok ? "No request parameters for this model" : result.reason);
+      return json(200, { modelId, connection: connectionFor(modelId) });
     } finally {
       release();
     }
@@ -391,11 +409,7 @@ export function createGatewayServer(deps: GatewayServerDeps): GatewayServer {
       if (completion.status === "error") {
         // Any provider failure ends "Connected" until a later live check succeeds (PLAN-6):
         // a reload must not show green on a connection the provider just refused.
-        connections.set(request.modelId, {
-          state: "failed",
-          lastVerifiedAt: new Date(now()).toISOString(),
-          error: completion.reason,
-        });
+        markFailed(request.modelId, completion.reason);
         return fail(502, "provider-error", completion.reason);
       }
 
