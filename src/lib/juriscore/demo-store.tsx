@@ -205,8 +205,13 @@ interface DemoStore {
   /** Returns an error message, or null when the gateway was unlocked. */
   unlockGateway: (token: string) => Promise<string | null>;
   verifyGatewayModel: (modelId: string) => Promise<void>;
+  /**
+   * Ticket for a request that may later report a lost session. Take it before sending;
+   * pass it to `markGatewayLocked`, which ignores tickets from before a newer unlock.
+   */
+  gatewaySessionTicket: () => number;
   /** Called when a gateway request answers 401: reopens the Unlock dialog. */
-  markGatewayLocked: (expired: boolean) => void;
+  markGatewayLocked: (expired: boolean, ticket?: number) => void;
   killSwitch: boolean;
   setKillSwitch: (v: boolean) => void;
   driftMode: DriftMode;
@@ -348,7 +353,12 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
 
   const clearRecentRuns = useCallback(() => setRecentRuns([]), []);
 
-  const markGatewayLocked = useCallback((expired: boolean) => {
+  // Every gateway state write is ordered by one guard: a successful unlock invalidates
+  // any request started before it, so a late answer (for example a 401) is discarded.
+  const guard = useRef(createGenerationGuard());
+  const gatewaySessionTicket = useCallback(() => guard.current.begin(), []);
+  const markGatewayLocked = useCallback((expired: boolean, ticket?: number) => {
+    if (ticket !== undefined && !guard.current.isCurrent(ticket)) return;
     setGateway({ phase: "locked", expired });
   }, []);
 
@@ -371,9 +381,6 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Every gateway state write is ordered by one guard: a successful unlock invalidates
-  // any status request started before it, so its late answer is discarded (P5-R2-001).
-  const guard = useRef(createGenerationGuard());
   const refreshInFlight = useRef(false);
   const refreshGateway = useCallback(async () => {
     if (refreshInFlight.current) return;
@@ -456,9 +463,12 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
 
   const verifyGatewayModel = useCallback(
     async (modelId: string) => {
+      const ticket = guard.current.begin();
       setCheckingModels((current) => [...new Set([...current, modelId])]);
       try {
         const outcome = await verifyOnce(gatewayClient, modelId);
+        // A verify started before a newer unlock may not write anything (P5-R3-001).
+        if (!guard.current.isCurrent(ticket)) return;
         if (outcome.kind === "locked") {
           setGateway({ phase: "locked", expired: outcome.expired });
           return;
@@ -598,6 +608,7 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       unlockGateway,
       retryGatewayStatus,
       verifyGatewayModel,
+      gatewaySessionTicket,
       markGatewayLocked,
       killSwitch,
       setKillSwitch,
@@ -640,6 +651,7 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       unlockGateway,
       retryGatewayStatus,
       verifyGatewayModel,
+      gatewaySessionTicket,
       markGatewayLocked,
       killSwitch,
       driftMode,

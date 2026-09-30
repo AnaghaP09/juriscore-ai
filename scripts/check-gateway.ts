@@ -976,6 +976,32 @@ function assertNothingRan(h: Harness, label: string) {
     release401();
     await preUnlock;
     assert.equal(view, "ready", "a delayed pre-unlock 401 did not re-lock the page");
+    // The same rule for the other writers: a verify or a prompt request that started
+    // before the unlock answers 401 late; its ticket is stale, so it may not lock (P5-R3-001).
+    {
+      const staleVerifyTicket = guard.begin();
+      const staleVerify = verifyOnce(
+        flowClient(async () => okStatus, async () => {
+          throw new GatewayHttpError(401, "session-expired");
+        }).client,
+        "claude-opus-5",
+      );
+      const stalePromptTicket = guard.begin();
+      const unlockTicket = guard.invalidate();
+      assert.equal((await loadStatusAfterUnlock(flowClient(async () => okStatus).client)).kind, "ready");
+      let locked = false;
+      const lock = (ticket: number) => {
+        if (guard.isCurrent(ticket)) locked = true;
+      };
+      const late = await staleVerify;
+      if (late.kind === "locked") lock(staleVerifyTicket);
+      lock(stalePromptTicket);
+      assert.equal(locked, false, "stale verify and prompt tickets did not lock");
+      assert.equal(guard.isCurrent(unlockTicket), true);
+      const fresh = guard.begin();
+      lock(fresh);
+      assert.equal(locked, true, "a current ticket still locks");
+    }
     // A newer recovery ticket supersedes an older one; only the newest may write.
     const older = guard.invalidate();
     const newer = guard.invalidate();
