@@ -23,19 +23,8 @@ export const Route = createFileRoute("/dashboard/")({
   component: Overview,
 });
 
-const verdictColor = {
-  allow: "text-[color:var(--allow)] border-[color:var(--allow)]/40",
-  revise: "text-[color:var(--revise)] border-[color:var(--revise)]/40",
-  block: "text-[color:var(--block)] border-[color:var(--block)]/40",
-};
+import { badgeTone, dotTone, riskKind, textTone, verdictKind, outcomesVisible } from "@/lib/juriscore/ui/status-tone";
 
-const RISK_TONE = { low: "allow", uncertain: "revise", high: "block" } as const;
-
-const toneText = {
-  allow: "text-[color:var(--allow)]",
-  revise: "text-[color:var(--revise)]",
-  block: "text-[color:var(--block)]",
-};
 
 function formatVolume(chars: number) {
   if (chars < 1024 * 1024) return `${Math.max(1, Math.round(chars / 1024))} KB`;
@@ -128,11 +117,17 @@ function Overview() {
           <div className="grid gap-4">
             <MetricTile title="Overall" simulated={simulated}>
               <BigStat value={overall.checks} label="Checks run" />
-              <dl className="flex gap-4 text-sm">
-                <VerdictCell label="Allow" value={overall.allow} tone="allow" />
-                <VerdictCell label="Revise" value={overall.revise} tone="revise" />
-                <VerdictCell label="Block" value={overall.block} tone="block" />
-              </dl>
+              {outcomesVisible(overall.checks) ? (
+                <dl className="flex gap-4 text-sm">
+                  <VerdictCell label="Allow" value={overall.allow} tone="allow" />
+                  <VerdictCell label="Revise" value={overall.revise} tone="revise" />
+                  <VerdictCell label="Block" value={overall.block} tone="block" />
+                </dl>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No Veil or Plumb checks recorded yet, so there are no outcomes to show.
+                </p>
+              )}
               <SmallStat
                 value={overall.receipts.toLocaleString("en-US")}
                 label="Receipts recorded"
@@ -301,7 +296,7 @@ function Overview() {
                     </Badge>
                     <Badge
                       variant="outline"
-                      className={verdictColor[receipt.verdict as keyof typeof verdictColor] ?? ""}
+                      className={badgeTone(verdictKind(receipt.verdict as "allow" | "revise" | "block"))}
                     >
                       {receipt.verdict.toUpperCase()}
                     </Badge>
@@ -378,6 +373,7 @@ function ToolCard({
   predictive: ReactNode;
 }) {
   const total = outcomes.reduce((sum, outcome) => sum + outcome.value, 0);
+  const hasRun = outcomesVisible(checks);
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -403,7 +399,11 @@ function ToolCard({
           <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
             What those checks found
           </div>
-          {total > 0 ? (
+          {!hasRun ? (
+            <p className="text-xs text-muted-foreground">
+              No {title} checks on this device yet. Outcomes appear after the first check.
+            </p>
+          ) : total > 0 ? (
             <div
               className="flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full"
               role="img"
@@ -419,7 +419,7 @@ function ToolCard({
                     className="h-full first:rounded-l-full last:rounded-r-full"
                     style={{
                       width: `${(outcome.value / total) * 100}%`,
-                      background: `var(--${outcome.tone})`,
+                      background: dotTone(verdictKind(outcome.tone), outcome.value),
                     }}
                     title={`${outcome.label}: ${outcome.value} of ${total}`}
                   />
@@ -428,13 +428,13 @@ function ToolCard({
           ) : (
             <p className="text-xs text-muted-foreground">No checks in the last 7 days.</p>
           )}
-          <dl className="grid gap-1.5 text-sm">
+          <dl className={`grid gap-1.5 text-sm ${hasRun ? "" : "hidden"}`}>
             {outcomes.map((outcome) => (
               <div key={outcome.label} className="flex items-center justify-between gap-3">
                 <dt className="flex items-center gap-2" title={outcome.hint}>
                   <span
                     className="h-2 w-2 shrink-0 rounded-full"
-                    style={{ background: `var(--${outcome.tone})` }}
+                    style={{ background: dotTone(verdictKind(outcome.tone), outcome.value) }}
                     aria-hidden
                   />
                   {outcome.label}
@@ -500,7 +500,7 @@ function PredictiveSlice({
         <div className="flex items-baseline gap-2">
           <span className="font-mono text-3xl font-semibold">{latest.score}</span>
           <span className="text-xs text-muted-foreground">/ 100</span>
-          <Badge variant="outline" className={`capitalize ${verdictColor[RISK_TONE[latest.band]]}`}>
+          <Badge variant="outline" className={`capitalize ${badgeTone(riskKind(latest.band))}`}>
             {latest.band}
           </Badge>
           <span className="text-xs text-muted-foreground">
@@ -517,9 +517,9 @@ function PredictiveSlice({
       )}
       {bands && (
         <dl className="flex gap-4 text-sm">
-          <VerdictCell label="Low" value={bands.low} tone="allow" />
-          <VerdictCell label="Uncertain" value={bands.uncertain} tone="revise" />
-          <VerdictCell label="High" value={bands.high} tone="block" />
+          <VerdictCell label="Low" value={bands.low} tone="low" />
+          <VerdictCell label="Uncertain" value={bands.uncertain} tone="uncertain" />
+          <VerdictCell label="High" value={bands.high} tone="high" />
         </dl>
       )}
       {history.length > 0 && (
@@ -553,10 +553,10 @@ function PredictiveSlice({
                 <tr key={`${run.at}-${run.sequence}`} className="border-t border-border/60">
                   <td className="py-1">{formatWhen(run.at)}</td>
                   <td className="py-1 font-mono tabular-nums">{run.score}</td>
-                  <td className={`py-1 capitalize ${toneText[RISK_TONE[run.band]]}`}>{run.band}</td>
+                  <td className={`py-1 capitalize ${textTone(riskKind(run.band))}`}>{run.band}</td>
                   {showRule && (
                     <td
-                      className={`py-1 ${run.ruleFlag ? toneText.revise : "text-muted-foreground"}`}
+                      className={`py-1 ${run.ruleFlag ? textTone("rule:flagged") : textTone("rule:clear")}`}
                     >
                       {run.ruleFlag === undefined ? "—" : run.ruleFlag ? "flagged" : "clear"}
                     </td>
@@ -621,7 +621,7 @@ function Sparkline({ history }: { history: PredictionRecord[] }) {
           cx={x(index)}
           cy={y(run.score)}
           r={3.5}
-          fill={`var(--${RISK_TONE[run.band]})`}
+          fill={dotTone(riskKind(run.band))}
           stroke="var(--card)"
           strokeWidth={1.5}
           vectorEffect="non-scaling-stroke"
@@ -689,12 +689,14 @@ function VerdictCell({
 }: {
   label: string;
   value: number;
-  tone: "allow" | "revise" | "block";
+  tone: "allow" | "revise" | "block" | "low" | "uncertain" | "high";
 }) {
+  const kind =
+    tone === "low" || tone === "uncertain" || tone === "high" ? riskKind(tone) : verdictKind(tone);
   return (
     <div>
       <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</dt>
-      <dd className={`font-mono text-xl font-semibold ${toneText[tone]}`}>
+      <dd className={`font-mono text-xl font-semibold ${textTone(kind, value)}`}>
         {value.toLocaleString("en-US")}
       </dd>
     </div>

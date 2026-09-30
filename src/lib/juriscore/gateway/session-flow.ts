@@ -156,6 +156,25 @@ export function createRecoveryScheduler(
   };
 }
 
+/**
+ * Per-model connection revisions (PLAN-6). A failure bumps the model's revision; a verify
+ * response is applied only if the revision it started under is still current, so a delayed
+ * success from before a failure can never restore "Connected". Only a verify that starts
+ * after the failure can.
+ */
+export function createConnectionRevisions() {
+  const revisions = new Map<string, number>();
+  return {
+    current: (modelId: string) => revisions.get(modelId) ?? 0,
+    bump: (modelId: string) => {
+      const next = (revisions.get(modelId) ?? 0) + 1;
+      revisions.set(modelId, next);
+      return next;
+    },
+    isCurrent: (modelId: string, revision: number) => (revisions.get(modelId) ?? 0) === revision,
+  };
+}
+
 /** Text shown in the Unlock dialog for a failed session call. */
 export function unlockFailureMessage(error: unknown) {
   if (error instanceof GatewayHttpError) {

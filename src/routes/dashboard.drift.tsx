@@ -3,6 +3,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  badgeTone,
+  riskKind,
+  textTone,
+  type StatusKind,
+} from "@/lib/juriscore/ui/status-tone";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/page-header";
@@ -170,10 +176,10 @@ function codeClaims(driftMode: "clean" | "drift"): PlumbClaim[] {
 
 const SUBJECT_LABEL = new Map(BUILT_IN_SUBJECTS.map((subject) => [subject.id, subject.label]));
 
-const STATUS_COPY: Record<string, { label: string; tone: string }> = {
-  drifted: { label: "Contradiction", tone: "text-[color:var(--block)]" },
-  cannot_determine: { label: "Cannot determine", tone: "text-[color:var(--revise)]" },
-  matches: { label: "Agrees", tone: "text-[color:var(--allow)]" },
+const STATUS_COPY: Record<string, { label: string; kind: StatusKind }> = {
+  drifted: { label: "Contradiction", kind: "plumb:drifted" },
+  cannot_determine: { label: "Cannot determine", kind: "plumb:cannot_determine" },
+  matches: { label: "Agrees", kind: "plumb:matches" },
 };
 
 /** A claim's value and where it was read from, as one cell. */
@@ -215,13 +221,10 @@ function DocumentSentenceLine({ text, locator }: { text: string; locator?: strin
 
 type RiskView = WorkbenchRiskView;
 
-const BAND_COPY: Record<"low" | "uncertain" | "high", { label: string; tone: string }> = {
-  low: { label: "Low", tone: "text-[color:var(--allow)] border-[color:var(--allow)]/40" },
-  uncertain: {
-    label: "Uncertain",
-    tone: "text-[color:var(--revise)] border-[color:var(--revise)]/40",
-  },
-  high: { label: "High", tone: "text-[color:var(--block)] border-[color:var(--block)]/40" },
+const BAND_LABEL: Record<"low" | "uncertain" | "high", string> = {
+  low: "Low",
+  uncertain: "Uncertain",
+  high: "High",
 };
 
 const featureLabel = (feature: string) => feature.replace(/_/g, " ");
@@ -276,7 +279,7 @@ function DriftRiskPanel({
         ) : risk === null ? (
           <p className="text-muted-foreground">Scoring the connected change…</p>
         ) : risk.status === "failed" ? (
-          <p className="text-muted-foreground">Risk could not be computed for this change.</p>
+          <p className={textTone("risk:failed")}>Risk could not be computed for this change.</p>
         ) : risk.status === "unavailable" ? (
           <div>
             <div className="font-medium">
@@ -294,8 +297,12 @@ function DriftRiskPanel({
               <div className="flex items-baseline gap-2">
                 <span className="font-mono text-3xl font-semibold">{risk.score}</span>
                 <span className="text-xs text-muted-foreground">/ 100</span>
-                <Badge variant="outline" className={BAND_COPY[risk.band].tone}>
-                  {BAND_COPY[risk.band].label}
+                <Badge
+                  variant="outline"
+                  className={badgeTone(showsSampleCode ? "sample:any" : riskKind(risk.band))}
+                >
+                  {BAND_LABEL[risk.band]}
+                  {showsSampleCode ? " · sample" : ""}
                 </Badge>
               </div>
               <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -401,7 +408,10 @@ function DriftView() {
   // would report findings about a pull request that does not exist, so the code side
   // stays empty until they connect a real change.
   const hasUserDocuments = sourceDocuments.some((document) => document.kind !== "sample");
-  const showsSampleCode = !connectedRepository && !hasUserDocuments;
+  // The sample is a dry run behind a button (PLAN-6): nothing is scored or shown until the
+  // user connects a change or asks for the sample, and a sample run is never recorded.
+  const [sampleLoaded, setSampleLoaded] = useState(false);
+  const showsSampleCode = sampleLoaded && !connectedRepository && !hasUserDocuments;
   // A connected change with no recognised subject still runs: the check then reports what
   // it cannot determine instead of refusing to start.
   const hasCodeSource = Boolean(connectedRepository) || showsSampleCode;
@@ -498,6 +508,7 @@ function DriftView() {
       });
     }
     setDoc(`sample-${SAMPLE_DOCUMENTS[0].name}`);
+    setSampleLoaded(true);
     resetRun();
   };
 
@@ -523,6 +534,7 @@ function DriftView() {
     });
     setRan(true);
     setEvaluation(nextEvaluation);
+    if (showsSampleCode) return; // a sample run is shown, never recorded (PLAN-6)
     // The check is recorded once, with the prediction for these exact inputs, even when
     // the panel is still scoring them. The verdict above is already final, and the stamp
     // taken here dates the check however long its prediction takes.
@@ -595,6 +607,9 @@ function DriftView() {
 
   const driftFindings =
     evaluation?.findings.filter((finding) => finding.status === "drifted") ?? [];
+  // Sample runs are neutral; real runs take their outcome's tone.
+  const resultText = (kind: StatusKind) =>
+    showsSampleCode ? textTone("sample:any") : textTone(kind);
   // Each contradicting sentence cites the authority it actually conflicts with, rather
   // than borrowing the locator of whichever drift happened to be found first.
   const driftByAssertionLocator = new Map(
@@ -631,6 +646,11 @@ function DriftView() {
         description="When your code changes but the docs, marketing decks, or filings don't, Plumb flags the mismatch — with the exact line — before the pull request is merged."
         actions={
           <>
+            {!connectedRepository && !hasUserDocuments && !sampleLoaded && (
+              <Button variant="outline" onClick={loadSampleDocuments}>
+                Load sample
+              </Button>
+            )}
             {showsSampleCode && (
               <div className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2">
                 <Switch
@@ -892,12 +912,17 @@ function DriftView() {
           )}
           {ran && evaluation && (
             <div className="flex flex-wrap items-start gap-6" aria-live="polite">
+              {showsSampleCode && (
+                <Badge variant="outline" className={`basis-full ${badgeTone("sample:any")}`}>
+                  Sample run · shown for illustration, not recorded
+                </Badge>
+              )}
               {evaluation.verdict === "block" ? (
                 <>
                   <div className="flex items-center gap-2">
-                    <AlertOctagon className="h-6 w-6 text-[color:var(--block)]" aria-hidden />
+                    <AlertOctagon className={`h-6 w-6 ${resultText("verdict:block")}`} aria-hidden />
                     <div>
-                      <div className="font-semibold text-[color:var(--block)]">
+                      <div className={`font-semibold ${resultText("verdict:block")}`}>
                         {evaluation.counts.drifted === 1
                           ? "Contradiction found"
                           : `${evaluation.counts.drifted} contradictions found`}
@@ -936,9 +961,9 @@ function DriftView() {
               ) : evaluation.verdict === "revise" ? (
                 <>
                   <div className="flex items-center gap-2">
-                    <HelpCircle className="h-6 w-6 text-[color:var(--revise)]" aria-hidden />
+                    <HelpCircle className={`h-6 w-6 ${resultText("verdict:revise")}`} aria-hidden />
                     <div>
-                      <div className="font-semibold text-[color:var(--revise)]">
+                      <div className={`font-semibold ${resultText("verdict:revise")}`}>
                         {evaluation.counts.cannot_determine > 0
                           ? "Cannot determine"
                           : "Review required"}
@@ -974,9 +999,9 @@ function DriftView() {
               ) : (
                 <>
                   <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-6 w-6 text-[color:var(--allow)]" aria-hidden />
+                    <CheckCircle2 className={`h-6 w-6 ${resultText("verdict:allow")}`} aria-hidden />
                     <div>
-                      <div className="font-semibold text-[color:var(--allow)]">
+                      <div className={`font-semibold ${resultText("verdict:allow")}`}>
                         No contradiction
                       </div>
                       <div className="text-xs text-muted-foreground">
@@ -1033,7 +1058,7 @@ function DriftView() {
                             <td className="px-4 py-2">
                               {SUBJECT_LABEL.get(finding.subject) ?? finding.subject}
                             </td>
-                            <td className={`px-4 py-2 font-medium ${status.tone}`}>
+                            <td className={`px-4 py-2 font-medium ${resultText(status.kind)}`}>
                               {status.label}
                             </td>
                             <td className="px-4 py-2">

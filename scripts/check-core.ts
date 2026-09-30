@@ -10,5 +10,6 @@ import "./check-ml";
 import "./check-exposure";
 import "./check-gateway";
 import "./check-landing-docs";
+import "./check-status-tone";
 
 console.log("All JurisCore core checks passed.");

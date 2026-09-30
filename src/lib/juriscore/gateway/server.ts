@@ -389,13 +389,13 @@ export function createGatewayServer(deps: GatewayServerDeps): GatewayServer {
         sealGatewayRequest({ purpose: "prompt", modelId: request.modelId, prompt: sanitized.text }),
       );
       if (completion.status === "error") {
-        if (completion.authFailure) {
-          connections.set(request.modelId, {
-            state: "failed",
-            lastVerifiedAt: new Date(now()).toISOString(),
-            error: completion.reason,
-          });
-        }
+        // Any provider failure ends "Connected" until a later live check succeeds (PLAN-6):
+        // a reload must not show green on a connection the provider just refused.
+        connections.set(request.modelId, {
+          state: "failed",
+          lastVerifiedAt: new Date(now()).toISOString(),
+          error: completion.reason,
+        });
         return fail(502, "provider-error", completion.reason);
       }
 

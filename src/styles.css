@@ -148,14 +148,16 @@
   }
 }
 
+/* Diff rows are neutral until a finding is evaluated (PLAN-6): an added line is not a
+   positive result and a deleted line is not an alert. */
 @utility diff-add {
-  background: color-mix(in oklab, var(--allow) 12%, transparent);
-  border-left: 2px solid color-mix(in oklab, var(--allow) 60%, transparent);
+  background: color-mix(in oklab, var(--muted-foreground) 8%, transparent);
+  border-left: 2px solid color-mix(in oklab, var(--muted-foreground) 45%, transparent);
 }
 
 @utility diff-del {
-  background: color-mix(in oklab, var(--block) 12%, transparent);
-  border-left: 2px solid color-mix(in oklab, var(--block) 60%, transparent);
+  background: color-mix(in oklab, var(--muted-foreground) 5%, transparent);
+  border-left: 2px dashed color-mix(in oklab, var(--muted-foreground) 45%, transparent);
 }
 
 @utility pulse-ring {

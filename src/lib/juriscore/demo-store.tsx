@@ -25,6 +25,7 @@ import {
 import { createSafeStorage } from "@/lib/juriscore/core/safe-storage";
 import { GatewayHttpError, gatewayClient, needsUnlock } from "@/lib/juriscore/gateway/client";
 import {
+  createConnectionRevisions,
   createGenerationGuard,
   createRecoveryScheduler,
   loadStatusAfterUnlock,
@@ -52,6 +53,7 @@ export type DriftMode = "clean" | "drift";
 
 /** A completed gateway run, text-free: no prompt, no reply, no detected value. */
 export interface GatewayRun {
+  kind: "run";
   receiptId: string;
   ts: string;
   model: string;
@@ -59,6 +61,17 @@ export interface GatewayRun {
   verdict: ValidatorVerdict;
   latencyMs: number;
 }
+
+/** An attempt the provider or gateway refused: no receipt, no verdict, only the reason. */
+export interface GatewayFailedAttempt {
+  kind: "failed";
+  id: string;
+  ts: string;
+  model: string;
+  error: string;
+}
+
+export type GatewayAttempt = GatewayRun | GatewayFailedAttempt;
 
 export interface RecordedReceipt {
   /** The stored, allowlisted record; downloads and folder writes use exactly this. */
@@ -217,8 +230,13 @@ interface DemoStore {
   setKillSwitch: (v: boolean) => void;
   driftMode: DriftMode;
   setDriftMode: (m: DriftMode) => void;
-  recentRuns: GatewayRun[];
-  pushRun: (r: GatewayRun) => void;
+  recentRuns: GatewayAttempt[];
+  pushRun: (r: GatewayAttempt) => void;
+  /**
+   * A run or check just failed at the provider or the gateway for this model. Marks it
+   * failed (ticket-guarded), and bumps its revision so an older verify cannot undo it.
+   */
+  markModelFailed: (modelId: string, error: string, ticket?: number) => void;
   clearRecentRuns: () => void;
   activePolicyIds: string[];
   setPolicyActive: (policyId: string, active: boolean) => void;
@@ -258,7 +276,7 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
   activeModelRef.current = activeModel;
   const [killSwitch, setKillSwitch] = useState(false);
   const [driftMode, setDriftMode] = useState<DriftMode>("clean");
-  const [recentRuns, setRecentRuns] = useState<GatewayRun[]>([]);
+  const [recentRuns, setRecentRuns] = useState<GatewayAttempt[]>([]);
   const [activePolicyIds, setActivePolicyIds] = useState<string[]>(DEFAULT_ACTIVE_POLICY_IDS);
   const [customPolicies, setCustomPolicies] = useState<PolicyDefinition[]>([]);
   const [localMetrics, setLocalMetrics] = useState<LocalMetricsLedger>(seededLedger);
@@ -348,7 +366,7 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     setSourceDocuments((prev) => prev.filter((item) => item.id !== id));
   }, []);
 
-  const pushRun = useCallback((r: GatewayRun) => {
+  const pushRun = useCallback((r: GatewayAttempt) => {
     setRecentRuns((prev) => [r, ...prev].slice(0, 20));
   }, []);
 
@@ -357,6 +375,25 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
   // Every gateway state write is ordered by one guard: a successful unlock invalidates
   // any request started before it, so a late answer (for example a 401) is discarded.
   const guard = useRef(createGenerationGuard());
+  const revisions = useRef(createConnectionRevisions());
+  const markModelFailed = useCallback((modelId: string, error: string, ticket?: number) => {
+    if (ticket !== undefined && !guard.current.isCurrent(ticket)) return;
+    revisions.current.bump(modelId);
+    setGateway((current) =>
+      current.phase === "ready"
+        ? {
+            phase: "ready",
+            status: {
+              ...current.status,
+              connections: {
+                ...current.status.connections,
+                [modelId]: { state: "failed", lastVerifiedAt: null, error },
+              },
+            },
+          }
+        : current,
+    );
+  }, []);
   const gatewaySessionTicket = useCallback(() => guard.current.begin(), []);
   const markGatewayLocked = useCallback((expired: boolean, ticket?: number) => {
     if (ticket !== undefined && !guard.current.isCurrent(ticket)) return;
@@ -465,11 +502,14 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
   const verifyGatewayModel = useCallback(
     async (modelId: string) => {
       const ticket = guard.current.begin();
+      const revision = revisions.current.current(modelId);
       setCheckingModels((current) => [...new Set([...current, modelId])]);
       try {
         const outcome = await verifyOnce(gatewayClient, modelId);
-        // A verify started before a newer unlock may not write anything (P5-R3-001).
+        // A verify started before a newer unlock may not write anything (P5-R3-001), and
+        // one started before a failure of this model may not restore Connected (PLAN-6).
         if (!guard.current.isCurrent(ticket)) return;
+        if (!revisions.current.isCurrent(modelId, revision)) return;
         if (outcome.kind === "locked") {
           setGateway({ phase: "locked", expired: outcome.expired });
           return;
@@ -611,6 +651,7 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       verifyGatewayModel,
       gatewaySessionTicket,
       markGatewayLocked,
+      markModelFailed,
       killSwitch,
       setKillSwitch,
       driftMode,
@@ -654,6 +695,7 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       verifyGatewayModel,
       gatewaySessionTicket,
       markGatewayLocked,
+      markModelFailed,
       killSwitch,
       driftMode,
       recentRuns,
