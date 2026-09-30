@@ -22,6 +22,7 @@ import {
   issueSessionCookie,
   originAllowed,
   readSession,
+  remoteOverPlainHttp,
   tokenMatches,
   type SessionSecret,
 } from "./access";
@@ -33,6 +34,7 @@ import {
 } from "./adapter/anthropic";
 import {
   GatewayConfigError,
+  KEY_MISSING_MESSAGE,
   processEnv,
   readAccessConfig,
   readProviderApiKey,
@@ -245,6 +247,8 @@ export function createGatewayServer(deps: GatewayServerDeps): GatewayServer {
   // In-process only, keyed by model id; never persisted and never holds a secret.
   const connections = new Map<string, GatewayConnection>();
   const logged = new Set<string>();
+  // PLAN-5: an unlock phrase equal to the API key is refused, decided once per process.
+  let tokenEqualsKey: boolean | null = null;
 
   const logOnce = (key: string, message: string) => {
     if (logged.has(key)) return;
@@ -277,9 +281,9 @@ export function createGatewayServer(deps: GatewayServerDeps): GatewayServer {
     const body: GatewayStatus = {
       enabled: true,
       configured: provider.keyConfigured,
-      ...(provider.keyConfigured ? {} : { configError: "ANTHROPIC_API_KEY is not set." }),
-      provider: "anthropic",
-      providerLabel: "Anthropic",
+      ...(provider.keyConfigured ? {} : { configError: KEY_MISSING_MESSAGE }),
+      provider: provider.provider,
+      providerLabel: provider.providerLabel,
       models: provider.models,
       defaultModelId: provider.defaultModelId,
       connections: Object.fromEntries(provider.models.map((id) => [id, connectionFor(id)])),
@@ -294,7 +298,7 @@ export function createGatewayServer(deps: GatewayServerDeps): GatewayServer {
   ): Promise<Response> {
     if (!provider.models.includes(modelId)) return fail(400, "model-not-allowed");
     const adapter = adapterFor(env);
-    if (!adapter) return fail(503, "provider-key-missing", "ANTHROPIC_API_KEY is not set.");
+    if (!adapter) return fail(503, "provider-key-missing", KEY_MISSING_MESSAGE);
     const release = providerCalls.tryAcquire();
     if (!release) return fail(429, "busy", "Too many provider calls in flight.");
     try {
@@ -327,7 +331,7 @@ export function createGatewayServer(deps: GatewayServerDeps): GatewayServer {
     const policy = resolvePolicy(request.policy);
     if ("error" in policy) return fail(400, "invalid-policy", policy.error);
     const adapter = adapterFor(env);
-    if (!adapter) return fail(503, "provider-key-missing", "ANTHROPIC_API_KEY is not set.");
+    if (!adapter) return fail(503, "provider-key-missing", KEY_MISSING_MESSAGE);
     const release = providerCalls.tryAcquire();
     if (!release) return fail(429, "busy", "Too many provider calls in flight.");
     const started = now();
@@ -440,6 +444,16 @@ export function createGatewayServer(deps: GatewayServerDeps): GatewayServer {
     const env = deps.env();
     const access = readAccessConfig(env);
     if (!access.enabled) return fail(404, "gateway-disabled");
+    if (tokenEqualsKey === null) {
+      const key = access.token ? readProviderApiKey(env) : null;
+      tokenEqualsKey = Boolean(access.token && key && access.token === key);
+      if (tokenEqualsKey) {
+        log(
+          "JURISCORE_GATEWAY_TOKEN was ignored because it equals the LLM API key; choose a separate phrase (Set up gateway suggests one).",
+        );
+      }
+    }
+    if (tokenEqualsKey) access.token = null;
     if (!access.token) {
       logOnce(
         "token",
@@ -454,6 +468,13 @@ export function createGatewayServer(deps: GatewayServerDeps): GatewayServer {
     if (route === "run" && access.killed) return fail(503, "kill-switch");
 
     if (route === "session") {
+      if (remoteOverPlainHttp(new URL(request.url))) {
+        return fail(
+          400,
+          "https-required",
+          "The gateway can be unlocked only from the server's own machine over http://localhost, or over HTTPS.",
+        );
+      }
       const body = await readBody(request, MAX_BODY_BYTES.session, sessionRequestSchema);
       if (!body.ok) return body.response;
       // The one route exempt from the cookie check: it creates or renews the session.

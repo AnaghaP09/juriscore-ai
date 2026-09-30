@@ -24,6 +24,13 @@ import {
 } from "@/lib/juriscore/core/receipt-folder";
 import { createSafeStorage } from "@/lib/juriscore/core/safe-storage";
 import { GatewayHttpError, gatewayClient, needsUnlock } from "@/lib/juriscore/gateway/client";
+import {
+  createGenerationGuard,
+  loadStatusAfterUnlock,
+  unlockFailureMessage,
+  verifyOnce,
+  type UnlockOutcome,
+} from "@/lib/juriscore/gateway/session-flow";
 import type { GatewayRunStatus, GatewayStatus } from "@/lib/juriscore/gateway/protocol";
 import {
   addPrediction,
@@ -67,6 +74,8 @@ export type GatewayView =
   | { phase: "loading" }
   | { phase: "unavailable"; reason: "disabled" | "token-missing" | "error"; message?: string }
   | { phase: "locked"; expired: boolean }
+  /** The session call succeeded but status could not be loaded; Retry reloads it. */
+  | { phase: "status-unknown"; message: string }
   | { phase: "ready"; status: GatewayStatus };
 
 const RECENT_RECEIPT_COUNT = 5;
@@ -191,11 +200,18 @@ interface DemoStore {
   /** Model ids with a connection check in flight. */
   checkingModels: string[];
   refreshGateway: () => Promise<void>;
+  /** After a successful unlock whose status load failed: reload status, then verify once. */
+  retryGatewayStatus: () => Promise<void>;
   /** Returns an error message, or null when the gateway was unlocked. */
   unlockGateway: (token: string) => Promise<string | null>;
   verifyGatewayModel: (modelId: string) => Promise<void>;
+  /**
+   * Ticket for a request that may later report a lost session. Take it before sending;
+   * pass it to `markGatewayLocked`, which ignores tickets from before a newer unlock.
+   */
+  gatewaySessionTicket: () => number;
   /** Called when a gateway request answers 401: reopens the Unlock dialog. */
-  markGatewayLocked: (expired: boolean) => void;
+  markGatewayLocked: (expired: boolean, ticket?: number) => void;
   killSwitch: boolean;
   setKillSwitch: (v: boolean) => void;
   driftMode: DriftMode;
@@ -236,6 +252,9 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
   const [gateway, setGateway] = useState<GatewayView>({ phase: "loading" });
   const [checkingModels, setCheckingModels] = useState<string[]>([]);
   const autoVerified = useRef(new Set<string>());
+  // The model to verify after unlock, readable from callbacks without re-creating them.
+  const activeModelRef = useRef(activeModel);
+  activeModelRef.current = activeModel;
   const [killSwitch, setKillSwitch] = useState(false);
   const [driftMode, setDriftMode] = useState<DriftMode>("clean");
   const [recentRuns, setRecentRuns] = useState<GatewayRun[]>([]);
@@ -334,7 +353,12 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
 
   const clearRecentRuns = useCallback(() => setRecentRuns([]), []);
 
-  const markGatewayLocked = useCallback((expired: boolean) => {
+  // Every gateway state write is ordered by one guard: a successful unlock invalidates
+  // any request started before it, so a late answer (for example a 401) is discarded.
+  const guard = useRef(createGenerationGuard());
+  const gatewaySessionTicket = useCallback(() => guard.current.begin(), []);
+  const markGatewayLocked = useCallback((expired: boolean, ticket?: number) => {
+    if (ticket !== undefined && !guard.current.isCurrent(ticket)) return;
     setGateway({ phase: "locked", expired });
   }, []);
 
@@ -357,15 +381,24 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const refreshInFlight = useRef(false);
   const refreshGateway = useCallback(async () => {
+    if (refreshInFlight.current) return;
+    refreshInFlight.current = true;
+    const ticket = guard.current.begin();
+    setCheckingModels((current) => [...new Set([...current, "__refresh__"])]);
     try {
       const status = await gatewayClient.status();
+      if (!guard.current.isCurrent(ticket)) return;
       setGateway({ phase: "ready", status });
       setActiveModelState((current) =>
         status.models.includes(current) ? current : (status.defaultModelId ?? ""),
       );
     } catch (error) {
-      applyGatewayError(error);
+      if (guard.current.isCurrent(ticket)) applyGatewayError(error);
+    } finally {
+      setCheckingModels((current) => current.filter((id) => id !== "__refresh__"));
+      refreshInFlight.current = false;
     }
   }, [applyGatewayError]);
 
@@ -373,48 +406,90 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
     void refreshGateway();
   }, [refreshGateway]);
 
+  // PLAN-5: after unlock, load status and verify the chosen model once, automatically.
+  const applyUnlockOutcome = useCallback((outcome: UnlockOutcome) => {
+    if (outcome.kind === "ready") {
+      setGateway({ phase: "ready", status: outcome.status });
+      setActiveModelState((current) =>
+        outcome.status.models.includes(current)
+          ? current
+          : (outcome.status.defaultModelId ?? ""),
+      );
+    } else if (outcome.kind === "locked") {
+      setGateway({ phase: "locked", expired: outcome.expired });
+    } else if (outcome.kind === "unavailable") {
+      setGateway({ phase: "unavailable", reason: outcome.reason });
+    } else {
+      setGateway({ phase: "status-unknown", message: outcome.message });
+    }
+  }, []);
+
+  // One recovery at a time: a second call while one runs is ignored, and an outcome
+  // from a superseded call never overwrites newer gateway state.
+  const recoveryInFlight = useRef(false);
+  const loadAfterUnlock = useCallback(async () => {
+    if (recoveryInFlight.current) return;
+    recoveryInFlight.current = true;
+    // Starting a recovery supersedes every earlier status request, including a refresh.
+    const ticket = guard.current.invalidate();
+    const preferred = activeModelRef.current;
+    const marker = preferred || "__default__";
+    setCheckingModels((current) => [...new Set([...current, marker])]);
+    try {
+      const outcome = await loadStatusAfterUnlock(gatewayClient, preferred || undefined);
+      if (guard.current.isCurrent(ticket)) applyUnlockOutcome(outcome);
+    } finally {
+      setCheckingModels((current) => current.filter((id) => id !== marker));
+      recoveryInFlight.current = false;
+    }
+  }, [applyUnlockOutcome]);
+
   const unlockGateway = useCallback(
     async (token: string) => {
       try {
         await gatewayClient.unlock(token);
       } catch (error) {
-        if (error instanceof GatewayHttpError && error.code === "token-rejected") {
-          return "That gateway token was not accepted.";
-        }
-        if (error instanceof GatewayHttpError && error.code === "rate-limited") {
-          return "Too many attempts. Wait a minute and try again.";
-        }
-        return "The gateway could not be unlocked.";
+        return unlockFailureMessage(error);
       }
-      await refreshGateway();
+      await loadAfterUnlock();
       return null;
     },
-    [refreshGateway],
+    [loadAfterUnlock],
   );
+
+  const retryGatewayStatus = useCallback(async () => {
+    await loadAfterUnlock();
+  }, [loadAfterUnlock]);
 
   const verifyGatewayModel = useCallback(
     async (modelId: string) => {
+      const ticket = guard.current.begin();
       setCheckingModels((current) => [...new Set([...current, modelId])]);
       try {
-        const result = await gatewayClient.verify(modelId);
+        const outcome = await verifyOnce(gatewayClient, modelId);
+        // A verify started before a newer unlock may not write anything (P5-R3-001).
+        if (!guard.current.isCurrent(ticket)) return;
+        if (outcome.kind === "locked") {
+          setGateway({ phase: "locked", expired: outcome.expired });
+          return;
+        }
+        // A recoverable error becomes a failed connection with Retry; the session stays.
         setGateway((current) =>
           current.phase === "ready"
             ? {
                 phase: "ready",
                 status: {
                   ...current.status,
-                  connections: { ...current.status.connections, [modelId]: result.connection },
+                  connections: { ...current.status.connections, [modelId]: outcome.connection },
                 },
               }
             : current,
         );
-      } catch (error) {
-        applyGatewayError(error);
       } finally {
         setCheckingModels((current) => current.filter((id) => id !== modelId));
       }
     },
-    [applyGatewayError],
+    [],
   );
 
   // Choosing a model shows that model's own state and checks it once, automatically.
@@ -531,7 +606,9 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       checkingModels,
       refreshGateway,
       unlockGateway,
+      retryGatewayStatus,
       verifyGatewayModel,
+      gatewaySessionTicket,
       markGatewayLocked,
       killSwitch,
       setKillSwitch,
@@ -572,7 +649,9 @@ export function DemoStoreProvider({ children }: { children: ReactNode }) {
       checkingModels,
       refreshGateway,
       unlockGateway,
+      retryGatewayStatus,
       verifyGatewayModel,
+      gatewaySessionTicket,
       markGatewayLocked,
       killSwitch,
       driftMode,

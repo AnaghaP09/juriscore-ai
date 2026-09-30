@@ -120,6 +120,7 @@ function Gateway() {
     clearRecentRuns,
     recentRuns,
     recordReceipt,
+    gatewaySessionTicket,
     markGatewayLocked,
   } = useDemoStore();
   // The page starts empty on every visit: no prefilled prompt, no result. Recent runs
@@ -184,6 +185,7 @@ function Gateway() {
       strategy: STRATEGY,
     };
     const clientRequestId = sequencer.current.next();
+    const sessionTicket = gatewaySessionTicket();
     setSending(true);
     setError(null);
     setResult(null);
@@ -211,7 +213,7 @@ function Gateway() {
     } catch (caught) {
       if (!sequencer.current.isCurrent(clientRequestId)) return;
       if (needsUnlock(caught)) {
-        markGatewayLocked((caught as GatewayHttpError).code === "session-expired");
+        markGatewayLocked((caught as GatewayHttpError).code === "session-expired", sessionTicket);
         setError("The gateway session ended. Unlock it again from the header.");
       } else if (caught instanceof GatewayHttpError) {
         setError(caught.message);

@@ -11,6 +11,8 @@
  * Uses Web Crypto only, so it runs wherever the server runtime does.
  */
 
+import { isLoopbackHostname } from "./loopback";
+
 export const SESSION_COOKIE = "jc_gateway_session";
 export const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 export const GATEWAY_COOKIE_PATH = "/api/gateway";
@@ -87,8 +89,16 @@ export async function readSession(
 
 /** `Secure` is omitted only for plain-http loopback, where browsers would drop it. */
 export function requiresSecureCookie(url: URL) {
-  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
-  return !(url.protocol === "http:" && loopback);
+  return !(url.protocol === "http:" && isLoopbackHostname(url.hostname));
+}
+
+/**
+ * Plain HTTP from a host other than loopback: the session cookie would be `Secure` and
+ * never stored, so an unlock can never succeed there. The session route refuses such
+ * requests outright (PLAN-5), so a phrase sent by a non-browser client is not accepted.
+ */
+export function remoteOverPlainHttp(url: URL) {
+  return url.protocol === "http:" && !isLoopbackHostname(url.hostname);
 }
 
 export async function issueSessionCookie(secret: SessionSecret, now: number, url: URL) {
