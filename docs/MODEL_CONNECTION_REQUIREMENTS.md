@@ -5,7 +5,8 @@
 - The gateway is on when `JURISCORE_LLM_API_KEY` is set in `.env.local` (the legacy
   `ANTHROPIC_API_KEY` is still read), unless `JURISCORE_GATEWAY=disabled`. The provider
   defaults to Anthropic (`JURISCORE_LLM_PROVIDER`), the model list to one model,
-  `claude-opus-5` (`JURISCORE_GATEWAY_MODELS` adds other supported models). There is no setting for allowed use cases. Setup steps are in
+  `claude-opus-5`. `JURISCORE_GATEWAY_MODELS` replaces that list with the comma-separated
+  supported models you name; the first one becomes the default. There is no setting for allowed use cases. Setup steps are in
   `docs/GATEWAY_SETUP.md`; this document does not repeat them.
 - Anthropic is the one built-in provider adapter, through the customer's own account. The key
   is held by the server and never sent to the browser.

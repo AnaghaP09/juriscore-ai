@@ -19,7 +19,7 @@ Reasoning: no server telemetry exists and nothing persists across sessions today
 
 Recording rules (chosen so Veil's per-keystroke recomputation cannot inflate counts):
 
-- a **Veil check** is recorded once per run (same input, policies and strategy) at the first Copy, Save report or Download receipt; later actions on the same run do not count again, as long as its receipt is still in the history;
+- a **Veil check** is recorded once per run (same input, policies and strategy) at the first Copy, Save report or Download receipt; later actions on the same run in the same browser tab do not count again (also after leaving Veil and coming back), as long as its receipt is still in the history. A reload or another tab starts fresh: the same input pasted again records a new check and a new receipt while the old one stays in the history;
 - a **Plumb check** is recorded when "Check for contradictions" completes;
 - a **receipt** is counted when it is recorded in the browser receipt history: the Veil and Plumb events above, and every completed gateway run. A gateway run adds a receipt but no Veil or Plumb check;
 - the built-in samples record nothing; an edited sample is a real run.
@@ -107,7 +107,7 @@ Live tiles: real local counts, label "Live · this device". Seed: label "Simulat
 ## Risks and open questions
 
 - "This device" is honest but modest: numbers vanish on another machine or after clearing site data; the caption says what they are, and the production answer stays the receipt-backed server metrics roadmap item (owner: product, with the receipt-store slice);
-- Veil Copy, Save report and Download on the same run count once (receipt reuse, `SPEC_RECEIPTS.md`); a new receipt and a new count start once that receipt has left the history through retention or a clear;
+- Veil Copy, Save report and Download on the same run count once within a tab session (receipt reuse, `SPEC_RECEIPTS.md`); a new receipt and a new count start after a reload, in another tab, or once that receipt has left the history through retention or a clear;
 - seed misuse: a screenshot cropped to hide a panel-level badge could pass simulated numbers off as real, so the "Simulated" badge goes inside each tile, not only on the panel (owner: software-developer);
 - the unlinked routes (pipeline, analytics, use-cases, CISO) still exist at their URLs;
 - the five legal-ops routes and `legal-mock.ts` were deleted in the follow-on commit, as decided in `FEATURE_INVENTORY.md` (2026-08-01 addendum).
