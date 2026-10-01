@@ -1,9 +1,18 @@
 # Spec: validation receipts for Veil and Plumb
 
-Status: ratified 2026-08-01; ready for implementation.
-Owner: product. Implementer: engineering. Do not start other slices before this one; it closes the largest contract gap in the demo path.
+Status: ratified 2026-08-01; implemented. The sections from "Problem" to "Done means" are the original brief and keep their 2026-08-01 wording. "What is true today" and "Receipt history, folder, and verification" describe the shipped behaviour and win where they differ.
+Owner: product.
 
-## Problem
+## What is true today (2026-10-01)
+
+- Three modules write receipts: `veil`, `plumb` and `gateway`. The schema now carries `digestVersion`, `sourceDigest` (Plumb) and `outboundDigest` (gateway) as optional fields, beside the fields listed in the brief.
+- A receipt is written: in Veil once per run at the first Copy, Save report or Download receipt; in Plumb after every completed check; in the gateway after every completed run, whether allowed, blocked, declined or truncated. Receipts are kept in the browser history, copied to the chosen folder, and downloadable.
+- No receipt is written for a loaded, unedited sample in Veil or Plumb: the result is shown and a report can be saved, but nothing is recorded and no metric moves. Editing the sample text makes it a real run. The sample caveat under "Digest versions" applies to receipts made before this rule.
+- Gateway lifecycle: a prompt blocked before dispatch gets a receipt (no provider call). A provider failure after dispatch gets no receipt; the page shows the error and the model drops to "not verified". Clearing the page while a run is in flight discards the answer, and no receipt is written. A folder-write failure on a gateway receipt falls back to a download, but the gateway page does not show the reason (the Veil and Plumb pages do).
+- Verification on the Receipts tab works for Veil raw-text receipts and `plumb.sources.v2` receipts, with limits: only the document selected during the check belongs in the verification inputs; and verification re-builds the code values from the first file in the diff only, while the check reads every file, so a recognised value in a later file makes the claims digest differ although the sources are the same. Gateway receipts cannot be verified there: re-running the request is a new provider call, not a check of the old answer.
+- Storage notices: three separate notes exist. Receipt history unavailable (IndexedDB), settings unavailable (localStorage), or both. A settings failure alone leaves the receipt history fully saved. Clearing an in-memory fallback does not delete receipts that were saved earlier.
+
+## Problem (2026-08-01)
 
 Every check must return "an audit receipt" (`PRODUCT_CONTRACT.md`, product promise), and principle 4 requires policy versions in every receipt. The receipt schema exists (`src/lib/juriscore/core/contracts.ts:101-113`, `validationReceiptSchema`) but no code constructs a receipt. Worse, the Plumb workbench displays "Safe to merge — receipt saved" (`src/routes/dashboard.drift.tsx:471`) when nothing is saved; that is simulated evidence reading as real, the product's named worst failure mode. A sovereign-AI buyer evaluates the receipt first.
 
@@ -94,18 +103,19 @@ Status: implemented 2026-09-26. Supersedes the "Out: receipt-store" line above f
 - The newest 200 receipts are kept. Older ones are dropped in the same transaction, and the Receipts tab reports how many were dropped this session.
 - Live updates: every stored receipt and every clear notifies the store's listeners after the write commits, and other tabs through the BroadcastChannel `juriscore.receipts`. The Receipts tab and the Overview "latest 5" refresh on those events, with no reload.
 - Domain column: each built-in policy has a `domain` in `policies/catalog.ts` (Privacy, Healthcare, Security & compliance, AI security, AI governance, Cybersecurity); a custom policy reads "Custom · <authority>". A receipt's domains are derived from its `policyVersion` against the current catalog (`core/receipt-domains.ts`): a custom policy deleted since reads "Custom (removed)", and no policies reads "None". The Domain filter lists only the domains present in stored receipts, and CSV export adds a `domain` column. Nothing new is stored in the receipt.
-- If IndexedDB is unavailable or fails, history is kept in memory and one note appears: "History not saved in this browser". The same note covers a failing `localStorage` (policies, custom policies, metrics), which is accessed only through `core/safe-storage.ts`. Nothing throws into a check.
+- If IndexedDB is unavailable or fails, history is kept in memory and a note says so. A failing `localStorage` (policies, custom policies, metrics; accessed only through `core/safe-storage.ts`) gets its own note, and a third note covers both. The note also says when new receipts still reach the chosen folder. Nothing throws into a check.
 - The UI calls this a browser-local history, not an audit record.
 
 ### When a receipt is created
 
-- **Plumb:** every completed check stores one receipt. "Download receipt" downloads that stored record.
-- **Veil:** typing never creates a receipt. The first Copy, Save report, or Download receipt for a given input, policy set, and strategy stores one; later actions on the same run reuse it. Reuse lasts for the browser tab (also across leaving Veil and returning) while that receipt is still in the history: once it is trimmed by retention or the history is cleared, the next action stores a new receipt. The reuse index holds run identities (strategy, policy version, input digest) and receipt ids only, never input text.
+- **Plumb:** every completed check stores one receipt, except a sample run. "Download receipt" downloads that stored record.
+- **Gateway:** every completed run stores one receipt; see "What is true today" for the failure cases.
+- **Veil:** typing never creates a receipt, and a loaded, unedited sample never creates one. The first Copy, Save report, or Download receipt for a given input, policy set, and strategy stores one; later actions on the same run reuse it. Reuse lasts for the browser tab (also across leaving Veil and returning) while that receipt is still in the history: once it is trimmed by retention or the history is cleared, the next action stores a new receipt. The reuse index holds run identities (strategy, policy version, input digest) and receipt ids only, never input text.
 
 ### Folder sink (Chromium only)
 
 - On the Receipts tab the user can choose a folder once. New receipts are then also written to `<folder>/<module>/<receipt file name>`; permission is re-requested on use.
-- Any failure downloads the receipt instead and says why. The control is hidden where the File System Access API is missing.
+- Any failure downloads the receipt instead. The Veil and Plumb pages say why; the gateway page does not yet show the reason. The control is hidden where the File System Access API is missing.
 - Reports and sanitized text are never written there.
 
 ### Save report
@@ -126,7 +136,7 @@ Status: implemented 2026-09-26. Supersedes the "Out: receipt-store" line above f
 - A receipt without `digestVersion` is read as its module's v1.
 - `sourceDigest` is a canonical SHA-256 over the diff's content digest plus each document's content digest, sorted by name. Plumb evidence `sourceVersion` is that source's content digest, never a load time.
 - The verifier (`components/receipt-verifier.tsx`) keeps the supplied text in component state only, calls pure functions, and writes to no store; the text is dropped when it closes.
-- Limitation: receipts from the built-in sample change (no diff connected) digest the sample patch text, which the user does not have, so they cannot be re-verified from the Receipts tab.
+- Limitation (legacy receipts only): receipts made from the built-in sample before samples stopped writing receipts digest the sample patch text, which the user does not have, so they cannot be re-verified from the Receipts tab.
 
 ## Risks and open questions
 

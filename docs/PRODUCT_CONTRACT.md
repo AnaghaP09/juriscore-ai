@@ -1,6 +1,6 @@
 # JurisCore product contract
 
-Status: V1 working source of truth. Amended 2026-08-01: sovereign and on-premises repositioning, ratified by the founder.
+Status: V1 working source of truth. Amended 2026-08-01: sovereign and on-premises repositioning, ratified by the founder. Updated 2026-10-01 to match the build on `main` (v2026.10.01).
 
 ## Product definition
 
@@ -13,7 +13,7 @@ The platform does two jobs:
 1. **Control model context.** Detect, transform, or block sensitive and unsafe inputs before they reach a model.
 2. **Control product truth.** Validate material claims against authoritative sources before they reach a user, release, or workflow.
 
-The product promise remains: **Protect the prompt. Prove the answer.** Every check returns an allow, revise, or block decision with findings, evidence, active policy versions, and an audit receipt.
+The product promise remains: **Protect the prompt. Prove the answer.** Every check returns an allow, revise, or block decision with findings, evidence and the active policy versions. A receipt is written for the checks listed under "Receipts" below.
 
 ## Product structure
 
@@ -42,15 +42,15 @@ Healthcare remains an optional Veil policy profile through the HIPAA reference p
 
 ## Plumb
 
-Plumb checks assertions in documentation, support content, runbooks, release notes, sales material, and AI-generated answers against code, configuration, schemas, policies, and APIs.
+Plumb compares numeric assertions in a document against the value in code. Today it extracts three built-in subjects: the KYC threshold, the cross-border fee and the data-retention days. Each sentence in the selected document gives at most one assertion: the first subject it names (in the order KYC threshold, cross-border fee, retention days). The number is then taken from anywhere in that sentence: for the fee the first percentage; for the KYC threshold and the retention days the first dollar amount, otherwise the first number. An unrelated number in the same sentence can be mistaken for the value. Only the first assertion found for each subject is kept; later sentences about the same subject, and a second subject named in the same sentence, are not checked. Values are compared as written: a code value of `-1` for retention is compared as minus one, not as "keep forever". Sources come from pasted diff or source text, a public GitHub pull request fetched on request, and uploaded documents that carry the assertions. The MCP tool `compare_claims` compares claims the caller supplies in structured form. Extraction of other claim types (prices, limits, API behaviour) is planned, not shipped.
 
 ### Use case 1: pull-request documentation drift
 
-When a pull request changes an API, limit, price, configuration, or behavior, Plumb checks the associated documentation before merge and identifies the exact source mismatch.
+When a pull request changes a value Plumb knows, a person runs the check in the workbench: Plumb compares the selected document with the change and names the line where the extracted assertion disagrees. A check installed in the repository that runs before merge is roadmap.
 
 ### Use case 2: AI answer and product-promise drift
 
-On demand or on a schedule, Plumb checks generated support answers, Help Center content, sales claims, security documentation, and runbooks against the implemented source of truth.
+On demand, Plumb checks generated support answers, Help Center content, sales claims, security documentation, and runbooks against the implemented source of truth, within the subjects above. Scheduled scans are roadmap.
 
 ## Shared Policy Library
 
@@ -66,7 +66,27 @@ The Policy Library provides versioned evaluation packs for both features. V1 inc
 
 Built-in packs store source title, publisher, URL, version, and retrieval date. They translate references into product checks but do not reproduce restricted standards, determine legal applicability, certify compliance, or replace qualified review.
 
-## Commercial model
+## Receipts
+
+A receipt holds the verdict, the finding ids, the policy versions and digests. It never holds prompt, reply or document text. Receipts are kept in the browser's own history (newest 200), optionally copied to a folder the user chooses, and can be downloaded. This is a browser-local history, not a durable audit trail; retention and search across users are roadmap.
+
+A receipt is written:
+
+- in the Veil workbench, once per run, at the first Copy, Save report or Download receipt;
+- in the Plumb workbench, after every completed check;
+- in the LLM Gateway, after every completed run, including blocked, declined and truncated results.
+
+No receipt is written for:
+
+- the built-in sample inputs (an edited sample is a real run);
+- the MCP tools (`check_prompt`, `compare_claims`, `evaluate_response`), which return results only; no MCP tool writes a receipt in this build;
+- a gateway run that fails at the provider (the page shows the error and the model drops to "not verified");
+- a gateway run cleared before its answer arrives;
+- a run whose digest cannot be computed in the browser (the UI shows an error and offers no download).
+
+## Commercial model (proposed)
+
+This section describes the intended tiers. None of the tier controls is built: there is no login, no usage limit, no shared storage and no authenticated MCP. What ships today is the local product described under "V1 boundary". The tier module in the code (`src/lib/juriscore/predict/entitlements.ts`) covers the predictive features only: the local risk score is available, the rest is reported as roadmap or as outside the chosen tier, and nothing is enforced.
 
 JurisCore uses a free-entry, paid-expansion model anchored on the self-hosted Enterprise deployment:
 
@@ -78,16 +98,21 @@ The metering unit is the check. One Veil check is one protection evaluation of o
 
 ## V1 boundary
 
-V1 will:
+V1 (v2026.10.01) does:
 
-- demonstrate Veil on synthetic SaaS and optional healthcare data;
-- apply active built-in or custom policies to Veil and Plumb receipts;
-- demonstrate Plumb on structured code-versus-document fixtures;
-- preserve existing prototype routes;
-- run without external network calls at evaluation time;
-- expose deterministic checks and clearly label simulated evidence.
+- run Veil on pasted text and uploaded documents, with redaction or tokenization, under the active built-in or custom policies;
+- run Plumb on a diff plus documents, or on a public pull request, for the three built-in subjects;
+- show advisory residual-exposure and drift-risk scores from placeholder weights, labelled as such;
+- write receipts as listed above and keep them in the browser history;
+- let users create, edit and delete custom policies in this browser;
+- send protected prompts to the user's own LLM provider through the optional gateway and check the reply with Veil;
+- label simulated evidence and sample results on the linked pages (Overview, Veil, Plumb, Policy Library, Receipts, LLM Gateway). The unlinked analytics route still shows unlabelled mock figures.
 
-V1 will not claim complete de-identification, automatic compliance, production-grade secret detection, benchmark results not reproduced, autonomous merge authority, or production tenant isolation. V1 will also not claim network-egress enforcement, certified air-gap operation, or authenticated multi-user operation until the gateway API, authentication, and receipt persistence exist.
+Network: the Veil and Plumb engines and the predictors make no network calls. The page itself loads its fonts from Google Fonts on every load, so opening the app contacts Google unless that request is blocked. Three more paths go out, each on a user action: fetching a public pull request from api.github.com, downloading the OCR engine files for scanned documents, and gateway calls to the configured provider (including its connection check). Nothing enforces network egress; that stays a deployment matter.
+
+Removed: the legal-operations routes and their mock data. The pipeline, analytics, use-cases and CISO routes still exist at their URLs but are not linked from navigation.
+
+V1 does not claim complete de-identification, automatic compliance, production-grade secret detection, measured detection accuracy, benchmark results, autonomous merge authority, tenant isolation, network-egress enforcement, certified air-gap operation, or authenticated multi-user operation.
 
 ## Product principles
 

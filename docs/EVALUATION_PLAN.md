@@ -1,5 +1,9 @@
 # JurisCore evaluation plan
 
+> **Historical plan, written 31 July 2026.** Its gates are proposed targets, not results
+> achieved. Later evaluation work is recorded in `PREDICTIVE_DRIFT_RISK.md`,
+> `RESIDUAL_EXPOSURE.md` and `RELEASE_NOTES.md`.
+
 This plan separates desired targets from demonstrated results. No target may be presented as achieved until a reproducible evaluation run supports it.
 
 ## What must be true

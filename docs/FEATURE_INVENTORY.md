@@ -1,5 +1,9 @@
 # Internal feature inventory
 
+> **Historical record.** This log covers decisions from July to September 2026. Its lists of
+> what exists, what is Beta and what is roadmap are out of date. For what the product does
+> today read `RELEASE_NOTES.md`, `PRODUCT_CONTRACT.md` and `GATEWAY_SETUP.md`.
+
 This inventory prevents accidental loss of prototype work while JurisCore is refocused around Veil and Plumb.
 
 ## V1 platform reset — 2026-07-31

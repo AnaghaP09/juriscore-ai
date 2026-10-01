@@ -1,5 +1,9 @@
 # Internal prototype validation report
 
+> **Historical record.** This report describes the build on 31 July 2026. Its outcomes and
+> test results belong to that snapshot only and are not current validation. The current
+> state is in `RELEASE_NOTES.md` and `PRODUCT_CONTRACT.md`.
+
 Date: 2026-07-31
 Scope: local JurisCore prototype after the Veil and Plumb product reset.
 

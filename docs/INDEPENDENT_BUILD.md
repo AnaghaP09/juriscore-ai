@@ -1,6 +1,6 @@
 # Building JurisCore without Lovable
 
-JurisCore started as a Lovable prototype. It no longer depends on Lovable for anything:
+JurisCore was first built in Lovable. It no longer depends on Lovable for anything:
 the UI is plain React 19, Radix/shadcn components, Tailwind 4 and TanStack Start, and every
 package installs from the public npm registry.
 
@@ -31,6 +31,11 @@ package installs from the public npm registry.
 - `bun run check:lovable --sync` reports the last commit by Lovable's GitHub App
   (`gpt-engineer-app[bot]`), any newer Lovable commit, GitHub event, check run, status or
   webhook, and fails if it finds one. The **Lovable watch** workflow runs it daily.
+- Without the `--sync` flag the command checks only the local dependencies and
+  configuration; it says nothing about GitHub activity.
+- Webhooks can be listed only with admin rights on the repository. Without them the command
+  still passes and prints a "Not inspected" line. Read that line before treating a pass as
+  full coverage.
 - The one thing it cannot see is whether the Lovable GitHub App is still installed, because
   a user token cannot list app installations. Check
   [github.com/settings/installations](https://github.com/settings/installations): if
