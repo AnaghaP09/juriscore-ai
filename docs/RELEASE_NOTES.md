@@ -2,7 +2,7 @@
 
 ## 2026.09.30 — A connected model, your own sources, receipts you keep
 
-**Status: still a V1 prototype.** Every number in the product is still labelled. Detection quality has not been measured on real traffic. There is no login. A single local server on port 8080 serves everything.
+**Status: version 2026.10.01.** Runs on your own machine. Every number in the product is labelled. Detection quality is not yet measured on real traffic. There is no login. A single local server on port 8080 serves everything.
 
 Since the 2026.08.01 release, JurisCore can send a prompt to a real model through its own gateway, check your own code and documents instead of sample data, and keep a history of receipts in your browser. This entry lists the changes that matter, the fixes that change a result, the things we turned off, the claims from the last notes that are no longer true, and the problems we know about today.
 
@@ -67,9 +67,9 @@ These are open today. Please read them before you rely on the product.
 
 ## 2026.08.01 — V1 platform
 
-**Status: V1 prototype.** Every demonstrated outcome is at **Synthetic** maturity — measured on generated fixtures, not on benchmarks, pilots, or production traffic. JurisCore runs locally and makes no external network calls at evaluation time. There is no connected model, no server-side persistence, no authentication, and no compliance claim of any kind. Policy packs guide checks; they do not certify anything.
+**Status: V1 platform.** Every demonstrated outcome is at **Synthetic** maturity — measured on generated fixtures, not on benchmarks, pilots, or production traffic. JurisCore runs locally and makes no external network calls at evaluation time. There is no connected model, no server-side persistence, no authentication, and no compliance claim of any kind. Policy packs guide checks; they do not certify anything.
 
-This release turns the prototype into a coherent product: it commits to sovereign, on-premises deployment, gives every check a downloadable receipt, and removes the surfaces and claims that did not survive an honest audit.
+This release turns the early build into a coherent product: it commits to sovereign, on-premises deployment, gives every check a downloadable receipt, and removes the surfaces and claims that did not survive an honest audit.
 
 ---
 
@@ -107,7 +107,7 @@ Known limit, stated plainly: unlabelled personal names in prose remain undetecte
 
 ### Overview and navigation
 
-The dashboard was a legal-operations cockpit inherited from the original prototype: matter triage, hearings, contract queues, and buttons that did nothing. It is gone. The intake, matters, contracts, hearings, and AI-review routes were deleted outright; pipeline, analytics, use-cases, and the executive view left the navigation with their code preserved.
+The dashboard was a legal-operations cockpit inherited from the original build: matter triage, hearings, contract queues, and buttons that did nothing. It is gone. The intake, matters, contracts, hearings, and AI-review routes were deleted outright; pipeline, analytics, use-cases, and the executive view left the navigation with their code preserved.
 
 Primary navigation is now six surfaces: **Overview, Veil, Plumb, Policy Library, Receipts, and LLM Gateway (Beta)**, plus MCP Connect.
 
@@ -150,7 +150,7 @@ Every number that remains anywhere in the product carries a maturity label. An u
 - A deterministic check suite — shared contracts, Veil, Plumb, receipts, and MCP — run by `bun run check:core` and required to pass before a build ships.
 - A static product site, and specifications for a downloadable on-premises package (`docs/SPEC_DISTRIBUTION.md`).
 - Greyed-out placeholders on the Connect page for future proprietary-provider connections. They perform no connection and are labelled as roadmap.
-- Earlier prototype history from the original repository was absorbed into `main` for continuity; the V1 platform tree supersedes its content.
+- Earlier history from the original repository was absorbed into `main` for continuity; the V1 platform tree supersedes its content.
 
 ---
 
@@ -170,4 +170,4 @@ Independent privacy, security, and detection benchmarking remains ahead of us. U
 
 ---
 
-Source, issues, and the full commit history: [github.com/AnaghaP09/juriscore-ai](https://github.com/AnaghaP09/juriscore-ai). The repository is a private product prototype; all rights reserved.
+Source, issues, and the full commit history: [github.com/AnaghaP09/juriscore-ai](https://github.com/AnaghaP09/juriscore-ai). The repository is a private product; all rights reserved.

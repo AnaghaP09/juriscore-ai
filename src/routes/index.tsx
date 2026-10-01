@@ -303,7 +303,7 @@ function Landing() {
 
         <footer className="border-t border-border/60">
           <div className="mx-auto max-w-7xl px-6 py-8 text-sm text-muted-foreground flex flex-wrap gap-2 justify-between">
-            <span>JurisCore · Commercial platform prototype · Synthetic and mock data</span>
+            <span>JurisCore · Synthetic and mock data</span>
             <span className="font-mono">v1 platform</span>
           </div>
         </footer>
