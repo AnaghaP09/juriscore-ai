@@ -1,6 +1,6 @@
-# JurisCore Release Notes
+# JurisCore AI Release Notes
 
-JurisCore is a guardrail and validation layer for AI workloads. It runs inside your own environment and gives you two core engines:
+JurisCore AI is a guardrail and validation layer for AI workloads. It runs inside your own environment and gives you two core engines:
 
 - **Veil** detects and protects sensitive data in prompts, model responses, and documents.
 - **Plumb** checks AI-generated or changed content against your source of truth and flags drift.
@@ -26,7 +26,7 @@ Every check produces a **validation receipt**, a downloadable record of what was
 
 ### Summary
 
-JurisCore now connects to a live large language model (LLM) through a governed gateway, validates your own code and documents instead of sample data, and keeps a reviewable history of validation receipts.
+JurisCore AI now connects to a live large language model (LLM) through a governed gateway, validates your own code and documents instead of sample data, and keeps a reviewable history of validation receipts.
 
 ### New features
 
@@ -76,7 +76,7 @@ Three statements in the 2026.08.01 release notes no longer apply:
 
 ### Known issues
 
-Review these issues before you use JurisCore with production data.
+Review these issues before you use JurisCore AI with production data.
 
 | # | Issue | Impact | Recommended action |
 |---|---|---|---|
@@ -85,7 +85,7 @@ Review these issues before you use JurisCore with production data.
 | 3 | Receipt verification can fail for multi-file inputs. | Verification reports "extracted claims differ" even when nothing changed. | Treat this result on multi-file receipts as a known false mismatch. |
 | 4 | Remote access requires HTTPS. | Over plain HTTP from another device, the gateway session is lost and receipts are not generated. | Access the server from the same machine (localhost) or through HTTPS. |
 | 5 | Plumb reads a retention value of `-1` as minus one day. | Systems that use `-1` to mean "retain indefinitely" are misread. | Review retention values of `-1` manually. |
-| 6 | JurisCore has no login. | Anyone who can reach the server can use every page and MCP tool. The unlock phrase protects the gateway only. | Run the server on a trusted, access-controlled network. |
+| 6 | JurisCore AI has no login. | Anyone who can reach the server can use every page and MCP tool. The unlock phrase protects the gateway only. | Run the server on a trusted, access-controlled network. |
 
 ### For administrators
 
@@ -101,15 +101,15 @@ Review these issues before you use JurisCore with production data.
 
 **Release date:** 1 August 2026
 
-This release established JurisCore as a sovereign guardrail product with verifiable receipts. All results in this release are at **Synthetic** maturity: measured on generated test data, not on benchmarks, pilots, or production traffic. This release has no connected model, no server-side storage, no authentication, and makes no compliance claims. Policy packs guide checks; they do not certify compliance.
+This release established JurisCore AI as a sovereign guardrail product with verifiable receipts. All results in this release are at **Synthetic** maturity: measured on generated test data, not on benchmarks, pilots, or production traffic. This release has no connected model, no server-side storage, no authentication, and makes no compliance claims. Policy packs guide checks; they do not certify compliance.
 
 ### Highlights
 
 **Sovereign, on-premises deployment**
-JurisCore deploys inside your own environment: on-premises, private cloud, or air-gapped. A hosted option, when offered, uses the same product contract. The product focuses on organizations that run their own models or must control what reaches external ones. External providers are governed, not blocked. See `docs/PRODUCT_CONTRACT.md`.
+JurisCore AI deploys inside your own environment: on-premises, private cloud, or air-gapped. A hosted option, when offered, uses the same product contract. The product focuses on organizations that run their own models or must control what reaches external ones. External providers are governed, not blocked. See `docs/PRODUCT_CONTRACT.md`.
 
 **Validation receipts**
-Every Veil and Plumb check produces a JSON receipt with the module, verdict, active policy packs and versions, a SHA-256 digest of the input, finding IDs, evidence locations, and a maturity label. JurisCore enforces three guarantees in code:
+Every Veil and Plumb check produces a JSON receipt with the module, verdict, active policy packs and versions, a SHA-256 digest of the input, finding IDs, evidence locations, and a maturity label. JurisCore AI enforces three guarantees in code:
 
 - **No sensitive values:** Receipts never contain raw input or text excerpts.
 - **No invalid receipts:** Every receipt is schema-validated before download.
@@ -154,7 +154,7 @@ We audited the product and removed claims it could not support, including a "tam
 6. **Expanded secret detection:** Generic `api_key=` values, AWS secret keys, and passwords in text.
 7. **Remote gateway access over HTTPS:** Including deployment behind a TLS proxy.
 
-Independent privacy, security, and detection benchmarking is planned. Until it is complete and reproducible, all JurisCore metrics remain labeled with their maturity level.
+Independent privacy, security, and detection benchmarking is planned. Until it is complete and reproducible, all JurisCore AI metrics remain labeled with their maturity level.
 
 ---
 

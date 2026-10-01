@@ -1,8 +1,8 @@
 # LLM Gateway setup
 
-The LLM Gateway sends prompts to a model from **your own proprietary LLM account**. JurisCore
+The LLM Gateway sends prompts to a model from **your own proprietary LLM account**. JurisCore AI
 runs Veil before every request and again over every reply, and writes a receipt for every
-completed run. Your API key is held by the JurisCore server and never reaches the browser.
+completed run. Your API key is held by the JurisCore AI server and never reaches the browser.
 
 This page is the single home of the setup steps. The product links here; it does not repeat
 them. It is published at <https://anaghap09.github.io/juriscore-ai/setup.html>; the Run guide for the
@@ -10,7 +10,7 @@ downloaded package is at <https://anaghap09.github.io/juriscore-ai/run.html>.
 
 ## 1. Get an unlock phrase
 
-Open the dashboard and choose **Set up gateway** in the header. JurisCore suggests an unlock
+Open the dashboard and choose **Set up gateway** in the header. JurisCore AI suggests an unlock
 phrase; copy it. You can also choose your own: 16 characters or more, and never the API key.
 The phrase protects nothing until it is in your server's configuration (step 2 or 3).
 
@@ -34,7 +34,7 @@ JURISCORE_GATEWAY_TOKEN=<the phrase from step 1>
 
 The API key comes from your LLM provider's developer platform. `JURISCORE_GATEWAY=enabled`
 is optional: the gateway turns on when a key is present. If it is already set to `disabled`,
-in this file or in the shell you start JurisCore from, change it or remove it, or the gateway
+in this file or in the shell you start JurisCore AI from, change it or remove it, or the gateway
 stays off.
 
 Restart the server: stop it, then `bun run dev`. Environment variables are read at startup.
