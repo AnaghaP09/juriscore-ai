@@ -1,6 +1,6 @@
-# Run JurisCore
+# Run JurisCore AI
 
-JurisCore runs on your own machine or server. Veil and Plumb checks make no network
+JurisCore AI runs on your own machine or server. Veil and Plumb checks make no network
 call. Three things do call out: fetching a public GitHub pull request in Plumb, reading
 text from images (the OCR library downloads its files from a public CDN the first time),
 and the optional LLM Gateway, which sends prompts to your own model provider account.
@@ -25,7 +25,7 @@ Bun is the only thing you need to install. It is a single command.
 
 Close and reopen your terminal afterwards so `bun` is on your PATH.
 
-## 2. Start JurisCore
+## 2. Start JurisCore AI
 
 From inside the package folder:
 
@@ -120,7 +120,7 @@ Read this before putting it in front of anything that matters.
   device: receipt history (up to 200; the Receipts page can export it and clear
   it), custom policies (managed in Policy Library), and metric counts (kept
   separately; cleared by clearing site data). Receipts you exported, or that
-  JurisCore saved to a folder you chose, are ordinary files and must be deleted
+  JurisCore AI saved to a folder you chose, are ordinary files and must be deleted
   separately.
 - **It does not certify compliance.** The policy packs translate published
   references into checks. They do not reproduce restricted standards, decide

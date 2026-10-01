@@ -1,21 +1,21 @@
-# JurisCore
+# JurisCore AI
 
 ### → [**Product site**](https://anaghap09.github.io/juriscore-ai/index.html) · [Release notes](https://anaghap09.github.io/juriscore-ai/release-notes.html)
 
-JurisCore is a commercial AI validation and guardrail platform that deploys inside your own environment — on-premises, private cloud, or air-gapped. It protects data before model use, validates important claims against authoritative sources, and returns an allow, revise, or block decision with evidence.
+JurisCore AI is a commercial AI validation and guardrail platform that deploys inside your own environment — on-premises, private cloud, or air-gapped. It protects data before model use, validates important claims against authoritative sources, and returns an allow, revise, or block decision with evidence.
 
-The primary storyline is sovereign AI operation: organizations that run their own models, or that must control what reaches external ones, use JurisCore to enforce their own policies on every AI input and output and to keep a receipt for every decision. External providers are guarded, not banned.
+The primary storyline is sovereign AI operation: organizations that run their own models, or that must control what reaches external ones, use JurisCore AI to enforce their own policies on every AI input and output and to keep a receipt for every decision. External providers are guarded, not banned.
 
-JurisCore has two core features:
+JurisCore AI has two core features:
 
 - **Veil** protects customer, operational, security, and regulated data before it enters or leaves an AI workflow.
 - **Plumb** checks documentation and product claims against code, configuration, schemas, policies, and APIs.
 
-Both features use the same Policy Library. JurisCore includes versioned references for PII, HIPAA, SOC 2, MITRE ATLAS, NIST AI RMF, and NIST CSF, plus browser-local custom policies. Policy packs guide checks; they do not certify compliance.
+Both features use the same Policy Library. JurisCore AI includes versioned references for PII, HIPAA, SOC 2, MITRE ATLAS, NIST AI RMF, and NIST CSF, plus browser-local custom policies. Policy packs guide checks; they do not certify compliance.
 
 ## Commercial model
 
-JurisCore is not an open-source product. The intended model is product-led and usage-based:
+JurisCore AI is not an open-source product. The intended model is product-led and usage-based:
 
 - **Free:** local playground, built-in policy references, and limited Veil and Plumb checks.
 - **Team:** metered API usage, custom policies, shared receipts, CI checks, and collaboration.
@@ -25,7 +25,7 @@ The source in this repository is a private product and remains all rights reserv
 
 ## Getting started
 
-JurisCore runs locally on **macOS** and **Windows**. The only required tool is
+JurisCore AI runs locally on **macOS** and **Windows**. The only required tool is
 [Bun](https://bun.sh/) — it provides the runtime, package manager, and script
 runner. (Bun bundles its own JavaScript engine, so a separate Node.js install is
 optional.)

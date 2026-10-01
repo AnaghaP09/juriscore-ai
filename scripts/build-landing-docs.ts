@@ -242,7 +242,7 @@ export function shellFrom(indexHtml: string, current: string) {
 export function renderPage(indexHtml: string, page: (typeof PAGES)[number], markdown: string) {
   const { head, header, footer } = shellFrom(indexHtml, page.nav);
   const body = renderMarkdown(markdown);
-  const title = head.replace(/<title>[\s\S]*?<\/title>/, `<title>${page.title} — JurisCore</title>`);
+  const title = head.replace(/<title>[\s\S]*?<\/title>/, `<title>${page.title} — JurisCore AI</title>`);
   return `${title}<body>
     <div class="shell">
       ${header}

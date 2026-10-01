@@ -71,4 +71,4 @@ for (const page of PAGES) {
   }
 }
 
-console.log("JurisCore landing docs checks passed.");
+console.log("JurisCore AI landing docs checks passed.");

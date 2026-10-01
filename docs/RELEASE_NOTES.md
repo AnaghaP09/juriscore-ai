@@ -1,175 +1,162 @@
-# JurisCore release notes
+# JurisCore AI Release Notes
 
-## 2026.09.30 — A connected model, your own sources, receipts you keep
+JurisCore AI is a guardrail and validation layer for AI workloads. It runs inside your own environment and gives you two core engines:
 
-Released as package **v2026.10.01**: [download](https://github.com/AnaghaP09/juriscore-ai/releases/tag/v2026.10.01) · [all releases](https://github.com/AnaghaP09/juriscore-ai/releases)
+- **Veil** detects and protects sensitive data in prompts, model responses, and documents.
+- **Plumb** checks AI-generated or changed content against your source of truth and flags drift.
 
-**Status: version 2026.10.01.** Runs on your own machine. Every number in the product is labelled. Detection quality is not yet measured on real traffic. There is no login. A single local server on port 8080 serves everything.
-
-Since the 2026.08.01 release, JurisCore can send a prompt to a real model through its own gateway, check your own code and documents instead of sample data, and keep a history of receipts in your browser. This entry lists the changes that matter, the fixes that change a result, the things we turned off, the claims from the last notes that are no longer true, and the problems we know about today.
+Every check produces a **validation receipt**, a downloadable record of what was checked, which policies applied, and the verdict.
 
 ---
 
-### What is new
+## Version 2026.10.01
 
-**LLM Gateway — send a prompt to a real model, with Veil in the path.** Put your proprietary LLM API key and an unlock phrase on the server, unlock the gateway from the header, and the connection is tested for you. Every prompt goes through Veil before it leaves, the reply goes through Veil on the way back, and each completed run gets a receipt. The API key never reaches the browser. Anthropic is the only provider this build accepts. The "Beta" badge is gone.
+**Release date:** 30 September 2026
+**Download:** [Package v2026.10.01](https://github.com/AnaghaP09/juriscore-ai/releases/tag/v2026.10.01) · [All releases](https://github.com/AnaghaP09/juriscore-ai/releases)
 
-**Guided gateway setup.** Choose **Set up gateway** in the header: the product suggests an unlock phrase and links to the steps. Setup is your API key plus that phrase in `.env.local`, copied from `.env.example`, which now carries the instructions itself. The variable names are provider-agnostic (`JURISCORE_LLM_API_KEY`, `JURISCORE_LLM_PROVIDER`); the old `ANTHROPIC_API_KEY` still works. The gateway is for the server's own machine in this build; remote use is roadmap. Steps: `docs/GATEWAY_SETUP.md`.
+### At a glance
 
-**Plumb reads your own sources.** Paste a diff, fetch a public GitHub pull request by number, or upload your own documents. Plumb reads every file in the diff, not only the first. Sources stay in memory and are gone when you close the page. Private repositories are not supported yet.
+| Area | Status in this release |
+|---|---|
+| Deployment | Self-hosted, single server (default port 8080) |
+| Model providers | Anthropic. Additional providers are on the roadmap. |
+| Authentication | Not available. Restrict network access to the server. |
+| Data storage | The server stores no customer data. Receipts and custom policies are stored in the user's browser. |
+| Scores and metrics | Every number is labeled with its maturity level. Detection accuracy is not yet validated on production workloads. |
 
-**Receipts you keep.** The Receipts page now shows a live history of your real checks, stored in your browser, up to 200 records. You can filter, export, delete, and verify a receipt against the same input. Nothing is stored on the server.
+### Summary
 
-**Predictive scores, clearly labelled.** Veil shows a residual-exposure score and Plumb shows a drift-risk score, with a history on the Overview. These are advisory. They use hand-set weights at "target" maturity, not a trained model, and they never change a verdict.
+JurisCore AI now connects to a live large language model (LLM) through a governed gateway, validates your own code and documents instead of sample data, and keeps a reviewable history of validation receipts.
 
-**Policy Library — edit and delete your own policies.** Custom policies can now be changed and removed. Old receipts that name a removed policy still open.
+### New features
 
-**Veil — invoice and payment data.** New detectors for bank routing and account numbers, IBAN, SWIFT codes, tax IDs, postal addresses, and contact names. Tables in PDF and DOCX files keep their column gaps so labelled values are found.
+**LLM Gateway is out of beta**
+Send prompts to a live model with Veil protection on both sides of the exchange. Veil checks every prompt before it leaves your environment and every response before it reaches the user. Each completed run generates a validation receipt. Your provider API key stays on the server and never reaches the browser. This release supports Anthropic as the model provider.
 
-### Fixes that change a result
+**Guided gateway setup**
+Select **Set up gateway** in the header to get a suggested unlock phrase and step-by-step setup instructions. Setup takes two values: your provider API key and an unlock phrase. In this release, the gateway works from the server's own machine. Remote access is on the roadmap.
 
-- **Plumb no longer reports drift when only the format differs.** `30` and `"30"`, `true` and `"true"`, and the same value in different units now match.
-- **Plumb no longer says "allow" when it compared nothing.** An empty comparison is reported as such.
-- **Plumb reads every file in a change.** Earlier only the first file was read, so claims in later files were missed.
-- **The gateway sends nothing when Veil blocks.** If the second Veil pass still finds sensitive data, the run stops and the model is never called.
+**Plumb validates your own sources**
+Paste a diff, fetch a public GitHub pull request by number, or upload your own documents. Plumb now reads every file in a change, not only the first. Your sources stay in memory and clear when you close the page. Private repositories are not yet supported.
 
-### Turned off or removed
+**Receipt history**
+The Receipts page now shows a live history of your checks, stored in your browser (up to 200 records). Filter, export, and delete receipts, or verify a receipt against its original input. The server stores nothing.
 
-- **Reset demo** is gone from the dashboard.
-- **MCP Connect** is greyed out and marked "Soon". The `/mcp` endpoint itself still answers, without authentication, for anyone who can reach the server.
-- The **Demos** group has left the navigation. Navigation is now Overview, Veil, Plumb, Policy Library, Receipts, and LLM Gateway.
+**Advisory risk scores**
+Veil now shows a residual-exposure score and Plumb shows a drift-risk score, with trends on the Overview page. These scores are advisory. They use expert-set weights, not a trained model, and they never change a verdict.
 
-### Corrections to the 2026.08.01 notes
+### Enhancements
 
-The last notes made three claims that are no longer true. We would rather say so here than let you find out.
+- **Policy Library:** Edit and delete your custom policies. Receipts that reference a deleted policy remain readable.
+- **Veil detection for financial data:** Veil now detects bank routing and account numbers, IBAN, SWIFT codes, tax IDs, postal addresses, and contact names. Tables in PDF and DOCX files keep their column structure, so Veil finds labeled values more reliably.
+- **Streamlined navigation:** Navigation now includes Overview, Veil, Plumb, Policy Library, Receipts, and LLM Gateway.
 
-- **"Nothing is persisted."** The browser now stores receipts, custom policies, and metric counts on your device. The server still stores nothing.
-- **"No external network calls."** Three things call out: fetching a public GitHub pull request, reading text from images (the OCR library downloads its files from a public CDN on first use), and the gateway when you turn it on. Veil and Plumb checks themselves make no network call.
-- **"A receipt for every run."** Not yet. If the model provider fails or times out after the prompt was sent, no receipt is written. If you clear a run while it is in flight, its receipt is dropped.
+### Resolved issues that affect results
+
+- Plumb no longer reports drift when only the format differs. For example, `30` and `"30"`, `true` and `"true"`, and equivalent values in different units now match.
+- Plumb no longer returns an "allow" verdict when there is nothing to compare. It now reports an empty comparison.
+- Plumb now reads every file in a multi-file change. Previously, it missed claims in files after the first.
+- The gateway now blocks the request entirely when Veil detects sensitive data on its second pass. The model is never called.
+
+### Removed or deprecated
+
+- **Reset demo** is removed from the dashboard.
+- **MCP Connect** is unavailable in the console and marked "Coming soon". The `/mcp` endpoint still responds without authentication to anyone who can reach the server. See Known issues.
+- **Demos** is removed from the navigation.
+
+### Updates to previous release notes
+
+Three statements in the 2026.08.01 release notes no longer apply:
+
+| Previous statement | Current behavior |
+|---|---|
+| "Nothing is persisted." | The browser now stores receipts, custom policies, and metric counts on the user's device. The server still stores nothing. |
+| "No external network calls." | Three features make outbound calls: fetching a public GitHub pull request, image text extraction (OCR files download from a public CDN on first use), and the LLM Gateway when enabled. Veil and Plumb checks make no network calls. |
+| "A receipt for every run." | A run does not produce a receipt if the model provider fails or times out after the prompt is sent, or if you clear a run while it is in progress. |
 
 ### Known issues
 
-These are open today. Please read them before you rely on the product.
+Review these issues before you use JurisCore AI with production data.
 
-1. **Some secrets pass Veil and reach the model.** Veil recognises keys by known prefixes such as `sk-`. A value written as `api_key=...`, an AWS secret access key, or a password written in a sentence is not detected and will be sent through the gateway.
-2. **Plumb checks only the first statement about each subject.** If a document says the retention period is 30 days and later says it is 90 days, only the first is compared.
-3. **Receipt verification can fail on inputs with more than one file.** Verification rebuilds claims from the first file only, so a receipt made from a multi-file diff reports "extracted claims differ" even when nothing changed.
-4. **Using the server from another device needs HTTPS.** Over plain HTTP from a different machine, the gateway session cookie is not kept and receipts cannot be generated. On the same machine over localhost everything works.
-5. **A retention value of -1 is read as minus one day.** Many systems use -1 to mean "keep forever". Plumb does not.
-6. **There is no login.** Anyone who can reach the address can use every page and every MCP tool. The gateway passphrase protects the gateway only.
+| # | Issue | Impact | Recommended action |
+|---|---|---|---|
+| 1 | Veil does not detect some secrets. It recognizes keys by known prefixes such as `sk-`, but misses values written as `api_key=...`, AWS secret access keys, and passwords in plain text. | These values can reach the model through the gateway. | Do not send credentials through the gateway until this is fixed. |
+| 2 | Plumb compares only the first statement about each subject. | If a document states 30-day retention and later 90-day retention, Plumb checks only the first. | Review documents with repeated or conflicting statements manually. |
+| 3 | Receipt verification can fail for multi-file inputs. | Verification reports "extracted claims differ" even when nothing changed. | Treat this result on multi-file receipts as a known false mismatch. |
+| 4 | Remote access requires HTTPS. | Over plain HTTP from another device, the gateway session is lost and receipts are not generated. | Access the server from the same machine (localhost) or through HTTPS. |
+| 5 | Plumb reads a retention value of `-1` as minus one day. | Systems that use `-1` to mean "retain indefinitely" are misread. | Review retention values of `-1` manually. |
+| 6 | JurisCore AI has no login. | Anyone who can reach the server can use every page and MCP tool. The unlock phrase protects the gateway only. | Run the server on a trusted, access-controlled network. |
+
+### For administrators
+
+- **Configuration:** Copy `.env.example` to `.env.local` and add your API key and unlock phrase. The example file includes setup instructions. Full steps: `docs/GATEWAY_SETUP.md`.
+- **Provider-neutral variables:** Use `JURISCORE_LLM_API_KEY` and `JURISCORE_LLM_PROVIDER`. The legacy `ANTHROPIC_API_KEY` variable remains supported.
+- **Network binding:** The server now listens on the local machine only. Run `bun run dev --host` to expose it to your network.
+- **Package configuration:** The on-premises package now documents the `HOST` and `PORT` settings and how to enable the gateway.
+- **Supply chain hardening:** CI actions are pinned to exact commits, the release workflow validates its input, Dependabot monitors dependencies, and a daily check blocks a removed third-party build dependency from returning.
+
+---
+
+## Version 2026.08.01: V1 platform
+
+**Release date:** 1 August 2026
+
+This release established JurisCore AI as a sovereign guardrail product with verifiable receipts. All results in this release are at **Synthetic** maturity: measured on generated test data, not on benchmarks, pilots, or production traffic. This release has no connected model, no server-side storage, no authentication, and makes no compliance claims. Policy packs guide checks; they do not certify compliance.
+
+### Highlights
+
+**Sovereign, on-premises deployment**
+JurisCore AI deploys inside your own environment: on-premises, private cloud, or air-gapped. A hosted option, when offered, uses the same product contract. The product focuses on organizations that run their own models or must control what reaches external ones. External providers are governed, not blocked. See `docs/PRODUCT_CONTRACT.md`.
+
+**Validation receipts**
+Every Veil and Plumb check produces a JSON receipt with the module, verdict, active policy packs and versions, a SHA-256 digest of the input, finding IDs, evidence locations, and a maturity label. JurisCore AI enforces three guarantees in code:
+
+- **No sensitive values:** Receipts never contain raw input or text excerpts.
+- **No invalid receipts:** Every receipt is schema-validated before download.
+- **Exact match:** The receipt on screen is identical to the file you download.
+
+**Veil detection improvements**
+- Veil now detects labeled identifiers in PDF and DOCX tables, such as patient names and dates of birth on uploaded forms.
+- Veil now detects phone numbers in parenthesized format, for example `(415) 555-0199`.
+- Veil protects all sensitive categories by default unless an active policy specifies otherwise. Healthcare protection is delivered through the HIPAA policy pack.
+- Known limitation: Veil does not detect unlabeled personal names in free text.
+
+**Overview and navigation**
+The Overview page shows weekly activity for Veil and Plumb: checks run, verdicts, sensitive items protected, volume processed, claims checked, drift found, and undetermined results. Counts come from a local, numbers-only record of checks on your device. A labeled sample dataset populates a new install and is removed after your first real check. Legacy legal-operations screens are removed.
+
+**MCP tools use the production engines**
+- `check_prompt` runs Veil with your active policy packs and returns findings without exposing detected values or submitted text.
+- `retrieve_policy` returns policy pack versions, authorities, and sources.
+- `compare_claims` (new) runs the Plumb comparator.
+- `evaluate_response` runs Veil on the prompt and draft, then Plumb when structured claims are provided.
+- `enforce_citations` and `get_audit_entry` return a labeled "not implemented" response. `get_metrics` is retired.
+- Usage telemetry is off. No usage data leaves your environment.
+
+**Accuracy and transparency corrections**
+We audited the product and removed claims it could not support, including a "tamper-proof log", an unlabeled accuracy figure, unlabeled weekly totals, mock MCP responses, and a reference to a CLI product that does not exist. Every remaining metric carries a maturity label. We treat an unlabeled metric as a defect.
 
 ### Also in this release
-
-- The product no longer depends on Lovable. A daily check fails if any Lovable package or sync reappears.
-- CI actions are pinned to exact commits, the release workflow validates its input, and Dependabot watches dependencies.
-- The local server listens on this machine only. Use `bun run dev --host` to open it to your network on purpose.
-- The on-prem package documents `HOST` and `PORT`, and how to turn on the gateway.
+- Cross-platform install with automatic recovery from Windows antivirus file locks (`bun run setup`).
+- Automated check suite that must pass before every build ships (`bun run check:core`).
+- Product website and specification for the downloadable on-premises package.
 
 ---
 
-## 2026.08.01 — V1 platform
+## Roadmap
 
-**Status: V1 platform.** Every demonstrated outcome is at **Synthetic** maturity — measured on generated fixtures, not on benchmarks, pilots, or production traffic. JurisCore runs locally and makes no external network calls at evaluation time. There is no connected model, no server-side persistence, no authentication, and no compliance claim of any kind. Policy packs guide checks; they do not certify anything.
+*Last updated 30 September 2026. Roadmap items are planned, not available, and may change.*
 
-This release turns the early build into a coherent product: it commits to sovereign, on-premises deployment, gives every check a downloadable receipt, and removes the surfaces and claims that did not survive an honest audit.
+1. **Gateway API:** A versioned API so applications can call Veil and Plumb directly.
+2. **Additional model providers:** OpenAI, Azure OpenAI, Google, and others.
+3. **Server-side receipts:** Central storage with retention controls, search, and shared metrics.
+4. **Authentication and multi-tenancy:** Login, roles, and tenant isolation for shared deployments.
+5. **Semantic validation:** Checking whether a model response agrees with the policy it cites.
+6. **Expanded secret detection:** Generic `api_key=` values, AWS secret keys, and passwords in text.
+7. **Remote gateway access over HTTPS:** Including deployment behind a TLS proxy.
 
----
-
-### Sovereign and on-premises positioning
-
-JurisCore is now defined as a guardrail and validation layer that deploys inside your own environment — on-premises, private cloud, or air-gapped. A hosted tier is a convenience deployment of the same contract, not a different product.
-
-The change is written into the product contract rather than only into marketing copy: the primary storyline is now organizations that run their own models, or that must control what reaches external ones. External providers are guarded, not banned — approved providers will be reachable through the gateway, behind Veil, with credentials held server-side.
-
-Two commitments were added to the V1 boundary at the same time. JurisCore **will** run without external network calls at evaluation time. It **will not** claim network-egress enforcement, certified air-gap operation, or authenticated multi-user operation until the gateway, authentication, and receipt persistence exist. See `docs/PRODUCT_CONTRACT.md`.
-
-### Validation receipts
-
-Every Veil and Plumb check now produces a receipt you can download as JSON. Each receipt carries the module, the verdict, the identifiers and versions of every policy pack in force, a SHA-256 digest of the input, the finding identifiers, evidence locators, and a maturity label.
-
-Three properties are enforced in code rather than promised:
-
-- **No sensitive values.** Raw input exists only long enough to be digested; it is never written to the receipt. Evidence references are copied field by field, so free-text excerpts are stripped by construction. A deterministic check scans every serialized receipt for known fixture values and fails if one appears (`scripts/check-receipts.ts`).
-- **No invalid receipts.** A receipt is schema-validated before it is returned, so a malformed one cannot be downloaded.
-- **What you see is what you get.** The receipt shown on screen is byte-identical to the file you download.
-
-Receipts are handed to you, not stored by us — this build persists nothing server-side. Design decisions and their trade-offs are recorded in `docs/adr/001-receipts.md`.
-
-### Veil: detection fixes
-
-**Labelled identifiers in PDF and DOCX tables were being missed.** Document extraction flattens a table row into a label, a column gap, and a value — `Patient Name   Maya Patel` — so the colon that labelled detectors required was never in the text. Patient names and dates of birth uploaded as PDF forms passed through unredacted, while the same content typed into the workbench was caught. Labelled detectors now accept either punctuation or a two-space column gap; a single space still does not match, so ordinary prose does not trip them.
-
-**The phone detector could never match a parenthesised number.** Its pattern began with a word boundary, so `(415) 555-0199` was missed in every input, not only in documents.
-
-Both fixes are covered by deterministic checks against the extracted-document shape, including an assertion that no raw value reaches a finding (`scripts/check-veil.ts`).
-
-Known limit, stated plainly: unlabelled personal names in prose remain undetected. The engine has no person-name detector, and adding one is a product decision, not a bug fix.
-
-**One protection posture.** The profile selector is gone; every run protects all sensitive categories. The default is now that everything sensitive is protected unless an active policy says otherwise, which is the right default for this buyer. Healthcare protection ships as engine capability plus the HIPAA policy pack rather than as a dropdown. Scoped profiles will return as policy-driven configuration.
-
-### Overview and navigation
-
-The dashboard was a legal-operations cockpit inherited from the original build: matter triage, hearings, contract queues, and buttons that did nothing. It is gone. The intake, matters, contracts, hearings, and AI-review routes were deleted outright; pipeline, analytics, use-cases, and the executive view left the navigation with their code preserved.
-
-Primary navigation is now six surfaces: **Overview, Veil, Plumb, Policy Library, Receipts, and LLM Gateway (Beta)**, plus MCP Connect.
-
-The Overview shows weekly activity across three tiles — overall, Veil, and Plumb — including checks run, verdict splits, sensitive occurrences protected with the redacted and tokenized split, input volume processed, assertions checked, drift found, and cannot-determine counted as its own number rather than folded into failures. Counts come from a local ledger of real checks run on your device over the trailing seven days; the ledger stores numeric aggregates only, never text, findings, or digests.
-
-The page ships populated with a **simulated seed** so a fresh install is not an empty screen. Those numbers are demonstration data, not measurements; each tile says so on its own badge, and the first real check you run deletes the seed permanently.
-
-### MCP tools now run the real engines
-
-The MCP server previously described itself as governance middleware for finance and healthcare and answered from mock data. It now runs the shipped engines and tells the truth about what it cannot do.
-
-- `check_prompt` runs the real Veil engine with your active policy packs. It returns finding identifiers, categories, severities, counts, and verdicts only — the detected values, the replacement tokens, the sanitized text, and the submitted text never cross the tool boundary, because a tool result is copied into a model context and a client transcript.
-- `retrieve_policy` reads the real policy catalog and returns pack versions, authorities, and sources.
-- `compare_claims` is new, and runs the Plumb comparator.
-- `evaluate_response` chains Veil over the prompt, Veil over the draft, and the Plumb comparison when structured claims are supplied. Without them, the source-of-truth stage reports that it did not run, and the verdict can be no better than *revise*.
-
-**Two tools now fail closed instead of fabricating.** `enforce_citations` needs claim extraction from prose and a clause-level policy index; `get_audit_entry` needs a server-side receipt store. Neither exists in this build, so both return a labelled *not implemented* response rather than invented citation-coverage figures or an invented chain of checks. `get_metrics` is retired entirely: the server holds no measurable state, so every number it could return would have been simulated.
-
-Runtime usage telemetry is switched off, so no invocation record leaves your environment. A deterministic check asserts the leak boundary, the tool registry, and the fail-closed responses (`scripts/check-mcp.ts`).
-
-The Connect page was rebuilt to match: configuration snippets are generated from the origin serving your instance rather than a hosted URL, and the tool list reflects what the server actually exposes. **There is no authentication in this build** — anyone who can reach the URL can call every live tool. The page says so plainly.
-
-### Corrections we made to our own claims
-
-This section exists because a buyer evaluating a guardrail product deserves to know what we found when we audited ourselves.
-
-- **"Safe to merge — receipt saved."** The Plumb workbench said a receipt had been saved. Nothing was saved. The copy is now honest, and receipts genuinely exist.
-- **"Tamper-proof log for auditors."** Removed. Nothing in this build is tamper-evident.
-- **An unlabelled accuracy dial.** The executive view rendered a hard-coded 89.2% as "how often we're right", with no indication it was invented. It now carries a demo-data label, and the view has left the primary navigation.
-- **Unlabelled weekly totals.** The old Overview showed hard-coded protection counts as if they were measurements. Deleted, and replaced by the labelled ledger described above.
-- **Mock MCP tools presented as working.** Addressed by the rewiring above.
-- **"Available as a CLI and a web app."** The site's description claimed a CLI product. None exists; the description now says what actually ships — terminal checks and a local web app.
-- **Synthetic receipts and audit entries** now carry visible demo-data labels, and the receipts page no longer suggests handing a synthetic log to an auditor.
-
-Every number that remains anywhere in the product carries a maturity label. An unlabelled metric is treated as a defect, not a polish item.
-
-### Also in this release
-
-- A cross-platform, self-healing install path (`bun run setup`) that recovers from antivirus file-locks on Windows.
-- A deterministic check suite — shared contracts, Veil, Plumb, receipts, and MCP — run by `bun run check:core` and required to pass before a build ships.
-- A static product site, and specifications for a downloadable on-premises package (`docs/SPEC_DISTRIBUTION.md`).
-- Greyed-out placeholders on the Connect page for future proprietary-provider connections. They perform no connection and are labelled as roadmap.
-- Earlier history from the original repository was absorbed into `main` for continuity; the V1 platform tree supersedes its content.
+Independent privacy, security, and detection benchmarking is planned. Until it is complete and reproducible, all JurisCore AI metrics remain labeled with their maturity level.
 
 ---
 
-## What's next — roadmap, not shipped
-
-Updated 2026.09.30. Nothing here is available today.
-
-1. **Gateway API** — a versioned endpoint so applications can call Veil and Plumb without the UI. Still ahead.
-2. **More providers behind the gateway** — Anthropic is connected. OpenAI, Azure OpenAI, Google, and others are not.
-3. **Receipts on the server** — receipts are kept in your browser today. A server-side store with retention, search, and shared metrics is still ahead.
-4. **Login, roles, and tenant isolation** — needed before more than one person can use one server safely.
-5. **Semantic judge** — checking whether a model reply agrees with the policy text it cites. The card exists on the gateway page and is labelled Roadmap.
-6. **Detector gaps listed under Known issues** — generic `api_key=` values, AWS secret keys, and passwords in prose.
-7. **Remote gateway use behind HTTPS** — unlocking the gateway from another device, including through a TLS proxy. Today it works from the server's own machine only.
-
-Independent privacy, security, and detection benchmarking remains ahead of us. Until it is done and reproducible, our numbers stay labelled.
-
----
-
-Source, issues, and the full commit history: [github.com/AnaghaP09/juriscore-ai](https://github.com/AnaghaP09/juriscore-ai). The repository is a private product; all rights reserved.
+Source code, issues, and full commit history: [github.com/AnaghaP09/juriscore-ai](https://github.com/AnaghaP09/juriscore-ai)
+© 2026 JurisCore. All rights reserved.
