@@ -152,7 +152,7 @@ function PolicyLibrary() {
                   {editingId ? "Edit organizational policy" : "Add an organizational policy"}
                 </DialogTitle>
                 <DialogDescription>
-                  Custom policies are stored in this browser for the prototype and activated for
+                  Custom policies are stored in this browser and activated for
                   both Veil and Plumb.
                 </DialogDescription>
               </DialogHeader>

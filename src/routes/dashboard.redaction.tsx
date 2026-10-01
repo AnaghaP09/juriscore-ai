@@ -841,7 +841,7 @@ function VeilWorkbench() {
         <CardContent className="flex items-start gap-3 pt-4 text-xs text-muted-foreground">
           <AlertTriangle className="h-4 w-4 shrink-0 text-[color:var(--revise)]" aria-hidden />
           <p>
-            Prototype guardrail: review protected text before model use. Policy packs guide the
+            Review protected text before model use. Policy packs guide the
             checks; they do not prove complete de-identification, security, or regulatory
             compliance.
           </p>

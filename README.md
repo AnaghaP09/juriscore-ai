@@ -11,7 +11,7 @@ JurisCore has two core features:
 - **Veil** protects customer, operational, security, and regulated data before it enters or leaves an AI workflow.
 - **Plumb** checks documentation and product claims against code, configuration, schemas, policies, and APIs.
 
-Both features use the same Policy Library. The prototype includes versioned references for PII, HIPAA, SOC 2, MITRE ATLAS, NIST AI RMF, and NIST CSF, plus browser-local custom policies. Policy packs guide checks; they do not certify compliance.
+Both features use the same Policy Library. JurisCore includes versioned references for PII, HIPAA, SOC 2, MITRE ATLAS, NIST AI RMF, and NIST CSF, plus browser-local custom policies. Policy packs guide checks; they do not certify compliance.
 
 ## Commercial model
 
@@ -21,7 +21,7 @@ JurisCore is not an open-source product. The intended model is product-led and u
 - **Team:** metered API usage, custom policies, shared receipts, CI checks, and collaboration.
 - **Enterprise:** SSO, RBAC, private policy packs, dedicated data controls, and priority support.
 
-The source in this repository is a private product prototype and remains all rights reserved.
+The source in this repository is a private product and remains all rights reserved.
 
 ## Getting started
 
@@ -121,8 +121,9 @@ bun run build
   pinned in [`bun.lock`](bun.lock); `bun run setup` installs them.
 - **Node.js** `>= 20` — optional. Everything runs under Bun, but the setup
   script is also compatible with `node scripts/setup.mjs` if you prefer Node.
-- No database, API keys, or `.env` are required for local development — the V1
-  prototype runs entirely on deterministic, in-browser demo data.
+- No database is required. Veil and Plumb checks run entirely in the browser. The
+  optional LLM Gateway needs your proprietary LLM API key in `.env.local`; see the
+  Setup page.
 
 ## Troubleshooting
 
