@@ -42,7 +42,7 @@ Healthcare remains an optional Veil policy profile through the HIPAA reference p
 
 ## Plumb
 
-Plumb compares numeric assertions in a document against the value in code. Today it extracts three built-in subjects: the KYC threshold, the cross-border fee and the data-retention days. For each subject it takes the first sentence in the selected document that names the subject with a number; later sentences about the same subject are not checked. Values are compared as written: a code value of `-1` for retention is compared as minus one, not as "keep forever". Sources come from a pasted or uploaded diff, uploaded documents, or a public GitHub pull request fetched on request. The MCP tool `compare_claims` compares claims the caller supplies in structured form. Extraction of other claim types (prices, limits, API behaviour) is planned, not shipped.
+Plumb compares numeric assertions in a document against the value in code. Today it extracts three built-in subjects: the KYC threshold, the cross-border fee and the data-retention days. For each subject it takes the first sentence in the selected document that names the subject with a number; later sentences about the same subject are not checked. Values are compared as written: a code value of `-1` for retention is compared as minus one, not as "keep forever". Sources come from pasted diff or source text, a public GitHub pull request fetched on request, and uploaded documents that carry the assertions. The MCP tool `compare_claims` compares claims the caller supplies in structured form. Extraction of other claim types (prices, limits, API behaviour) is planned, not shipped.
 
 ### Use case 1: pull-request documentation drift
 
@@ -79,14 +79,14 @@ A receipt is written:
 No receipt is written for:
 
 - the built-in sample inputs (an edited sample is a real run);
-- the MCP tools `check_prompt` and `compare_claims`, which return results only;
+- the MCP tools (`check_prompt`, `compare_claims`, `evaluate_response`), which return results only; no MCP tool writes a receipt in this build;
 - a gateway run that fails at the provider (the page shows the error and the model drops to "not verified");
 - a gateway run cleared before its answer arrives;
 - a run whose digest cannot be computed in the browser (the UI shows an error and offers no download).
 
 ## Commercial model (proposed)
 
-This section describes the intended tiers. None of the tier controls is built: there is no login, no usage limit, no shared storage and no authenticated MCP. What ships today is the local product described under "V1 boundary"; `src/lib/juriscore/predict/entitlements.ts` reports everything else as roadmap.
+This section describes the intended tiers. None of the tier controls is built: there is no login, no usage limit, no shared storage and no authenticated MCP. What ships today is the local product described under "V1 boundary". The tier module in the code (`src/lib/juriscore/predict/entitlements.ts`) covers the predictive features only: the local risk score is available, the rest is reported as roadmap or as outside the chosen tier, and nothing is enforced.
 
 JurisCore uses a free-entry, paid-expansion model anchored on the self-hosted Enterprise deployment:
 
@@ -106,9 +106,9 @@ V1 (v2026.10.01) does:
 - write receipts as listed above and keep them in the browser history;
 - let users create, edit and delete custom policies in this browser;
 - send protected prompts to the user's own LLM provider through the optional gateway and check the reply with Veil;
-- label simulated evidence and sample results wherever they appear.
+- label simulated evidence and sample results on the linked pages (Overview, Veil, Plumb, Policy Library, Receipts, LLM Gateway). The unlinked analytics route still shows unlabelled mock figures.
 
-Network: the Veil and Plumb engines and the predictors make no network calls. Three paths do go out, each on a user action: fetching a public pull request from api.github.com, downloading the OCR engine files for scanned documents, and gateway calls to the configured provider (including its connection check). Nothing enforces network egress; that stays a deployment matter.
+Network: the Veil and Plumb engines and the predictors make no network calls. The page itself loads its fonts from Google Fonts on every load, so opening the app contacts Google unless that request is blocked. Three more paths go out, each on a user action: fetching a public pull request from api.github.com, downloading the OCR engine files for scanned documents, and gateway calls to the configured provider (including its connection check). Nothing enforces network egress; that stays a deployment matter.
 
 Removed: the legal-operations routes and their mock data. The pipeline, analytics, use-cases and CISO routes still exist at their URLs but are not linked from navigation.
 

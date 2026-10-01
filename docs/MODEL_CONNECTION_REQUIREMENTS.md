@@ -4,8 +4,8 @@
 
 - The gateway is on when `JURISCORE_LLM_API_KEY` is set in `.env.local` (the legacy
   `ANTHROPIC_API_KEY` is still read), unless `JURISCORE_GATEWAY=disabled`. The provider
-  defaults to Anthropic (`JURISCORE_LLM_PROVIDER`), the model list to the built-in list
-  (`JURISCORE_GATEWAY_MODELS`). There is no setting for allowed use cases. Setup steps are in
+  defaults to Anthropic (`JURISCORE_LLM_PROVIDER`), the model list to one model,
+  `claude-opus-5` (`JURISCORE_GATEWAY_MODELS` adds other supported models). There is no setting for allowed use cases. Setup steps are in
   `docs/GATEWAY_SETUP.md`; this document does not repeat them.
 - Anthropic is the one built-in provider adapter, through the customer's own account. The key
   is held by the server and never sent to the browser.
@@ -17,9 +17,10 @@
   boundary and has no multi-user authentication. Keep the server on your own machine or
   behind your own access control.
 - The dashboard **Active model** selector lists the server's model allowlist and shows the
-  server-reported connection state for the selected model. After unlock, and after a model
-  change, the page verifies the connection automatically. Any provider failure during a run
-  drops the model to "not verified" until a later check succeeds.
+  server-reported connection state for the selected model. After a successful unlock the page
+  verifies the selected model automatically. Choosing a model that has not been checked yet
+  checks it once; a model that already failed needs Retry or a new unlock. Any provider
+  failure during a run drops the model to "not verified" until a later check succeeds.
 - The **LLM Gateway** page sends prompts through Veil to the verified model and checks the
   reply with Veil. On the Veil workbench, **Copy** is still the handoff; its **Send to AI
   model** button stays unavailable until that page is wired to the gateway.
@@ -42,8 +43,8 @@ JurisCore must not try to guess which model is active. An administrator configur
 - [x] Add a server-side provider connection flow.
 - [x] Store provider credentials on the server, never in browser storage.
 - [x] Add a connection test and show its last verified time.
-- [x] Verify automatically after unlock and after a model change; drop to "not verified" after
-      a provider failure.
+- [x] Verify automatically after unlock, and once when an unchecked model is chosen; drop to
+      "not verified" after a provider failure.
 - [x] Replace **Not connected** with **Connected - provider name** only after validation succeeds.
 - [x] Enable **Send to configured model** only after a connection passes validation (LLM
       Gateway page; the Veil workbench button is not wired yet).
