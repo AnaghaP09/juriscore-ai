@@ -18,6 +18,8 @@ import {
   X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { badgeTone, riskKind, textTone, verdictKind, type StatusKind } from "@/lib/juriscore/ui/status-tone";
+import { veilStatus } from "@/lib/juriscore/ui/presentation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -87,17 +89,6 @@ Authorization: Bearer demoToken_92JkLm4NpQr7StUvWxYz
 
 Incident context: Exports started timing out after release 7.4. The customer reproduced the issue twice in the same workspace. Summarize the failure pattern for an engineering handoff without exposing customer identity or credentials.`;
 
-const verdictClass = {
-  allow: "border-[color:var(--allow)]/40 text-[color:var(--allow)]",
-  revise: "border-[color:var(--revise)]/40 text-[color:var(--revise)]",
-  block: "border-[color:var(--block)]/40 text-[color:var(--block)]",
-};
-
-const exposureBandClass: Record<DriftRiskBand, string> = {
-  low: "border-[color:var(--allow)]/40 text-[color:var(--allow)]",
-  uncertain: "border-[color:var(--revise)]/40 text-[color:var(--revise)]",
-  high: "border-[color:var(--block)]/40 text-[color:var(--block)]",
-};
 
 const SPAN_CATEGORY_LABEL: Record<ExposureSpanCategory, string> = {
   cloud_key: "Cloud or service key",
@@ -129,12 +120,16 @@ const FEATURE_LABEL: Record<string, string> = {
 
 const PROTECTION_TOKEN = /(\[(?:REDACTED_)?[A-Z_]+(?:_\d+)?\])/g;
 
-function renderProtectedText(text: string, keyPrefix: string) {
+function renderProtectedText(text: string, keyPrefix: string, neutral = false) {
   return text.split(PROTECTION_TOKEN).map((chunk, index) =>
     /^\[/.test(chunk) ? (
       <span
         key={`${keyPrefix}-token-${index}`}
-        className="inline-block px-1 rounded bg-[color:var(--block)]/15 text-[color:var(--block)]"
+        className={
+          neutral
+            ? "inline-block px-1 rounded bg-muted text-muted-foreground"
+            : "inline-block px-1 rounded bg-[color:var(--block)]/15 text-[color:var(--block)]"
+        }
       >
         {chunk}
       </span>
@@ -156,6 +151,7 @@ function renderSanitizedPreview(
   text: string,
   spans: ExposureSpan[],
   ruleMatches: ResidualRuleMatch[] = [],
+  neutral = false,
 ) {
   const marks = [
     ...spans.slice(0, MAX_HIGHLIGHTED_SPANS).map((span) => ({
@@ -175,23 +171,31 @@ function renderSanitizedPreview(
   let cursor = 0;
   marks.forEach((mark, index) => {
     if (mark.start < cursor) return;
-    nodes.push(...renderProtectedText(text.slice(cursor, mark.start), `before-${index}`));
+    nodes.push(...renderProtectedText(text.slice(cursor, mark.start), `before-${index}`, neutral));
     const { label } = mark;
     nodes.push(
       <mark
         key={`span-${mark.start}-${mark.end}-${label}`}
         title={mark.title}
-        className="rounded bg-[color:var(--revise)]/20 px-0.5 text-foreground underline decoration-[color:var(--revise)] decoration-dotted underline-offset-2"
+        className={
+          neutral
+            ? "rounded bg-muted px-0.5 text-foreground underline decoration-muted-foreground decoration-dotted underline-offset-2"
+            : "rounded bg-[color:var(--revise)]/20 px-0.5 text-foreground underline decoration-[color:var(--revise)] decoration-dotted underline-offset-2"
+        }
       >
         {text.slice(mark.start, mark.end)}
-        <sup className="ml-0.5 font-sans text-[9px] uppercase tracking-wide text-[color:var(--revise)]">
+        <sup
+          className={`ml-0.5 font-sans text-[9px] uppercase tracking-wide ${
+            neutral ? "text-muted-foreground" : "text-[color:var(--revise)]"
+          }`}
+        >
           {label}
         </sup>
       </mark>,
     );
     cursor = mark.end;
   });
-  nodes.push(...renderProtectedText(text.slice(cursor), "tail"));
+  nodes.push(...renderProtectedText(text.slice(cursor), "tail", neutral));
   return nodes;
 }
 
@@ -213,7 +217,14 @@ const formatBytes = (bytes: number) => {
 
 function VeilWorkbench() {
   const { activePolicyIds, customPolicies, recordVeilCheck, recordReceipt } = useDemoStore();
-  const [raw, setRaw] = useState(SYNTHETIC_SAMPLE);
+  // The workbench starts empty (PLAN-6): no result is shown before there is input. The
+  // built-in sample is a dry run behind a button: shown in neutral tones with a label and
+  // never recorded, until the text is edited.
+  const [raw, setRaw] = useState("");
+  const [isSample, setIsSample] = useState(false);
+  // Every input change takes a new generation; extraction callbacks from an older one are
+  // ignored, so a slower earlier upload can never show its text under a newer file's name.
+  const inputGeneration = useRef(0);
   const [strategy, setStrategy] = useState<VeilStrategy>("redact");
   const [copied, setCopied] = useState(false);
   const [uploadedDocument, setUploadedDocument] = useState<UploadedDocument | null>(null);
@@ -305,8 +316,11 @@ function VeilWorkbench() {
     () => JSON.stringify([strategy, encodePolicyVersion(policyRefs), raw]),
     [strategy, policyRefs, raw],
   );
-  const receipt = finalizedRun?.key === runKey ? finalizedRun.recorded.receipt : null;
-  const folderResult = finalizedRun?.key === runKey ? finalizedRun.recorded.folder : null;
+  // A loaded sample shows no receipt, folder note or receipt error, even if the same text
+  // was recorded as a real run earlier (PLAN-6): the sample is "not recorded".
+  const receipt = !isSample && finalizedRun?.key === runKey ? finalizedRun.recorded.receipt : null;
+  const folderResult =
+    !isSample && finalizedRun?.key === runKey ? finalizedRun.recorded.folder : null;
 
   useEffect(() => {
     setReceiptError(null);
@@ -329,11 +343,24 @@ function VeilWorkbench() {
   };
 
   const processDocument = async (file: File) => {
+    // A replacement is validated before it touches anything: a rejected file shows its
+    // error and leaves the current input, sample flag and any running extraction alone.
+    let kind: SupportedDocumentKind;
+    try {
+      kind = validateDocument(file);
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "The document could not be read.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+    const generation = ++inputGeneration.current;
+    const current = () => inputGeneration.current === generation;
     setUploadError(null);
     setProgress({ label: "Validating document", percent: 1 });
 
     try {
-      const kind = validateDocument(file);
+      // Only validated input replaces the previous text and its sample provenance.
+      setIsSample(false);
       releasePreview();
       const previewUrl = kind === "pdf" || kind === "png" ? URL.createObjectURL(file) : undefined;
       previewUrlRef.current = previewUrl ?? null;
@@ -346,20 +373,26 @@ function VeilWorkbench() {
       });
       setRaw("");
 
-      const extracted = await extractDocumentText(file, setProgress);
+      const extracted = await extractDocumentText(file, (report) => {
+        if (current()) setProgress(report);
+      });
+      if (!current()) return;
       setRaw(extracted.text);
-      setUploadedDocument((current) =>
-        current
+      setUploadedDocument((doc) =>
+        doc
           ? {
-              ...current,
+              ...doc,
               pageCount: extracted.pageCount,
               warnings: extracted.warnings,
             }
-          : current,
+          : doc,
       );
       setProgress({ label: "Document ready for Veil", percent: 100 });
-      window.setTimeout(() => setProgress(null), 1200);
+      window.setTimeout(() => {
+        if (current()) setProgress(null);
+      }, 1200);
     } catch (error) {
+      if (!current()) return;
       setProgress(null);
       setUploadError(error instanceof Error ? error.message : "The document could not be read.");
     } finally {
@@ -368,20 +401,48 @@ function VeilWorkbench() {
   };
 
   const clearDocument = () => {
+    inputGeneration.current += 1;
     releasePreview();
     setUploadedDocument(null);
     setUploadError(null);
     setProgress(null);
+    setIsSample(false);
     setRaw("");
   };
 
   const loadSample = () => {
+    inputGeneration.current += 1;
     releasePreview();
     setUploadedDocument(null);
     setUploadError(null);
     setProgress(null);
+    setIsSample(true);
     setRaw(SYNTHETIC_SAMPLE);
   };
+
+  const editText = (value: string) => {
+    inputGeneration.current += 1;
+    setProgress(null);
+    setIsSample(false);
+    setRaw(value);
+  };
+
+  // What the page may show (PLAN-6): nothing until there is input and extraction is done;
+  // the status, badge text and tone come from the shared presentation helper.
+  const view = veilStatus({
+    raw,
+    extracting: Boolean(progress),
+    isSample,
+    sanitizedVerdict: result.sanitizedVerdict,
+    requiresReview: result.requiresReview,
+    strategy,
+  });
+  const showResult = view.showResult;
+  // Sample runs are shown in neutral tones; real runs take the outcome's tone.
+  const badgeFor = (kind: StatusKind, count?: number) =>
+    isSample ? badgeTone("sample:any") : badgeTone(kind, count);
+  const textFor = (kind: StatusKind) => (isSample ? textTone("sample:any") : textTone(kind));
+  const protectionKind: StatusKind = view.resultKind;
 
   const recordCurrentRun = () => {
     const occurrences = result.findings.reduce((sum, finding) => sum + finding.count, 0);
@@ -408,7 +469,12 @@ function VeilWorkbench() {
    * shows the receipt error and resolves null.
    */
   const finalizeRun = async (): Promise<RecordedReceipt | null> => {
+    // A loaded, unedited sample is never recorded: no receipt, no metrics (PLAN-6).
+    if (isSample) return null;
     const key = runKey;
+    // A finalization that finishes after the input changed (or a sample was loaded) is
+    // stored in the history but never shown against the current input.
+    const generation = inputGeneration.current;
     const run = { result, raw, policyRefs, strategy };
     let reason = "A valid receipt could not be produced for this run.";
     try {
@@ -424,19 +490,19 @@ function VeilWorkbench() {
         },
       );
       if (recorded) {
-        setFinalizedRun({ key, recorded });
+        if (inputGeneration.current === generation) setFinalizedRun({ key, recorded });
         return recorded;
       }
     } catch (error) {
       if (error instanceof ReceiptError) reason = error.message;
     }
-    setReceiptError(reason);
+    if (inputGeneration.current === generation) setReceiptError(reason);
     return null;
   };
 
   const copySanitized = async () => {
     await navigator.clipboard.writeText(result.sanitizedText);
-    if (raw.trim()) void finalizeRun();
+    if (raw.trim() && !isSample) void finalizeRun();
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1500);
   };
@@ -445,7 +511,7 @@ function VeilWorkbench() {
     const recorded = raw.trim() ? await finalizeRun() : null;
     downloadText(
       veilReportFileName(fileTimestamp()),
-      veilReportText(result, strategy, recorded?.receipt ?? null),
+      veilReportText(result, strategy, recorded?.receipt ?? null, { sample: isSample }),
       "text/plain;charset=utf-8",
     );
   };
@@ -488,7 +554,7 @@ function VeilWorkbench() {
                 <AlertTriangle className="h-4 w-4 text-[color:var(--revise)]" aria-hidden />
                 Residual exposure
               </span>
-              <Badge variant="outline" className={exposureBandClass[exposure.band]}>
+              <Badge variant="outline" className={badgeFor(riskKind(exposure.band))}>
                 Residual exposure: {exposure.band}
                 {exposure.placeholder ? " (placeholder model)" : ""}
               </Badge>
@@ -515,9 +581,7 @@ function VeilWorkbench() {
                 <span className="font-medium">Baseline rule</span>
                 <Badge
                   variant="outline"
-                  className={
-                    baselineRule.flagged ? exposureBandClass.uncertain : exposureBandClass.low
-                  }
+                  className={badgeFor(baselineRule.flagged ? "rule:flagged" : "rule:clear")}
                 >
                   {baselineRule.flagged ? "Flagged" : "Not flagged"}
                 </Badge>
@@ -717,7 +781,7 @@ function VeilWorkbench() {
                   {progress.percent < 100 ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
                   ) : (
-                    <FileCheck2 className="h-3.5 w-3.5 text-[color:var(--allow)]" aria-hidden />
+                    <FileCheck2 className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
                   )}
                   {progress.label}
                 </span>
@@ -764,7 +828,7 @@ function VeilWorkbench() {
             <TabsTrigger value="tokenize">Tokenize</TabsTrigger>
           </TabsList>
         </Tabs>
-        <Badge variant="outline">All sensitive data protected</Badge>
+        {showResult && <Badge variant="outline">All sensitive data protected</Badge>}
       </div>
 
       <p className="-mt-4 text-xs text-muted-foreground" aria-live="polite">
@@ -791,10 +855,21 @@ function VeilWorkbench() {
               <span className="flex items-center gap-2">
                 <Badge variant="outline">Step 2</Badge>
                 Original document
+                {isSample && (
+                  <Badge variant="outline" className={badgeTone("sample:any")}>
+                    Sample · not recorded
+                  </Badge>
+                )}
               </span>
-              <Badge variant="outline" className={verdictClass[result.rawVerdict]}>
-                {result.rawVerdict.toUpperCase()}
-              </Badge>
+              {showResult ? (
+                <Badge variant="outline" className={badgeFor(verdictKind(result.rawVerdict))}>
+                  {result.rawVerdict.toUpperCase()}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className={badgeTone("sample:any")}>
+                  No input yet
+                </Badge>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -851,7 +926,7 @@ function VeilWorkbench() {
             <Textarea
               id="veil-raw"
               value={raw}
-              onChange={(event) => setRaw(event.target.value)}
+              onChange={(event) => editText(event.target.value)}
               rows={uploadedDocument ? 12 : 16}
               className="font-mono text-xs"
             />
@@ -862,13 +937,17 @@ function VeilWorkbench() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex flex-wrap items-center justify-between gap-3">
               <span className="flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-[color:var(--allow)]" aria-hidden />
+                {showResult && (
+                  <ShieldCheck className={`h-4 w-4 ${textFor(protectionKind)}`} aria-hidden />
+                )}
                 Permitted model input
               </span>
               <span className="flex items-center gap-2">
-                <Badge variant="outline" className={verdictClass[result.sanitizedVerdict]}>
-                  {result.sanitizedVerdict.toUpperCase()}
-                </Badge>
+                {showResult && (
+                  <Badge variant="outline" className={badgeFor(protectionKind)}>
+                    {view.badgeText}
+                  </Badge>
+                )}
                 <Button size="sm" variant="outline" onClick={requestCopy}>
                   {copied ? (
                     <Check className="h-3.5 w-3.5 mr-1.5" />
@@ -907,20 +986,18 @@ function VeilWorkbench() {
                     />
                   </div>
                 </div>
-              ) : raw ? (
+              ) : showResult ? (
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <span className="flex items-center gap-2 font-medium text-[color:var(--allow)]">
+                  <span className={`flex items-center gap-2 font-medium ${textFor(protectionKind)}`}>
                     <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
-                    {strategy === "redact" ? "Redacted" : "Tokenized"} in real time
+                    {view.statusText}
                   </span>
                   <span className="text-muted-foreground">
                     Protection runs locally as soon as text is ready.
                   </span>
                 </div>
               ) : (
-                <div className="text-xs text-muted-foreground">
-                  Upload a document or enter text to create permitted model input.
-                </div>
+                <div className="text-xs text-muted-foreground">{view.statusText}</div>
               )}
             </div>
             {confirmingCopy && (
@@ -950,10 +1027,15 @@ function VeilWorkbench() {
               aria-label="Sanitized output"
               className="rounded-md border border-border bg-muted/20 p-3 font-mono text-xs whitespace-pre-wrap min-h-[24rem] overflow-auto"
             >
-              {renderSanitizedPreview(result.sanitizedText, exposure.spans, baselineRule.matches)}
+              {renderSanitizedPreview(
+                result.sanitizedText,
+                exposure.spans,
+                baselineRule.matches,
+                isSample,
+              )}
             </pre>
-            {result.requiresReview && (
-              <p className="mt-3 text-xs text-muted-foreground">
+            {showResult && result.requiresReview && (
+              <p className={`mt-3 text-xs ${textFor("verdict:revise")}`}>
                 Review required before sending: {result.findings.length} detector categories
                 transformed under {result.policyIds.length} active policies.
               </p>
@@ -988,7 +1070,13 @@ function VeilWorkbench() {
               </tr>
             </thead>
             <tbody>
-              {result.findings.length === 0 ? (
+              {!showResult ? (
+                <tr>
+                  <td colSpan={4} className="px-4 py-6 text-center text-muted-foreground">
+                    Enter text or add a document to see what Veil protects.
+                  </td>
+                </tr>
+              ) : result.findings.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-4 py-6 text-center text-muted-foreground">
                     No configured sensitive category was detected.
@@ -1032,7 +1120,8 @@ function VeilWorkbench() {
                 size="sm"
                 variant="outline"
                 onClick={generateReceipt}
-                disabled={!raw.trim() || Boolean(progress)}
+                disabled={!raw.trim() || Boolean(progress) || isSample}
+                title={isSample ? "Sample runs are not recorded. Edit the text to make it a real run." : undefined}
               >
                 <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden />
                 Download receipt
@@ -1048,7 +1137,11 @@ function VeilWorkbench() {
             browser-local history on the Receipts tab, once per run. Save report downloads the
             protected text with a findings summary; it is never stored.
           </p>
-          <ReceiptSummary receipt={receipt} error={receiptError} verdictLabel="Raw input verdict" />
+          <ReceiptSummary
+            receipt={receipt}
+            error={isSample ? null : receiptError}
+            verdictLabel="Raw input verdict"
+          />
           <FolderWriteNote result={folderResult} />
         </CardContent>
       </Card>

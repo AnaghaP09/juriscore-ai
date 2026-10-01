@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { textTone, verdictKind } from "@/lib/juriscore/ui/status-tone";
 import type { ValidationReceipt } from "@/lib/juriscore/core/contracts";
 import type { FolderWriteResult } from "@/lib/juriscore/core/receipt-folder";
 
@@ -43,7 +44,9 @@ export function ReceiptSummary({
           </div>
           <div>
             <dt className="text-xs text-muted-foreground">{verdictLabel}</dt>
-            <dd className="font-mono uppercase">{receipt.verdict}</dd>
+            <dd className={`font-mono uppercase ${textTone(verdictKind(receipt.verdict))}`}>
+              {receipt.verdict}
+            </dd>
           </div>
           <div>
             <dt className="text-xs text-muted-foreground">Active policies</dt>

@@ -536,6 +536,17 @@ function assertNothingRan(h: Harness, label: string) {
     connections: Record<string, { state: string }>;
   };
   assert.equal(status.connections["claude-opus-5"].state, "failed");
+  // PLAN-6: every provider failure ends "connected", not only an auth failure, so a
+  // status reload after the failure cannot show green until a live check succeeds.
+  for (const failure of ["connection", "not_found", "rate_limit", "server"] as const) {
+    await connect(h, cookie);
+    h.fake.replies = [{ kind: "failure", failure }];
+    assert.equal((await h.handle("run", request("run", promptBody("hi"), { cookie }))).status, 502);
+    const reloaded = (await (await h.handle("status", request("status", {}, { cookie }))).json()) as {
+      connections: Record<string, { state: string; error?: string }>;
+    };
+    assert.equal(reloaded.connections["claude-opus-5"].state, "failed", `${failure} marks failed`);
+  }
 
   // The reply is checked by Veil on the way back.
   await connect(h, cookie);

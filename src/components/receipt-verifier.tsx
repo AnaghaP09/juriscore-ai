@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { textTone } from "@/lib/juriscore/ui/status-tone";
 import { CheckCircle2, Upload, X, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,9 +42,7 @@ function MatchLine({ label, match }: { label: string; match: DigestMatch }) {
   const matches = match === "matches";
   return (
     <p
-      className={`flex items-center gap-2 text-sm ${
-        matches ? "text-[color:var(--allow)]" : "text-[color:var(--block)]"
-      }`}
+      className={`flex items-center gap-2 text-sm ${textTone(matches ? "verify:match" : "verify:mismatch")}`}
     >
       {matches ? (
         <CheckCircle2 className="h-4 w-4" aria-hidden />

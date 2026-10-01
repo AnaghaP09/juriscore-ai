@@ -16,6 +16,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { badgeTone, borderTone, textTone, verdictKind } from "@/lib/juriscore/ui/status-tone";
+import { gatewayBanner, gatewayScrub } from "@/lib/juriscore/ui/presentation";
 import { PageHeader } from "@/components/page-header";
 import { useDemoStore } from "@/lib/juriscore/demo-store";
 import type { ValidationReceipt, ValidatorVerdict } from "@/lib/juriscore/core/contracts";
@@ -57,11 +59,6 @@ export const Route = createFileRoute("/dashboard/gateway")({
 const PROFILE = "all_sensitive" as const;
 const STRATEGY = "redact" as const;
 
-const verdictClass: Record<ValidatorVerdict, string> = {
-  allow: "border-[color:var(--allow)]/40 text-[color:var(--allow)]",
-  revise: "border-[color:var(--revise)]/40 text-[color:var(--revise)]",
-  block: "border-[color:var(--block)]/40 text-[color:var(--block)]",
-};
 
 // Only the fields the server's schema accepts: a custom policy is request-scoped there.
 function policyForRequest(policy: PolicyDefinition): PolicyDefinition {
@@ -122,6 +119,8 @@ function Gateway() {
     recordReceipt,
     gatewaySessionTicket,
     markGatewayLocked,
+    markModelFailed,
+    checkingModels,
   } = useDemoStore();
   // The page starts empty on every visit: no prefilled prompt, no result. Recent runs
   // live in memory only, so a reload clears them too, and Clear returns the page to zero.
@@ -154,11 +153,32 @@ function Gateway() {
   const status = gateway.phase === "ready" ? gateway.status : null;
   const connection = status?.connections[activeModel];
   const connected = Boolean(status?.configured && connection?.state === "connected");
+  const recovering = checkingModels.includes("__recovery__");
+  const checking =
+    checkingModels.includes(activeModel) || recovering || checkingModels.includes("__refresh__");
+  // The banner's state and colour come from one shared selector (PLAN-6).
+  const banner = gatewayBanner({
+    phase: gateway.phase,
+    unavailableReason: gateway.phase === "unavailable" ? gateway.reason : undefined,
+    message: gateway.phase === "unavailable" || gateway.phase === "status-unknown" ? gateway.message : undefined,
+    configured: status?.configured,
+    connectionState: connection?.state,
+    connectionError: connection?.state === "failed" ? connection.error : undefined,
+    checking,
+    recovering,
+  });
+  const scrub = gatewayScrub({
+    prompt,
+    blocked: preview.blocked,
+    sanitizedVerdict: preview.result.sanitizedVerdict,
+    requiresReview: preview.result.requiresReview,
+  });
 
   let sendBlockedReason: string | null = null;
   if (killSwitch) sendBlockedReason = "Emergency stop is on.";
   else if (gateway.phase === "locked") sendBlockedReason = "Unlock the gateway in the header.";
   else if (!status || !status.configured) sendBlockedReason = "The gateway is not configured.";
+  else if (checking) sendBlockedReason = "Checking the connection…";
   else if (!connected) sendBlockedReason = "Test the connection to the active model first.";
   else if (!prompt.trim()) sendBlockedReason = "Enter a prompt.";
 
@@ -203,6 +223,7 @@ function Gateway() {
       // Every completed gateway run stores its full, text-free receipt in the history.
       void recordReceipt(response.receipt).catch(() => undefined);
       pushRun({
+        kind: "run",
         receiptId: response.receipt.id,
         ts: response.receipt.createdAt,
         model: response.run.modelId,
@@ -211,15 +232,32 @@ function Gateway() {
         latencyMs: response.run.latencyMs,
       });
     } catch (caught) {
-      if (!sequencer.current.isCurrent(clientRequestId)) return;
+      // Shared state first, before the page's own cancellation rule: a provider failure
+      // ends "Connected" and a lost session locks the header even if Clear was pressed
+      // meanwhile (PLAN-6). Both are ticket-guarded against a newer unlock.
+      const providerFailure =
+        caught instanceof GatewayHttpError &&
+        (caught.code === "provider-error" || caught.code === "model-not-connected");
+      if (providerFailure) {
+        markModelFailed(activeModel, (caught as GatewayHttpError).message, sessionTicket);
+      }
       if (needsUnlock(caught)) {
         markGatewayLocked((caught as GatewayHttpError).code === "session-expired", sessionTicket);
-        setError("The gateway session ended. Unlock it again from the header.");
-      } else if (caught instanceof GatewayHttpError) {
-        setError(caught.message);
-      } else {
-        setError("The request did not reach the gateway.");
       }
+      if (!sequencer.current.isCurrent(clientRequestId)) return;
+      const reason = needsUnlock(caught)
+        ? "The gateway session ended. Unlock it again from the header."
+        : caught instanceof GatewayHttpError
+          ? caught.message
+          : "The request did not reach the gateway.";
+      setError(reason);
+      pushRun({
+        kind: "failed",
+        id: clientRequestId,
+        ts: new Date().toISOString(),
+        model: activeModel,
+        error: reason,
+      });
     } finally {
       if (sequencer.current.isCurrent(clientRequestId)) setSending(false);
     }
@@ -237,12 +275,12 @@ function Gateway() {
 
   return (
     <div className="p-6 sm:p-8 space-y-6">
-      {!connected && (
+      {banner && (
         <div
           role="note"
-          className="rounded-lg border border-[color:var(--revise)]/30 bg-[color:var(--revise)]/[0.06] px-4 py-3 text-sm"
+          className={`rounded-lg border px-4 py-3 text-sm ${borderTone(banner.kind)} bg-muted/20`}
         >
-          <span className="font-medium text-[color:var(--revise)]">No model connected.</span>{" "}
+          <span className={`font-medium ${textTone(banner.kind)}`}>{banner.text}</span>{" "}
           Nothing on this page leaves your browser until a model passes a live connection check. The
           input scrub below runs locally; no verdict, latency, or token count is shown until a real
           run returns one.
@@ -334,19 +372,17 @@ function Gateway() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
+            {!scrub.visible ? (
+              <p className="text-xs text-muted-foreground">{scrub.emptyText}</p>
+            ) : (
+              <>
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className={verdictClass[preview.result.rawVerdict]}>
+              <Badge variant="outline" className={badgeTone(verdictKind(preview.result.rawVerdict))}>
                 Raw input {preview.result.rawVerdict.toUpperCase()}
               </Badge>
-              {preview.blocked ? (
-                <Badge variant="outline" className={verdictClass.block}>
-                  Will not be sent
-                </Badge>
-              ) : (
-                <Badge variant="outline" className={verdictClass.allow}>
-                  Safe to send after protection
-                </Badge>
-              )}
+              <Badge variant="outline" className={badgeTone(scrub.sendKind)}>
+                {scrub.sendText}
+              </Badge>
             </div>
             {preview.blocked && <p className="text-xs">{preview.reason}</p>}
             <FindingList
@@ -366,6 +402,8 @@ function Gateway() {
                 {preview.text}
               </pre>
             )}
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -379,7 +417,9 @@ function Gateway() {
             {result ? (
               <>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline">{result.run.status}</Badge>
+                  <Badge variant="outline" className={badgeTone(`run:${result.run.status}`)}>
+                    {result.run.status}
+                  </Badge>
                   <span className="font-mono text-xs text-muted-foreground">
                     {result.run.modelId}
                   </span>
@@ -419,6 +459,8 @@ function Gateway() {
                   </p>
                 )}
               </>
+            ) : error ? (
+              <p className={`text-xs ${textTone("attempt:failed")}`}>Attempt failed: {error}</p>
             ) : (
               <p className="text-xs text-muted-foreground">
                 No runs yet. Type a prompt above and send it through JurisCore.
@@ -438,7 +480,7 @@ function Gateway() {
               <>
                 <Badge
                   variant="outline"
-                  className={verdictClass[result.run.outputCheck.rawVerdict]}
+                  className={badgeTone(verdictKind(result.run.outputCheck.rawVerdict))}
                 >
                   Reply {result.run.outputCheck.rawVerdict.toUpperCase()}
                 </Badge>
@@ -487,7 +529,7 @@ function Gateway() {
             <div className="truncate">id {result.receipt.id}</div>
             <div>
               verdict{" "}
-              <Badge variant="outline" className={verdictClass[result.receipt.verdict]}>
+              <Badge variant="outline" className={badgeTone(verdictKind(result.receipt.verdict))}>
                 {result.receipt.verdict}
               </Badge>
             </div>
@@ -509,20 +551,34 @@ function Gateway() {
           </CardHeader>
           <CardContent>
             <div className="space-y-1 max-h-60 overflow-y-auto">
-              {recentRuns.map((run) => (
-                <div
-                  key={run.receiptId}
-                  className="flex items-center gap-3 py-1.5 px-2 rounded hover:bg-muted/40 text-xs font-mono"
-                >
-                  <span className="text-muted-foreground">{run.ts.slice(11, 19)}</span>
-                  <span className="w-36 truncate">{gatewayModelLabel(run.model)}</span>
-                  <Badge variant="outline" className={`text-[10px] ${verdictClass[run.verdict]}`}>
-                    {run.verdict}
-                  </Badge>
-                  <span className="text-muted-foreground">{run.status}</span>
-                  <span className="text-muted-foreground">{run.latencyMs} ms</span>
-                </div>
-              ))}
+              {recentRuns.map((run) =>
+                run.kind === "failed" ? (
+                  <div
+                    key={run.id}
+                    className="flex items-center gap-3 py-1.5 px-2 rounded hover:bg-muted/40 text-xs font-mono"
+                  >
+                    <span className="text-muted-foreground">{run.ts.slice(11, 19)}</span>
+                    <span className="w-36 truncate">{gatewayModelLabel(run.model)}</span>
+                    <Badge variant="outline" className={`text-[10px] ${badgeTone("attempt:failed")}`}>
+                      failed
+                    </Badge>
+                    <span className={textTone("attempt:failed")}>{run.error}</span>
+                  </div>
+                ) : (
+                  <div
+                    key={run.receiptId}
+                    className="flex items-center gap-3 py-1.5 px-2 rounded hover:bg-muted/40 text-xs font-mono"
+                  >
+                    <span className="text-muted-foreground">{run.ts.slice(11, 19)}</span>
+                    <span className="w-36 truncate">{gatewayModelLabel(run.model)}</span>
+                    <Badge variant="outline" className={`text-[10px] ${badgeTone(verdictKind(run.verdict))}`}>
+                      {run.verdict}
+                    </Badge>
+                    <span className={textTone(`run:${run.status}`)}>{run.status}</span>
+                    <span className="text-muted-foreground">{run.latencyMs} ms</span>
+                  </div>
+                ),
+              )}
             </div>
           </CardContent>
         </Card>

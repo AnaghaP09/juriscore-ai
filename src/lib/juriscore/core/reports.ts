@@ -16,13 +16,23 @@ export function plumbReportFileName(stamp: string) {
 }
 
 /** Sanitized text plus a findings summary: labels and counts, never detected values. */
+export interface ReportProvenance {
+  /** The run used the built-in sample, or a sample document: shown for illustration only. */
+  sample?: boolean;
+}
+
+export const SAMPLE_REPORT_NOTICE =
+  "SAMPLE RUN: synthetic demonstration data, not a real check. Not recorded and not a receipt.";
+
 export function veilReportText(
   result: VeilResult,
   strategy: VeilStrategy,
   receipt: PersistedReceipt | null,
+  provenance: ReportProvenance = {},
 ) {
   const lines = [
     "JurisCore Veil report",
+    ...(provenance.sample ? ["", SAMPLE_REPORT_NOTICE] : []),
     "",
     `Raw input verdict: ${result.rawVerdict.toUpperCase()}`,
     `Sanitized verdict: ${result.sanitizedVerdict.toUpperCase()}`,
@@ -59,9 +69,14 @@ function cell(text: string) {
 }
 
 /** Verdict, the claims compared, and the evidence references for each. */
-export function plumbReportMarkdown(result: PlumbResult, receipt: PersistedReceipt | null) {
+export function plumbReportMarkdown(
+  result: PlumbResult,
+  receipt: PersistedReceipt | null,
+  provenance: ReportProvenance = {},
+) {
   const lines = [
     "# JurisCore Plumb report",
+    ...(provenance.sample ? ["", `> **${SAMPLE_REPORT_NOTICE}**`] : []),
     "",
     `- Verdict: **${result.verdict.toUpperCase()}**`,
     `- Receipt: ${receipt?.id ?? "none"}`,

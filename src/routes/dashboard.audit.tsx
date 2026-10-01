@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { borderTone, softTone, textTone, verdictKind } from "@/lib/juriscore/ui/status-tone";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -73,12 +74,11 @@ export const Route = createFileRoute("/dashboard/audit")({
 const PAGE_SIZE = 50;
 
 function verdictColor(v: Verdict) {
-  return v === "allow"
-    ? "bg-[color:var(--allow)]/15 text-[color:var(--allow)] border-[color:var(--allow)]/30"
-    : v === "block"
-      ? "bg-[color:var(--block)]/15 text-[color:var(--block)] border-[color:var(--block)]/30"
-      : "bg-[color:var(--revise)]/15 text-[color:var(--revise)] border-[color:var(--revise)]/30";
+  return softTone(verdictKind(v));
 }
+
+/** Demo rows are generated, not checked: never coloured, always labelled. */
+const DEMO_BADGE = softTone("sample:any");
 
 function pageLabel(offset: number, shown: number, total: number) {
   if (total === 0) return "Showing 0 of 0";
@@ -612,11 +612,13 @@ function OpenReceipt() {
                 </div>
                 <div>
                   <dt className="text-xs text-muted-foreground">Schema</dt>
-                  <dd className="text-[color:var(--allow)]">Valid receipt</dd>
+                  <dd className={textTone("verify:match")}>Valid receipt</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-muted-foreground">Verdict</dt>
-                  <dd className="font-mono uppercase">{opened.receipt.verdict}</dd>
+                  <dd className={`font-mono uppercase ${textTone(verdictKind(opened.receipt.verdict))}`}>
+                    {opened.receipt.verdict}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-xs text-muted-foreground">Digest version</dt>
@@ -888,8 +890,8 @@ function DemoRecords() {
                         {r.retrievedPolicyIds[0] ?? "—"}
                       </td>
                       <td className="px-4 py-2">
-                        <Badge className={`border ${verdictColor(r.verdict)}`} variant="outline">
-                          {r.verdict}
+                        <Badge className={`border ${DEMO_BADGE}`} variant="outline" title="Synthetic demo record, not a check">
+                          {r.verdict} · demo
                         </Badge>
                       </td>
                       <td className="px-4 py-2 text-right font-mono text-xs">{r.latencyMs}ms</td>
@@ -923,6 +925,9 @@ function DemoRecords() {
                   {selected.domain} · {selected.useCase} ·{" "}
                   {selected.ts.slice(0, 16).replace("T", " ")}
                 </SheetDescription>
+                <Badge variant="outline" className={`w-fit ${DEMO_BADGE}`}>
+                  Demo data · synthetic · not a real check
+                </Badge>
               </SheetHeader>
               <div className="mt-6 space-y-4 px-1">
                 <Stage title="1 · Prompt" body={selected.prompt} />
@@ -933,7 +938,7 @@ function DemoRecords() {
                       ? `BLOCKED — ${selected.reason}`
                       : "Passed — no PII/injection detected"
                   }
-                  tone={selected.blockedStage === "input_guardrail" ? "block" : "allow"}
+                  demo
                 />
                 <Stage
                   title="3 · Retrieved policies"
@@ -944,20 +949,14 @@ function DemoRecords() {
                 <Stage
                   title="5 · Citation check"
                   body={`Coverage ${(selected.citationCoverage * 100).toFixed(0)}%${selected.blockedStage === "citation" ? ` — ${selected.reason}` : ""}`}
-                  tone={
-                    selected.blockedStage === "citation"
-                      ? "block"
-                      : selected.citationCoverage < 0.7
-                        ? "revise"
-                        : "allow"
-                  }
+                  demo
                 />
                 <Stage
                   title="6 · Final verdict"
                   body={
                     selected.finalResponse ?? `Blocked — ${selected.reason ?? "policy violation"}`
                   }
-                  tone={selected.verdict}
+                  demo
                 />
               </div>
             </>
@@ -971,22 +970,16 @@ function DemoRecords() {
 function Stage({
   title,
   body,
-  tone,
+  demo,
   mono,
 }: {
   title: string;
   body: string;
-  tone?: Verdict;
+  /** Synthetic demo traces are never coloured (PLAN-6). */
+  demo?: boolean;
   mono?: boolean;
 }) {
-  const border =
-    tone === "block"
-      ? "border-[color:var(--block)]/40"
-      : tone === "allow"
-        ? "border-[color:var(--allow)]/40"
-        : tone === "revise"
-          ? "border-[color:var(--revise)]/40"
-          : "border-border";
+  const border = demo ? borderTone("sample:any") : "border-border";
   return (
     <div className={`rounded-md border ${border} bg-muted/20 p-3`}>
       <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1">{title}</div>

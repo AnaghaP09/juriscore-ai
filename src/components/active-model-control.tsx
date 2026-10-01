@@ -5,6 +5,7 @@ import { gatewayModelLabel } from "@/lib/juriscore/gateway/models";
 import { unlockBlockedByLocation } from "@/lib/juriscore/gateway/loopback";
 import { suggestUnlockPhrase } from "@/lib/juriscore/gateway/suggest-phrase";
 import { Badge } from "@/components/ui/badge";
+import { badgeTone } from "@/lib/juriscore/ui/status-tone";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -26,9 +27,14 @@ import {
 /** The single home of the setup steps (PLAN-5). The UI links here and holds no steps. */
 export const GATEWAY_SETUP_URL = "https://anaghap09.github.io/juriscore-ai/setup.html";
 
-const mutedBadge = "border-border text-muted-foreground";
-const allowBadge = "border-[color:var(--allow)]/40 text-[color:var(--allow)]";
-const blockBadge = "border-[color:var(--block)]/40 text-[color:var(--block)]";
+// Every badge colour comes from the shared legend (PLAN-6).
+const mutedBadge = badgeTone("connection:not_connected");
+const allowBadge = badgeTone("connection:connected");
+const blockBadge = badgeTone("connection:failed");
+const checkingBadge = badgeTone("connection:checking");
+const errorBadge = badgeTone("gateway:error");
+const recoveringBadge = badgeTone("gateway:recovering");
+const statusFailedBadge = badgeTone("gateway:status-failed");
 
 function verifiedTime(iso: string | null) {
   if (!iso) return "";
@@ -95,7 +101,7 @@ export function ActiveModelControl() {
   } else if (gateway.phase === "unavailable" && gateway.reason === "error") {
     control = (
       <>
-        <Badge variant="outline" className={mutedBadge} title={gateway.message}>
+        <Badge variant="outline" className={errorBadge} title={gateway.message}>
           Gateway unavailable
         </Badge>
         <Button
@@ -120,7 +126,11 @@ export function ActiveModelControl() {
     const recovering = checkingModels.length > 0;
     control = (
       <>
-        <Badge variant="outline" className={mutedBadge} title={gateway.message}>
+        <Badge
+          variant="outline"
+          className={recovering ? recoveringBadge : statusFailedBadge}
+          title={gateway.message}
+        >
           {recovering ? "Unlocked. Loading gateway status…" : "Unlocked. Could not load gateway status."}
         </Badge>
         <Button
@@ -153,7 +163,7 @@ export function ActiveModelControl() {
     let badge: ReactNode;
     if (checking) {
       badge = (
-        <Badge variant="outline" className={mutedBadge}>
+        <Badge variant="outline" className={checkingBadge}>
           <Loader2 className="h-3 w-3 mr-1 animate-spin" aria-hidden />
           Checking…
         </Badge>
