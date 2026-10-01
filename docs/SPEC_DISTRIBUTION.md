@@ -1,5 +1,10 @@
 # Spec: static product page on GitHub Pages and downloadable on-prem package
 
+> **Historical spec, written 1 August 2026.** The package, the release workflow and the Pages
+> site now exist (four pages: home, Setup, Run and Release notes). The pending status, the
+> version naming and the "no external calls" assumption below are not current instructions.
+> Read `packaging/RUN.md`, `GATEWAY_SETUP.md` and `RELEASE_NOTES.md` instead.
+
 Status: requested by the founder 2026-08-01; ready for implementation.
 Owner: product. Implementer: engineering (main session). This spec is the docs-side record; no application code is changed by this document.
 
