@@ -11,6 +11,7 @@ on:
       - "landing/**"
       - "docs/GATEWAY_SETUP.md"
       - "packaging/RUN.md"
+      - "docs/RELEASE_NOTES.md"
       - "scripts/build-landing-docs.ts"
       - "scripts/check-landing-docs.ts"
       - ".github/workflows/deploy-pages.yml"
@@ -41,9 +42,9 @@ jobs:
         with:
           bun-version: latest
 
-      # Setup and Run pages are rendered from docs/GATEWAY_SETUP.md and packaging/RUN.md
-      # at deploy time (PLAN-7). Node built-ins only, so no dependency install is needed.
-      - name: Render Setup and Run pages
+      # Setup, Run and Release notes pages are rendered from their Markdown sources at
+      # deploy time (PLAN-7). Node built-ins only, so no dependency install is needed.
+      - name: Render Setup, Run and Release notes pages
         run: bun scripts/build-landing-docs.ts
 
       - name: Configure Pages
